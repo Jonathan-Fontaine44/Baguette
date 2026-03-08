@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
+endif()
+
 # ── Library ────────────────────────────────────────────────────────────────────
 
 add_library(Baguette
@@ -38,5 +42,4 @@ target_link_libraries(BaguetteTests PRIVATE
     Catch2::Catch2WithMain
 )
 
-include(Catch)
-catch_discover_tests(BaguetteTests)
+add_test(NAME BaguetteTests COMMAND BaguetteTests)

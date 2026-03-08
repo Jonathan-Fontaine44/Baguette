@@ -140,6 +140,30 @@ TEST_CASE("LinearExpr operator+ sums constants", "[LinearExpr]") {
     REQUIRE(c.constant == Approx(8.0));
 }
 
+TEST_CASE("LinearExpr addTerm ignores zero coefficient", "[LinearExpr]") {
+    LinearExpr e;
+    e.addTerm(Variable{1}, 0.0);
+    REQUIRE(e.empty());
+}
+
+TEST_CASE("LinearExpr operator* var * coeff", "[LinearExpr]") {
+    auto e = Variable{4} * 3.0;
+    REQUIRE(e.size() == 1);
+    REQUIRE(e.varIds[0] == 4);
+    REQUIRE(e.coeffs[0] == Approx(3.0));
+}
+
+TEST_CASE("Domain with floating-point bounds", "[Domain]") {
+    Domain d{1.5, 2.5};
+    REQUIRE(d.contains(1.5));
+    REQUIRE(d.contains(2.0));
+    REQUIRE(d.contains(2.5));
+    REQUIRE_FALSE(d.contains(1.4));
+    REQUIRE_FALSE(d.contains(2.6));
+    REQUIRE_FALSE(d.isEmpty());
+    REQUIRE_FALSE(d.isFixed());
+}
+
 // ── Sense ─────────────────────────────────────────────────────────────────────
 
 TEST_CASE("Sense enum values are distinct", "[Sense]") {

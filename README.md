@@ -61,9 +61,9 @@ The modeling layer (called once before solve) is exempt — `addVar()` / `addCon
 **Requirements:** CMake 3.20+, a C++20-capable compiler (GCC 11+, Clang 14+, MSVC 19.29+), Catch2 v3.
 
 ```bash
-cmake -S . -B build             # configure (out-of-source build in build/)
-cmake --build build             # compile
-ctest --test-dir build          # run tests
+cmake -S . -B build                      # configure
+cmake --build build --config Debug       # compile
+ctest --test-dir build -C Debug          # run tests
 ```
 
 ---
