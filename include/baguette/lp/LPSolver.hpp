@@ -30,6 +30,10 @@ LPResult solve(const Model& model,
 ///       final tableau state. They cannot be recovered from an LPResult after
 ///       the fact — call this function directly if you need them.
 ///
+/// @note Dual variables for `Sense::Equal` constraints are always 0.
+///       Artificial variables are stripped before phase II, so their shadow
+///       price cannot be recovered from the tableau's reduced-cost row.
+///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum number of simplex pivots. 0 = unlimited.
 /// @param timeLimitS Wall-clock time limit in seconds. 0.0 = unlimited.
