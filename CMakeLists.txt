@@ -14,6 +14,9 @@ endif()
 add_library(Baguette
     src/core/LinearExpr.cpp
     src/model/Model.cpp
+    src/lp/StandardForm.cpp
+    src/lp/Tableau.cpp
+    src/lp/LPSolver.cpp
 )
 
 target_include_directories(Baguette PUBLIC
@@ -37,6 +40,7 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(BaguetteTests
     tests/test_core.cpp
     tests/test_model.cpp
+    tests/test_lp.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE
@@ -46,3 +50,22 @@ target_link_libraries(BaguetteTests PRIVATE
 
 include(Catch)
 catch_discover_tests(BaguetteTests DISCOVERY_MODE PRE_TEST)
+
+# ── Internal (white-box) tests ─────────────────────────────────────────────────
+# These tests have access to src/ headers and exercise internal components
+# (StandardForm, Tableau) that are not part of the public API.
+
+add_executable(BaguetteInternalTests
+    tests/test_standard_form.cpp
+)
+
+target_link_libraries(BaguetteInternalTests PRIVATE
+    Baguette
+    Catch2::Catch2WithMain
+)
+
+target_include_directories(BaguetteInternalTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+catch_discover_tests(BaguetteInternalTests DISCOVERY_MODE PRE_TEST)

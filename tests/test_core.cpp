@@ -183,6 +183,86 @@ TEST_CASE("LinearExpr operator* var * coeff", "[LinearExpr]") {
     REQUIRE(e.coeffs[0] == Approx(3.0));
 }
 
+TEST_CASE("LinearExpr operator*= scales coefficients and constant", "[LinearExpr]") {
+    auto e = 2.0 * Variable{0} + 4.0 * Variable{1};
+    e.constant = 3.0;
+    e *= 2.0;
+    REQUIRE(e.coeffs[0] == Approx(4.0));
+    REQUIRE(e.coeffs[1] == Approx(8.0));
+    REQUIRE(e.constant  == Approx(6.0));
+}
+
+TEST_CASE("LinearExpr operator- subtracts disjoint expressions", "[LinearExpr]") {
+    auto a = 3.0 * Variable{0};
+    auto b = 2.0 * Variable{1};
+    auto c = a - b;
+    REQUIRE(c.size() == 2);
+    REQUIRE(c.coeffs[0] == Approx( 3.0)); // var 0
+    REQUIRE(c.coeffs[1] == Approx(-2.0)); // var 1 (negated)
+}
+
+TEST_CASE("LinearExpr operator- subtracts common variable", "[LinearExpr]") {
+    auto a = 5.0 * Variable{1};
+    auto b = 2.0 * Variable{1};
+    auto c = a - b;
+    REQUIRE(c.size() == 1);
+    REQUIRE(c.coeffs[0] == Approx(3.0));
+}
+
+TEST_CASE("LinearExpr operator- cancels equal expressions", "[LinearExpr]") {
+    auto a = 4.0 * Variable{1};
+    auto b = 4.0 * Variable{1};
+    auto c = a - b;
+    REQUIRE(c.empty());
+}
+
+TEST_CASE("LinearExpr operator- subtracts constants", "[LinearExpr]") {
+    LinearExpr a, b;
+    a.constant = 9.0;
+    b.constant = 4.0;
+    auto c = a - b;
+    REQUIRE(c.constant == Approx(5.0));
+}
+
+TEST_CASE("LinearExpr operator-= subtracts in-place", "[LinearExpr]") {
+    auto a = 6.0 * Variable{0} + 3.0 * Variable{1};
+    a -= 2.0 * Variable{0};
+    REQUIRE(a.size() == 2);
+    REQUIRE(a.coeffs[0] == Approx(4.0)); // 6 - 2
+    REQUIRE(a.coeffs[1] == Approx(3.0)); // unchanged
+}
+
+TEST_CASE("LinearExpr operator/ var / coeff creates scaled term", "[LinearExpr]") {
+    auto e = Variable{3} / 4.0;
+    REQUIRE(e.size() == 1);
+    REQUIRE(e.varIds[0] == 3);
+    REQUIRE(e.coeffs[0] == Approx(0.25));
+}
+
+TEST_CASE("LinearExpr operator/ coeff / var creates scaled term", "[LinearExpr]") {
+    auto e = 4.0 / Variable{3};
+    REQUIRE(e.size() == 1);
+    REQUIRE(e.varIds[0] == 3);
+    REQUIRE(e.coeffs[0] == Approx(0.25)); // 1.0 / 4.0
+}
+
+TEST_CASE("LinearExpr operator/ expr / factor divides coefficients", "[LinearExpr]") {
+    auto e = 6.0 * Variable{0} + 3.0 * Variable{1};
+    e.constant = 9.0;
+    auto f = e / 3.0;
+    REQUIRE(f.coeffs[0] == Approx(2.0));
+    REQUIRE(f.coeffs[1] == Approx(1.0));
+    REQUIRE(f.constant  == Approx(3.0));
+}
+
+TEST_CASE("LinearExpr operator/= divides in-place", "[LinearExpr]") {
+    auto e = 8.0 * Variable{0};
+    e.constant = 4.0;
+    e /= 2.0;
+    REQUIRE(e.coeffs[0] == Approx(4.0));
+    REQUIRE(e.constant  == Approx(2.0));
+}
+
 TEST_CASE("Domain with floating-point bounds", "[Domain]") {
     Domain d{1.5, 2.5};
     REQUIRE(d.contains(1.5));

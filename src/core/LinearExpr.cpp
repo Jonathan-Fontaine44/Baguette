@@ -10,7 +10,7 @@ void LinearExpr::addTerm(Variable var, double coeff) {
     if (it != varIds.end() && *it == var.id) {
         std::size_t idx = static_cast<std::size_t>(it - varIds.begin());
         coeffs[idx] += coeff;
-        if (std::abs(coeffs[idx]) <= precision) {
+        if (std::abs(coeffs[idx]) <= cancellation_tol) {
             varIds.erase(it);
             coeffs.erase(coeffs.begin() + static_cast<std::ptrdiff_t>(idx));
         }
@@ -39,6 +39,19 @@ LinearExpr operator*(Variable var, double coeff) {
     return coeff * var;
 }
 
+LinearExpr& LinearExpr::operator*=(double factor) {
+    scale(factor);
+    return *this;
+}
+
+LinearExpr operator/(Variable var, double coeff) {
+    return (1.0 / coeff) * var;
+}
+
+LinearExpr operator/(double coeff, Variable var) {
+    return (1.0 / coeff) * var;
+}
+
 LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
     // Linear merge of two sorted lists — O(n+m)
     LinearExpr result;
@@ -58,7 +71,7 @@ LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
             ++j;
         } else {
             double sum = coeffs[i] + rhs.coeffs[j];
-            if (std::abs(sum) > precision) {
+            if (std::abs(sum) > cancellation_tol) {
                 result.varIds.push_back(varIds[i]);
                 result.coeffs.push_back(sum);
             }
@@ -81,6 +94,27 @@ LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
 
 LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs) {
     lhs += rhs;
+    return lhs;
+}
+
+LinearExpr& LinearExpr::operator-=(const LinearExpr& rhs) {
+    LinearExpr neg = rhs;
+    neg.scale(-1.0);
+    return *this += neg;
+}
+
+LinearExpr operator-(LinearExpr lhs, const LinearExpr& rhs) {
+    lhs -= rhs;
+    return lhs;
+}
+
+LinearExpr& LinearExpr::operator/=(double factor) {
+    scale(1.0 / factor);
+    return *this;
+}
+
+LinearExpr operator/(LinearExpr lhs, double factor) {
+    lhs /= factor;
     return lhs;
 }
 
