@@ -274,6 +274,19 @@ LPDetailedResult solveDetailed(const Model& model,
                                double   timeLimitS) {
     auto startTime = Clock::now();
 
+    // Early infeasibility: a variable with lb > ub has an empty domain.
+    // This arises naturally in B&B after bound tightening.
+    {
+        const auto& hot = model.getHot();
+        for (std::size_t j = 0; j < model.numVars(); ++j) {
+            if (hot.lb[j] > hot.ub[j]) {
+                LPDetailedResult det;
+                det.result.status = LPStatus::Infeasible;
+                return det;
+            }
+        }
+    }
+
     // 1. Standard form
     internal::LPStandardForm sf = internal::toStandardForm(model);
 
