@@ -12,6 +12,11 @@ namespace baguette {
 ///
 /// This design allows variables to be freely copied into sub-problems
 /// during Branch & Bound without ownership or lifetime issues.
+///
+/// @warning A Variable is only valid for the Model that created it via
+/// Model::addVar(). Using a Variable in a different Model (e.g. in
+/// addConstraint or setObjective) is undefined behaviour. No runtime
+/// check enforces this; it is the caller's responsibility.
 struct Variable {
     std::uint32_t id; ///< Unique index within the owning Model.
 

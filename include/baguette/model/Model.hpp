@@ -31,6 +31,7 @@ public:
                     std::string label = "");
 
     /// Add a linear constraint: `lhs sense rhs`.
+    /// @warning All variables in @p lhs must have been created by this Model.
     void addConstraint(LinearExpr lhs, Sense sense, double rhs);
 
     /// Set the objective function and optimization direction.
@@ -38,6 +39,8 @@ public:
     /// Converts the sparse LinearExpr into the dense `hot.obj` vector.
     /// The constant term of @p expr is ignored (offsets do not affect
     /// the optimal solution).
+    /// @warning All variables in @p expr must have been created by this Model.
+    /// Throws std::out_of_range if a variable ID exceeds numVars().
     void setObjective(LinearExpr expr,
                       ObjSense sense = ObjSense::Minimize);
 
