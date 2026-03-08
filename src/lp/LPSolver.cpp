@@ -170,13 +170,16 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
     const auto& hot         = model.getHot();
     const bool maximize     = (model.getObjSense() == ObjSense::Maximize);
 
-    // Primal: un-shift x_j = x'_j + lb_j
+    // Primal: un-shift using varShiftVal and varColSign.
+    //   lb-shift: x_j = varShiftVal[j] + x'_j
+    //   ub-shift: x_j = varShiftVal[j] − x'_j
     std::vector<double> xPrime = tab.primalSolution();
     det.result.primalValues.resize(nOrig);
     for (std::size_t j = 0; j < nOrig; ++j)
-        det.result.primalValues[j] = xPrime[j] + hot.lb[j];
+        det.result.primalValues[j] =
+            sf.varShiftVal[j] + sf.varColSign[j] * xPrime[j];
 
-    // Objective: add back the lb-shift offset and flip sign for Maximize
+    // Objective: add back the shift offset and flip sign for Maximize
     double obj = tab.objectiveValue() + sf.objOffset;
     det.result.objectiveValue = maximize ? -obj : obj;
 
@@ -216,10 +219,12 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
         det.dualValues[i] = sign * raw;
     }
 
-    // Reduced costs for original variables
+    // Reduced costs for original variables.
+    // varColSign flips the column direction for ub-shifted vars, so their rc
+    // must be sign-corrected to express the rate w.r.t. the original variable.
     det.reducedCosts.resize(nOrig);
     for (std::size_t j = 0; j < nOrig; ++j)
-        det.reducedCosts[j] = maximize ? -tab.rc[j] : tab.rc[j];
+        det.reducedCosts[j] = sf.varColSign[j] * (maximize ? -tab.rc[j] : tab.rc[j]);
 
     // Basis record (in terms of the original sf column space, no artificials)
     det.basis.basicCols.assign(tab.basicCols.begin(), tab.basicCols.end());

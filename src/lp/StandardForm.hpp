@@ -14,15 +14,20 @@ namespace baguette::internal {
 /// Built by toStandardForm() from a user-facing Model.  Never exposed in a
 /// public header — callers only see LPResult / LPDetailedResult.
 ///
+/// Each original variable is shifted to a non-negative auxiliary x'_j ≥ 0:
+///   - lb-shift (lb finite):  x'_j = x_j − lb_j  → x_j = lb_j + x'_j
+///   - ub-shift (lb = −∞, ub finite): x'_j = ub_j − x_j → x_j = ub_j − x'_j
+///   - fully free (lb = −∞, ub = +∞): not yet supported (throws).
+///
 /// Column ordering (contiguous blocks):
-///   [0 .. nOrig-1]                  shifted original variables  x'_j = x_j − lb_j
+///   [0 .. nOrig-1]                  shifted original variables (lb- or ub-shifted)
 ///   [nOrig .. nOrig+nSlack-1]       slack / surplus variables (one per model row)
 ///   [nOrig+nSlack .. nCols-1]       upper-bound slacks  x'_j + s = ub_j − lb_j
-///                                   (one per original variable with finite ub)
+///                                   (one per lb-shifted variable with finite ub)
 ///
 /// Row ordering (contiguous blocks):
 ///   [0 .. nOrigRows-1]              converted model constraints
-///   [nOrigRows .. nRows-1]          upper-bound rows (one per finite-ub variable)
+///   [nOrigRows .. nRows-1]          upper-bound rows (one per lb-shifted finite-ub variable)
 struct LPStandardForm {
     std::size_t nRows;      ///< Total rows = nOrigRows + nUBRows.
     std::size_t nOrigRows;  ///< Rows from model constraints.
@@ -61,6 +66,15 @@ struct LPStandardForm {
     /// For each model constraint row i, true if the row was negated during
     /// normalisation (original rhs < 0).  Needed to sign-correct dual values.
     std::vector<bool> rowNegated;
+
+    /// Per-variable shift value (length nOrig).
+    ///   lb-shift: varShiftVal[j] = lb_j   →  x_j = varShiftVal[j] + x'_j
+    ///   ub-shift: varShiftVal[j] = ub_j   →  x_j = varShiftVal[j] − x'_j
+    std::vector<double> varShiftVal;
+
+    /// Per-variable column sign (length nOrig): +1 for lb-shift, −1 for ub-shift.
+    /// Applied to all A entries and the objective coefficient for that variable.
+    std::vector<int8_t> varColSign;
 };
 
 /// Convert a Model into standard form.
@@ -78,7 +92,8 @@ struct LPStandardForm {
 /// Integer and Binary variables are treated as continuous (LP relaxation).
 ///
 /// @throws std::invalid_argument if any variable ID in a constraint or in the
-///         objective exceeds Model::numVars().
+///         objective exceeds Model::numVars(), or if a fully free variable
+///         (lb = −∞ and ub = +∞) is encountered.
 LPStandardForm toStandardForm(const Model& model);
 
 } // namespace baguette::internal

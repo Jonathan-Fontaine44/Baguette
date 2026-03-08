@@ -231,3 +231,33 @@ TEST_CASE("LP solveDetailed - infeasible returns no dual/rc", "[lp]") {
     CHECK(det.reducedCosts.empty());
     CHECK(det.basis.basicCols.empty());
 }
+
+// ── Variable bound edge cases ──────────────────────────────────────────────────
+
+TEST_CASE("LP semi-infinite lb - min x with x in [3, inf]", "[lp]") {
+    // min x,  x >= 3  (no explicit constraint, bound alone drives the solution)
+    // Optimal: x = 3,  obj = 3.
+    Model m;
+    auto x = m.addVar(3.0, kInf, "x");
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,    WithinAbs(3.0, kTol));
+    CHECK_THAT(res.primalValues[0],   WithinAbs(3.0, kTol));
+}
+
+TEST_CASE("LP semi-infinite ub - max x with x in [-inf, 10]", "[lp]") {
+    // max x,  x <= 10  (ub-shifted: x' = 10 - x, x' >= 0)
+    // Optimal: x = 10, obj = 10.
+    Model m;
+    auto x = m.addVar(-kInf, 10.0, "x");
+    m.setObjective(1.0 * x, ObjSense::Maximize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,    WithinAbs(10.0, kTol));
+    CHECK_THAT(res.primalValues[0],   WithinAbs(10.0, kTol));
+}
