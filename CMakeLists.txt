@@ -38,9 +38,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(BaguetteTests
-    tests/test_core.cpp
-    tests/test_model.cpp
-    tests/test_lp.cpp
+    tests/core/test_core.cpp
+    tests/model/test_model.cpp
+    tests/lp/test_lp.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE
@@ -56,7 +56,7 @@ catch_discover_tests(BaguetteTests DISCOVERY_MODE PRE_TEST)
 # (StandardForm, Tableau) that are not part of the public API.
 
 add_executable(BaguetteInternalTests
-    tests/test_standard_form.cpp
+    tests/lp/test_standard_form.cpp
 )
 
 target_link_libraries(BaguetteInternalTests PRIVATE
