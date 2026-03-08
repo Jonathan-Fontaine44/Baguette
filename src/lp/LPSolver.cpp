@@ -52,7 +52,16 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
 
     AugmentedForm aug;
     aug.nArt = nArt;
-    aug.sf   = sf; // copy metadata
+
+    // Copy only the fields that are reused as-is; A, c, colKind, colOrigin
+    // are rebuilt below for the wider augmented matrix.
+    aug.sf.nRows      = sf.nRows;
+    aug.sf.nOrigRows  = sf.nOrigRows;
+    aug.sf.nOrig      = sf.nOrig;
+    aug.sf.nSlack     = sf.nSlack;
+    aug.sf.b          = sf.b;
+    aug.sf.rowSlackCol = sf.rowSlackCol;
+    aug.sf.rowNegated  = sf.rowNegated;
 
     const std::size_t nNew = nOld + nArt;
     aug.sf.nCols = nNew;
@@ -61,7 +70,7 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
     aug.sf.colKind.resize(nNew);
     aug.sf.colOrigin.resize(nNew);
 
-    // Copy original A into the wider matrix
+    // Copy original A and column metadata into the wider matrix
     for (std::size_t i = 0; i < m; ++i)
         for (std::size_t j = 0; j < nOld; ++j)
             aug.sf.A[i * nNew + j] = sf.A[i * nOld + j];
