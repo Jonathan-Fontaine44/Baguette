@@ -5,15 +5,9 @@
 
 #include "baguette/core/LinearExpr.hpp"
 #include "baguette/core/Sense.hpp"
+#include "baguette/model/ModelEnums.hpp"
 
 namespace baguette {
-
-/// Type of a decision variable.
-enum class VarType {
-    Continuous, ///< x ∈ [lb, ub] ⊆ ℝ
-    Integer,    ///< x ∈ [lb, ub] ∩ ℤ
-    Binary      ///< x ∈ {0, 1}
-};
 
 /// Hot data — accessed at every simplex iteration.
 /// Stored as Structure of Arrays (SoA) for SIMD-friendly access patterns.
@@ -35,12 +29,6 @@ struct Constraint {
     LinearExpr lhs;   ///< Left-hand side expression.
     Sense      sense; ///< Relation between lhs and rhs.
     double     rhs;   ///< Right-hand side scalar.
-};
-
-/// Optimization direction.
-enum class ObjSense {
-    Minimize, ///< Minimize the objective.
-    Maximize  ///< Maximize the objective.
 };
 
 } // namespace baguette
