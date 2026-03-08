@@ -239,13 +239,6 @@ TEST_CASE("LinearExpr operator/ var / coeff creates scaled term", "[LinearExpr]"
     REQUIRE(e.coeffs[0] == Approx(0.25));
 }
 
-TEST_CASE("LinearExpr operator/ coeff / var creates scaled term", "[LinearExpr]") {
-    auto e = 4.0 / Variable{3};
-    REQUIRE(e.size() == 1);
-    REQUIRE(e.varIds[0] == 3);
-    REQUIRE(e.coeffs[0] == Approx(0.25)); // 1.0 / 4.0
-}
-
 TEST_CASE("LinearExpr operator/ expr / factor divides coefficients", "[LinearExpr]") {
     auto e = 6.0 * Variable{0} + 3.0 * Variable{1};
     e.constant = 9.0;

@@ -135,36 +135,13 @@ std::vector<double> Tableau::primalSolution() const {
 }
 
 std::vector<double> Tableau::dualSolution(const LPStandardForm& sf) const {
-    // For the full tableau, the dual variable for constraint i is read from
-    // the reduced-cost entry of the slack column for that row:
-    //   y_i = rc[slackCol_i]  (for LessEq rows)
-    //   y_i = −rc[slackCol_i] (for GreaterEq rows, surplus has coefficient −1)
-    //   y_i = 0               (for Equal rows; no slack)
-    // Sign is also flipped if the row was negated during normalisation.
+    // Raw dual: rc[slackCol] for each model row.
+    // Sign corrections for GEQ surplus (coeff −1), row negation, and
+    // Maximize are applied by the caller (LPSolver.cpp) which has access
+    // to the Model's constraint senses.
     std::vector<double> y(sf.nOrigRows, 0.0);
     for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
-        uint32_t slackCol = sf.rowSlackCol[i];
-        double val = rc[slackCol];
-
-        // GreaterEq surplus has coefficient −1, so dual is negated
-        const auto& con = // we need the sense — use colKind or rowNegated
-            // The surplus sign is already baked into A; if the row was a
-            // GreaterEq with A[i, slackCol] == −1 before normalisation, the
-            // rc entry directly gives y_i * (−1), so we negate.
-            // Detect this via the original sense stored in sf (not available
-            // here directly). Instead, inspect A[i * n + slackCol] after
-            // reinversion: if it was −1 (surplus), then negate.
-            // Actually the simplest approach: use the fact that for a surplus
-            // column the original A entry is −1, and after Gauss-Jordan the
-            // rc entry satisfies rc[slackCol] = −y_i. So:
-            val; // placeholder — see note below
-
-        // Note: the sign convention for the dual depends on whether the slack
-        // coefficient is +1 (LessEq) or −1 (GreaterEq). We cannot recover the
-        // original sense from the tableau alone without keeping extra metadata.
-        // The rowNegated flag accounts for the rhs flip; the sense information
-        // is handled in LPSolver.cpp where we have access to the Model constraints.
-        // Here we return the raw rc value; LPSolver.cpp applies the correction.
+        double val = rc[sf.rowSlackCol[i]];
         y[i] = sf.rowNegated[i] ? -val : val;
     }
     return y;

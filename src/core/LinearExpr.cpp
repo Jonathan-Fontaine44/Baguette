@@ -48,10 +48,6 @@ LinearExpr operator/(Variable var, double coeff) {
     return (1.0 / coeff) * var;
 }
 
-LinearExpr operator/(double coeff, Variable var) {
-    return (1.0 / coeff) * var;
-}
-
 LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
     // Linear merge of two sorted lists — O(n+m)
     LinearExpr result;

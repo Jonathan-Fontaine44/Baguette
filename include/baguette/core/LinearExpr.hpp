@@ -74,8 +74,6 @@ LinearExpr operator*(Variable var, double coeff);
 
 /// Create a single-term expression `(1/coeff) * var`.
 LinearExpr operator/(Variable var, double coeff);
-/// @copydoc operator/(Variable, double)
-LinearExpr operator/(double coeff, Variable var);
 
 /// Merge two expressions into a new one.
 /// Terms present in both are summed; terms with a zero result are dropped.
