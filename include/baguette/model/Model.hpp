@@ -19,16 +19,22 @@ namespace baguette {
 /// remains cache-friendly regardless of how the model was built.
 class Model {
 public:
-    /// Add a decision variable and return its handle.
+    /// Add a continuous decision variable with an optional label.
+    ///
+    /// @param lb    Lower bound.
+    /// @param ub    Upper bound.
+    /// @param label Optional name for display and debugging.
+    /// @return A Variable handle valid for the lifetime of this Model.
+    Variable addVar(double lb, double ub, std::string label = "");
+
+    /// Add a decision variable with an explicit type and optional label.
     ///
     /// @param lb    Lower bound.
     /// @param ub    Upper bound.
     /// @param type  Variable type (Continuous, Integer, Binary).
     /// @param label Optional name for display and debugging.
     /// @return A Variable handle valid for the lifetime of this Model.
-    Variable addVar(double lb, double ub,
-                    VarType type  = VarType::Continuous,
-                    std::string label = "");
+    Variable addVar(double lb, double ub, VarType type, std::string label = "");
 
     /// Add a linear constraint: `lhs sense rhs`.
     /// @warning All variables in @p lhs must have been created by this Model.

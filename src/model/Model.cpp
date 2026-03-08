@@ -5,6 +5,10 @@
 
 namespace baguette {
 
+Variable Model::addVar(double lb, double ub, std::string label) {
+    return addVar(lb, ub, VarType::Continuous, std::move(label));
+}
+
 Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
     auto id = static_cast<std::uint32_t>(hot.lb.size());
 

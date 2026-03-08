@@ -38,6 +38,13 @@ TEST_CASE("Model addVar stores type and label", "[Model]") {
     REQUIRE(m.getCold().labels[0] == "flag");
 }
 
+TEST_CASE("Model addVar with label only defaults to Continuous", "[Model]") {
+    Model m;
+    m.addVar(0.0, 10.0, "x");
+    REQUIRE(m.getCold().types[0]  == VarType::Continuous);
+    REQUIRE(m.getCold().labels[0] == "x");
+}
+
 TEST_CASE("Model addVar initialises objective coefficient to zero", "[Model]") {
     Model m;
     m.addVar(0.0, 10.0);
