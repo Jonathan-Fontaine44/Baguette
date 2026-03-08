@@ -22,7 +22,7 @@ void Model::addConstraint(LinearExpr lhs, Sense sense, double rhs) {
     constraints.push_back({std::move(lhs), sense, rhs});
 }
 
-void Model::setObjective(const LinearExpr& expr, ObjSense sense) {
+void Model::setObjective(LinearExpr expr, ObjSense sense) {
     objSense = sense;
 
     std::fill(hot.obj.begin(), hot.obj.end(), 0.0);

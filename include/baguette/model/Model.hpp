@@ -38,7 +38,7 @@ public:
     /// Converts the sparse LinearExpr into the dense `hot.obj` vector.
     /// The constant term of @p expr is ignored (offsets do not affect
     /// the optimal solution).
-    void setObjective(const LinearExpr& expr,
+    void setObjective(LinearExpr expr,
                       ObjSense sense = ObjSense::Minimize);
 
     std::size_t numVars()        const { return hot.lb.size(); }
