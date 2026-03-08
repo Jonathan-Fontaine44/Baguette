@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "Config.hpp"
 #include "Variable.hpp"
 
 namespace baguette {
@@ -24,7 +25,7 @@ struct LinearExpr {
     /// Add the term `coeff * var` to the expression.
     ///
     /// If `var` is already present, its coefficient is incremented by `coeff`.
-    /// If the resulting coefficient is exactly 0, the term is removed.
+    /// If `|result| <= baguette::precision`, the term is removed.
     /// The sorted order of `varIds` is preserved throughout.
     ///
     /// Complexity: O(n + log n), where n = `size()`.

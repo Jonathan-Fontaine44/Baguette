@@ -1,6 +1,7 @@
 #include "baguette/core/LinearExpr.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace baguette {
 
@@ -9,7 +10,7 @@ void LinearExpr::addTerm(Variable var, double coeff) {
     if (it != varIds.end() && *it == var.id) {
         std::size_t idx = static_cast<std::size_t>(it - varIds.begin());
         coeffs[idx] += coeff;
-        if (coeffs[idx] == 0.0) {
+        if (std::abs(coeffs[idx]) <= precision) {
             varIds.erase(it);
             coeffs.erase(coeffs.begin() + static_cast<std::ptrdiff_t>(idx));
         }
@@ -57,7 +58,7 @@ LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs) {
             ++j;
         } else {
             double sum = lhs.coeffs[i] + rhs.coeffs[j];
-            if (sum != 0.0) {
+            if (std::abs(sum) > precision) {
                 result.varIds.push_back(lhs.varIds[i]);
                 result.coeffs.push_back(sum);
             }
