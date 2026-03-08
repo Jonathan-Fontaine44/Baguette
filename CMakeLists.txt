@@ -13,6 +13,7 @@ endif()
 
 add_library(Baguette
     src/core/LinearExpr.cpp
+    src/model/Model.cpp
 )
 
 target_include_directories(Baguette PUBLIC
@@ -35,6 +36,7 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(BaguetteTests
     tests/test_core.cpp
+    tests/test_model.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE
@@ -42,4 +44,5 @@ target_link_libraries(BaguetteTests PRIVATE
     Catch2::Catch2WithMain
 )
 
-add_test(NAME BaguetteTests COMMAND BaguetteTests)
+include(Catch)
+catch_discover_tests(BaguetteTests DISCOVERY_MODE PRE_TEST)
