@@ -14,6 +14,14 @@ namespace baguette {
 /// **Invariant:** `varIds` is always sorted in ascending order by variable ID.
 /// This enables O(n+m) merge, binary search, and SIMD-friendly dot products.
 /// `unordered_map` is intentionally avoided (random memory access, hash overhead).
+///
+/// Prefer building expressions via the `operator*` and `operator+` helpers,
+/// which maintain the sorted invariant automatically.
+///
+/// @warning If you construct a LinearExpr manually, you must ensure:
+/// - `varIds` is sorted in strictly ascending order (no duplicates).
+/// - Every ID in `varIds` refers to a variable that exists in the target Model.
+/// Violating either condition produces silent incorrect behaviour or undefined behaviour.
 struct LinearExpr {
     std::vector<std::uint32_t> varIds;  ///< Variable IDs, sorted ascending.
     std::vector<double>        coeffs;  ///< Coefficients, parallel to varIds.
