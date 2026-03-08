@@ -251,7 +251,7 @@ LPStatus runSimplex(internal::Tableau& tab,
         ++iter;
 
         if (baguette::reinversion_period > 0 &&
-            iter % static_cast<uint32_t>(baguette::reinversion_period) == 0)
+            iter % baguette::reinversion_period == 0)
             tab.reinvert(sf);
     }
 }

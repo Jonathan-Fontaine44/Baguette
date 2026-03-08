@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace baguette {
 
 // ── LinearExpr ──────────────────────────────────────────────────────────────
@@ -51,10 +53,10 @@ inline void set_pivot_tol(double tol) { pivot_tol = tol; }
 /// Reinversion period: the tableau is rebuilt from scratch every this many
 /// pivots to prevent floating-point drift from accumulating.
 /// Default: 50.
-inline int reinversion_period = 50;
+inline uint32_t reinversion_period = 50;
 
 /// Set the reinversion period.
 /// @param period Number of pivots between reinversions (must be ≥ 1).
-inline void set_reinversion_period(int period) { reinversion_period = period; }
+inline void set_reinversion_period(uint32_t period) { reinversion_period = period; }
 
 } // namespace baguette
