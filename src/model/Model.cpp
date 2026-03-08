@@ -1,6 +1,7 @@
 #include "baguette/model/Model.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace baguette {
 
@@ -26,8 +27,11 @@ void Model::setObjective(const LinearExpr& expr, ObjSense sense) {
 
     std::fill(hot.obj.begin(), hot.obj.end(), 0.0);
 
-    for (std::size_t i = 0; i < expr.varIds.size(); ++i)
+    for (std::size_t i = 0; i < expr.varIds.size(); ++i) {
+        if (expr.varIds[i] >= hot.obj.size())
+            throw std::out_of_range("setObjective: variable ID out of range (wrong model?)");
         hot.obj[expr.varIds[i]] = expr.coeffs[i];
+    }
 }
 
 } // namespace baguette

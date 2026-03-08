@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <stdexcept>
 
 #include "baguette/model/Model.hpp"
 
@@ -113,4 +114,21 @@ TEST_CASE("Model setObjective stores sense", "[Model]") {
 
     m.setObjective(1.0 * x, ObjSense::Maximize);
     REQUIRE(m.getObjSense() == ObjSense::Maximize);
+}
+
+TEST_CASE("Model setObjective throws on variable from empty model", "[Model]") {
+    Model m1, m2;
+    Variable x = m1.addVar(0.0, 10.0);   // x.id = 0, m1 has 1 var
+    // m2 is empty: hot.obj.size() == 0, so x.id=0 is out of range
+    REQUIRE_THROWS_AS(m2.setObjective(1.0 * x), std::out_of_range);
+}
+
+TEST_CASE("Model setObjective throws on out-of-range variable ID", "[Model]") {
+    Model m;
+    m.addVar(0.0, 1.0);   // only var id=0
+
+    LinearExpr expr;
+    expr.varIds = {5};    // id=5 does not exist
+    expr.coeffs = {1.0};
+    REQUIRE_THROWS_AS(m.setObjective(expr), std::out_of_range);
 }
