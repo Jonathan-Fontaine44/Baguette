@@ -71,20 +71,20 @@ doxygen Doxyfile                         # generate documentation → docs/html/
 
 ## Roadmap
 
-### Phase 1 — Bounds Consistency (current)
+| Version | Status | Scope |
+| ------- | ------ | ----- |
+| `v0.1.0` | ✅ Done | Core layer: `Variable`, `Domain`, `LinearExpr` (sorted SoA, `operator+/+=/-=`), `Model` API (`addVar`, `addConstraint`, `setObjective`), `ModelEnums`, global `Config` tolerances. 38 Catch2 tests. |
+| `v0.2.0` | ✅ Done | LP solver: standard form conversion, revised simplex (phase I + II), `LPSolver` public interface. |
+| `v0.2.1` | Planned | Handle infinite bounds (`lb = -∞`, `ub = +∞`) in the simplex. |
+| `v0.2.2` | Planned | LP dual generation. |
+| `v0.3.0` | Planned | Branch & Bound: node queue, branching strategy, incumbent tracking. |
+| `v0.4.0` | Planned | CP propagation — Bounds Consistency for AllDiff and Cumulative. |
+| `v1.0.0` | Planned | Complete solver, stable public API, full documentation. |
 
-The first implementation uses **Bounds Consistency (BC)** for all CP propagators:
+### CP propagation strategy
 
-- O(n log n) per AllDiff node via sort + sweep (Quimper et al., 2003)
-- Operates on `[lb, ub]` intervals only — no value enumeration
-
-### Phase 2 — Arc Consistency (future)
-
-**Arc Consistency (AC)** is a strictly stronger form of propagation that reasons over individual values in variable domains, not just bounds. It is planned as a future extension:
-
-- AC for AllDiff via bipartite matching (Régin, 1994)
-- Stronger domain reductions and tighter cuts
-- Higher per-node cost — trade-off to be evaluated experimentally
+The CP layer starts with **Bounds Consistency (BC)**: operates on `[lb, ub]` intervals only, no value enumeration.
+**Arc Consistency (AC)** is planned as a future phase for stronger domain reductions.
 
 ---
 
