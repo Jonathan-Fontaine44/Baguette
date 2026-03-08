@@ -140,6 +140,36 @@ TEST_CASE("LinearExpr operator+ sums constants", "[LinearExpr]") {
     REQUIRE(c.constant == Approx(8.0));
 }
 
+TEST_CASE("LinearExpr operator+= merges disjoint expressions", "[LinearExpr]") {
+    auto a = 1.0 * Variable{0};
+    auto b = 1.0 * Variable{2};
+    a += b;
+    REQUIRE(a.size() == 2);
+    REQUIRE(a.varIds[0] == 0);
+    REQUIRE(a.varIds[1] == 2);
+}
+
+TEST_CASE("LinearExpr operator+= accumulates common variable", "[LinearExpr]") {
+    auto a = 3.0 * Variable{1};
+    a += 2.0 * Variable{1};
+    REQUIRE(a.size() == 1);
+    REQUIRE(a.coeffs[0] == Approx(5.0));
+}
+
+TEST_CASE("LinearExpr operator+= cancels opposite coefficients", "[LinearExpr]") {
+    auto a = 4.0 * Variable{1};
+    a += -4.0 * Variable{1};
+    REQUIRE(a.empty());
+}
+
+TEST_CASE("LinearExpr operator+= sums constants", "[LinearExpr]") {
+    LinearExpr a, b;
+    a.constant = 2.0;
+    b.constant = 7.0;
+    a += b;
+    REQUIRE(a.constant == Approx(9.0));
+}
+
 TEST_CASE("LinearExpr addTerm ignores zero coefficient", "[LinearExpr]") {
     LinearExpr e;
     e.addTerm(Variable{1}, 0.0);

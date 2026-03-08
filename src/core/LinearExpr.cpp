@@ -39,35 +39,35 @@ LinearExpr operator*(Variable var, double coeff) {
     return coeff * var;
 }
 
-LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs) {
+LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
     // Linear merge of two sorted lists — O(n+m)
     LinearExpr result;
-    result.constant = lhs.constant + rhs.constant;
-    result.varIds.reserve(lhs.varIds.size() + rhs.varIds.size());
-    result.coeffs.reserve(lhs.coeffs.size() + rhs.coeffs.size());
+    result.constant = constant + rhs.constant;
+    result.varIds.reserve(varIds.size() + rhs.varIds.size());
+    result.coeffs.reserve(coeffs.size() + rhs.coeffs.size());
 
     std::size_t i = 0, j = 0;
-    while (i < lhs.varIds.size() && j < rhs.varIds.size()) {
-        if (lhs.varIds[i] < rhs.varIds[j]) {
-            result.varIds.push_back(lhs.varIds[i]);
-            result.coeffs.push_back(lhs.coeffs[i]);
+    while (i < varIds.size() && j < rhs.varIds.size()) {
+        if (varIds[i] < rhs.varIds[j]) {
+            result.varIds.push_back(varIds[i]);
+            result.coeffs.push_back(coeffs[i]);
             ++i;
-        } else if (lhs.varIds[i] > rhs.varIds[j]) {
+        } else if (varIds[i] > rhs.varIds[j]) {
             result.varIds.push_back(rhs.varIds[j]);
             result.coeffs.push_back(rhs.coeffs[j]);
             ++j;
         } else {
-            double sum = lhs.coeffs[i] + rhs.coeffs[j];
+            double sum = coeffs[i] + rhs.coeffs[j];
             if (std::abs(sum) > precision) {
-                result.varIds.push_back(lhs.varIds[i]);
+                result.varIds.push_back(varIds[i]);
                 result.coeffs.push_back(sum);
             }
             ++i; ++j;
         }
     }
-    while (i < lhs.varIds.size()) {
-        result.varIds.push_back(lhs.varIds[i]);
-        result.coeffs.push_back(lhs.coeffs[i]);
+    while (i < varIds.size()) {
+        result.varIds.push_back(varIds[i]);
+        result.coeffs.push_back(coeffs[i]);
         ++i;
     }
     while (j < rhs.varIds.size()) {
@@ -75,7 +75,13 @@ LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs) {
         result.coeffs.push_back(rhs.coeffs[j]);
         ++j;
     }
-    return result;
+    *this = std::move(result);
+    return *this;
+}
+
+LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs) {
+    lhs += rhs;
+    return lhs;
 }
 
 } // namespace baguette

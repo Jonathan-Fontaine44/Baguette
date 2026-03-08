@@ -37,6 +37,11 @@ struct LinearExpr {
     /// Multiply all coefficients and the constant by @p factor.
     /// Complexity: O(n), where n = `size()`.
     void scale(double factor);
+
+    /// Merge @p rhs into this expression in-place.
+    /// Equivalent to `*this = *this + rhs`.
+    /// Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
+    LinearExpr& operator+=(const LinearExpr& rhs);
 };
 
 /// Create a single-term expression `coeff * var`.
