@@ -64,6 +64,7 @@ The modeling layer (called once before solve) is exempt — `addVar()` / `addCon
 cmake -S . -B build                      # configure
 cmake --build build --config Debug       # compile
 ctest --test-dir build -C Debug          # run tests
+doxygen Doxyfile                         # generate documentation → docs/html/index.html
 ```
 
 ---
