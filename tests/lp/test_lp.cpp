@@ -3,6 +3,7 @@
 
 #include <limits>
 
+#include "baguette/core/Config.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -164,6 +165,27 @@ TEST_CASE("LP solve - maxIter limit stops early", "[lp]") {
     CHECK((res.status == LPStatus::MaxIter || res.status == LPStatus::Optimal));
 }
 
+TEST_CASE("LP solve - reinversion every pivot yields identical solution", "[lp]") {
+    // Force reinvert() after every single pivot (period = 1) and verify that
+    // the primal solution and objective are numerically identical to the
+    // default period (50). Uses makeSimpleMax() which requires several pivots.
+    const uint32_t savedPeriod = baguette::reinversion_period;
+    baguette::set_reinversion_period(1);
+    auto resFreq = solve(makeSimpleMax());
+    baguette::set_reinversion_period(savedPeriod);
+
+    auto resRef = solve(makeSimpleMax());
+
+    REQUIRE(resFreq.status == LPStatus::Optimal);
+    REQUIRE(resRef.status  == LPStatus::Optimal);
+    CHECK_THAT(resFreq.objectiveValue,
+               WithinAbs(resRef.objectiveValue, kTol));
+    REQUIRE(resFreq.primalValues.size() == resRef.primalValues.size());
+    for (std::size_t j = 0; j < resRef.primalValues.size(); ++j)
+        CHECK_THAT(resFreq.primalValues[j],
+                   WithinAbs(resRef.primalValues[j], kTol));
+}
+
 // ── Tests: LPDetailedResult (solveDetailed) ───────────────────────────────────
 
 TEST_CASE("LP solveDetailed - primal matches solve()", "[lp]") {
@@ -262,6 +284,70 @@ TEST_CASE("LP fully free variable - max x in [-inf, +inf] with x <= 4", "[lp]") 
     CHECK_THAT(res.objectiveValue,  WithinAbs(4.0, kTol));
     REQUIRE(res.primalValues.size() == 1);
     CHECK_THAT(res.primalValues[0], WithinAbs(4.0, kTol));
+}
+
+TEST_CASE("LP fully free variable - unbounded (min x, no constraint)", "[lp]") {
+    // min x,  x ∈ (−∞, +∞),  no constraint
+    // x⁻ grows without bound → Unbounded.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Unbounded);
+    CHECK(res.primalValues.empty());
+}
+
+TEST_CASE("LP fully free variable - min x with x >= -3 (GEQ constraint)", "[lp]") {
+    // min x,  x ∈ (−∞, +∞),  x >= −3
+    // Optimal: x = −3, obj = −3.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::GreaterEq, -3.0);
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,  WithinAbs(-3.0, kTol));
+    REQUIRE(res.primalValues.size() == 1);
+    CHECK_THAT(res.primalValues[0], WithinAbs(-3.0, kTol));
+}
+
+TEST_CASE("LP two free variables - min x+y with x+y >= 5", "[lp]") {
+    // min x + y,  x,y ∈ (−∞, +∞),  x + y >= 5
+    // Optimal: x + y = 5, obj = 5.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    auto y = m.addVar(-kInf, kInf, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 5.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
+    REQUIRE(res.primalValues.size() == 2);
+    CHECK_THAT(res.primalValues[0] + res.primalValues[1], WithinAbs(5.0, kTol));
+}
+
+TEST_CASE("LP fully free variable - Equal constraint", "[lp]") {
+    // min x + y,  x ∈ (−∞, +∞),  y >= 0,  x + y = 3
+    // Feasible for any x ≤ 3 (y = 3 − x ≥ 0). Objective = x + (3−x) = 3 always.
+    // Optimal: obj = 3.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    auto y = m.addVar(0.0,   kInf, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 3.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue, WithinAbs(3.0, kTol));
+    REQUIRE(res.primalValues.size() == 2);
+    CHECK_THAT(res.primalValues[0] + res.primalValues[1], WithinAbs(3.0, kTol));
 }
 
 TEST_CASE("LP semi-infinite ub - max x with x in [-inf, 10]", "[lp]") {

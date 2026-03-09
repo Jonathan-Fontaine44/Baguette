@@ -316,3 +316,60 @@ TEST_CASE("SF infinite ub - no UB row added", "[standard_form]") {
 
     CHECK(sf.nRows == 1); // only the LessEq row, no UB row
 }
+
+// ── Free-split (fully free variables) ─────────────────────────────────────────
+
+TEST_CASE("SF free-split - dimensions and column count", "[standard_form]") {
+    // min x,  x ∈ (−∞, +∞),  x <= 4
+    // nOrig=1, nSlack=1 (LessEq), nUBSlack=0, nFree=1
+    // → nCols = 1 + 1 + 0 + 1 = 3  (x⁺, s_leq, x⁻)
+    // No UB row (ub = +inf).
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+
+    CHECK(sf.nOrig     == 1);
+    CHECK(sf.nSlack    == 1);
+    CHECK(sf.nOrigRows == 1);
+    CHECK(sf.nRows     == 1); // no UB row
+    CHECK(sf.nCols     == 3); // x⁺(0), s_leq(1), x⁻(2)
+}
+
+TEST_CASE("SF free-split - varFreeNegCol and ColumnKind::FreeNeg", "[standard_form]") {
+    // Same model as above.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x"); // id = 0
+    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+
+    // x⁻ is at column 2 (nOrig + nSlack + nUBSlack + 0)
+    REQUIRE(sf.varFreeNegCol.size() == 1);
+    CHECK(sf.varFreeNegCol[0] == 2);
+
+    CHECK(sf.colKind[0]   == ColumnKind::Original); // x⁺
+    CHECK(sf.colKind[1]   == ColumnKind::Slack);    // s_leq
+    CHECK(sf.colKind[2]   == ColumnKind::FreeNeg);  // x⁻
+    CHECK(sf.colOrigin[2] == x.id);
+}
+
+TEST_CASE("SF free-split - A matrix: xneg column is negation of xpos column", "[standard_form]") {
+    // min x,  x ∈ (−∞, +∞),  x <= 4
+    // Row 0: [A(x⁺)=1, A(s)=+1, A(x⁻)=-1 | b=4]  (LessEq, not negated)
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+
+    CHECK_THAT(A(sf, 0, 0), WithinAbs( 1.0, kTol)); // x⁺ coefficient
+    CHECK_THAT(A(sf, 0, 1), WithinAbs(+1.0, kTol)); // slack (+1 for LessEq)
+    CHECK_THAT(A(sf, 0, 2), WithinAbs(-1.0, kTol)); // x⁻ = −(x⁺ coeff)
+    CHECK_THAT(sf.b[0],     WithinAbs( 4.0, kTol));
+    CHECK(sf.rowNegated[0] == false);
+}

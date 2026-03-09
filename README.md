@@ -31,7 +31,7 @@ baguette/
 ├── include/baguette/
 │   ├── core/          ← Variable (pure handle), Domain, LinearExpr, Sense
 │   ├── model/         ← Model (user API: addVar, addConstraint, setObjective)
-│   ├── lp/            ← LPMatrix (CSR), RevisedSimplex, LPSolver interface
+│   ├── lp/            ← StandardForm, full simplex tableau (B⁻¹A explicit), LPSolver interface
 │   ├── milp/          ← BranchAndBound, Node, BranchingStrategy, CuttingPlanes
 │   └── cp/            ← DomainStore (trail backtracking), AllDiffPropagator
 ├── src/               ← implementations
@@ -74,7 +74,7 @@ doxygen Doxyfile                         # generate documentation → docs/html/
 | Version | Status | Scope |
 | ------- | ------ | ----- |
 | `v0.1.0` | ✅ Done | Core layer: `Variable`, `Domain`, `LinearExpr` (sorted SoA, `operator+/+=/-=`), `Model` API (`addVar`, `addConstraint`, `setObjective`), `ModelEnums`, global `Config` tolerances. 38 Catch2 tests. |
-| `v0.2.0` | ✅ Done | LP solver: standard form conversion, revised simplex (phase I + II), `LPSolver` public interface. |
+| `v0.2.0` | ✅ Done | LP solver: standard form conversion, full simplex tableau (phase I + II), `LPSolver` public interface. |
 | `v0.2.1` | ✅ Done | Handle infinite bounds (`lb = -∞`, `ub = +∞`) in the simplex: fully free variables split as `x = x⁺ − x⁻`. |
 | `v0.2.2` | Planned | LP dual generation. |
 | `v0.3.0` | Planned | Branch & Bound: node queue, branching strategy, incumbent tracking. |
