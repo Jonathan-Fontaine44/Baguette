@@ -171,13 +171,19 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
     const bool maximize     = (model.getObjSense() == ObjSense::Maximize);
 
     // Primal: un-shift using varShiftVal and varColSign.
-    //   lb-shift: x_j = varShiftVal[j] + x'_j
-    //   ub-shift: x_j = varShiftVal[j] − x'_j
+    //   lb-shift:  x_j = varShiftVal[j] + x'_j
+    //   ub-shift:  x_j = varShiftVal[j] − x'_j
+    //   free-split: x_j = x⁺_j − x⁻_j  (varShiftVal=0, varColSign=+1,
+    //               x⁻ column at sf.varFreeNegCol[j])
     std::vector<double> xPrime = tab.primalSolution();
     det.result.primalValues.resize(nOrig);
-    for (std::size_t j = 0; j < nOrig; ++j)
-        det.result.primalValues[j] =
-            sf.varShiftVal[j] + sf.varColSign[j] * xPrime[j];
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        double val = sf.varShiftVal[j] + sf.varColSign[j] * xPrime[j];
+        uint32_t negCol = sf.varFreeNegCol[j];
+        if (negCol < sf.nCols)          // fully free variable
+            val -= xPrime[negCol];
+        det.result.primalValues[j] = val;
+    }
 
     // Objective: add back the shift offset and flip sign for Maximize
     double obj = tab.objectiveValue() + sf.objOffset;

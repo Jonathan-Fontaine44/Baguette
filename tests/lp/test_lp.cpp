@@ -248,6 +248,22 @@ TEST_CASE("LP semi-infinite lb - min x with x in [3, inf]", "[lp]") {
     CHECK_THAT(res.primalValues[0],   WithinAbs(3.0, kTol));
 }
 
+TEST_CASE("LP fully free variable - max x in [-inf, +inf] with x <= 4", "[lp]") {
+    // max x,  x <= 4,  x ∈ (−∞, +∞)
+    // Solved via split x = x⁺ − x⁻. Optimal: x = 4, obj = 4.
+    Model m;
+    auto x = m.addVar(-kInf, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.setObjective(1.0 * x, ObjSense::Maximize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,  WithinAbs(4.0, kTol));
+    REQUIRE(res.primalValues.size() == 1);
+    CHECK_THAT(res.primalValues[0], WithinAbs(4.0, kTol));
+}
+
 TEST_CASE("LP semi-infinite ub - max x with x in [-inf, 10]", "[lp]") {
     // max x,  x <= 10  (ub-shifted: x' = 10 - x, x' >= 0)
     // Optimal: x = 10, obj = 10.

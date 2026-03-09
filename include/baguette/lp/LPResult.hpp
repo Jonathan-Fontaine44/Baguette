@@ -40,7 +40,8 @@ struct LPResult {
 enum class ColumnKind : uint8_t {
     Original,    ///< A shifted original variable  x' = x − lb.
     Slack,       ///< Slack / surplus for a model constraint row.
-    UpperSlack   ///< Slack for an upper-bound row  x' + s = ub − lb.
+    UpperSlack,  ///< Slack for an upper-bound row  x' + s = ub − lb.
+    FreeNeg      ///< Negative part x⁻ of a fully free variable split as x = x⁺ − x⁻.
 };
 
 /// Compact description of the current basis, suitable for warm-starting a

@@ -75,7 +75,7 @@ doxygen Doxyfile                         # generate documentation → docs/html/
 | ------- | ------ | ----- |
 | `v0.1.0` | ✅ Done | Core layer: `Variable`, `Domain`, `LinearExpr` (sorted SoA, `operator+/+=/-=`), `Model` API (`addVar`, `addConstraint`, `setObjective`), `ModelEnums`, global `Config` tolerances. 38 Catch2 tests. |
 | `v0.2.0` | ✅ Done | LP solver: standard form conversion, revised simplex (phase I + II), `LPSolver` public interface. |
-| `v0.2.1` | Planned | Handle infinite bounds (`lb = -∞`, `ub = +∞`) in the simplex. |
+| `v0.2.1` | ✅ Done | Handle infinite bounds (`lb = -∞`, `ub = +∞`) in the simplex: fully free variables split as `x = x⁺ − x⁻`. |
 | `v0.2.2` | Planned | LP dual generation. |
 | `v0.3.0` | Planned | Branch & Bound: node queue, branching strategy, incumbent tracking. |
 | `v0.4.0` | Planned | CP propagation — Bounds Consistency for AllDiff and Cumulative. |

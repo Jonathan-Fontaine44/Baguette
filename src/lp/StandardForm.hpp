@@ -17,13 +17,14 @@ namespace baguette::internal {
 /// Each original variable is shifted to a non-negative auxiliary x'_j ≥ 0:
 ///   - lb-shift (lb finite):  x'_j = x_j − lb_j  → x_j = lb_j + x'_j
 ///   - ub-shift (lb = −∞, ub finite): x'_j = ub_j − x_j → x_j = ub_j − x'_j
-///   - fully free (lb = −∞, ub = +∞): not yet supported (throws).
+///   - free-split (lb = −∞, ub = +∞): x_j = x⁺_j − x⁻_j, both x⁺_j, x⁻_j ≥ 0.
 ///
 /// Column ordering (contiguous blocks):
-///   [0 .. nOrig-1]                  shifted original variables (lb- or ub-shifted)
+///   [0 .. nOrig-1]                  shifted original variables (x⁺ for free-split vars)
 ///   [nOrig .. nOrig+nSlack-1]       slack / surplus variables (one per model row)
-///   [nOrig+nSlack .. nCols-1]       upper-bound slacks  x'_j + s = ub_j − lb_j
-///                                   (one per lb-shifted variable with finite ub)
+///   [nOrig+nSlack .. nOrig+nSlack+nUBSlack-1]  upper-bound slacks  x'_j + s = ub_j − lb_j
+///   [nOrig+nSlack+nUBSlack .. nCols-1]          free-split negative parts x⁻_j
+///                                               (one per fully free variable)
 ///
 /// Row ordering (contiguous blocks):
 ///   [0 .. nOrigRows-1]              converted model constraints
@@ -70,11 +71,17 @@ struct LPStandardForm {
     /// Per-variable shift value (length nOrig).
     ///   lb-shift: varShiftVal[j] = lb_j   →  x_j = varShiftVal[j] + x'_j
     ///   ub-shift: varShiftVal[j] = ub_j   →  x_j = varShiftVal[j] − x'_j
+    ///   free-split: varShiftVal[j] = 0.0  →  x_j = x⁺_j − x⁻_j
     std::vector<double> varShiftVal;
 
-    /// Per-variable column sign (length nOrig): +1 for lb-shift, −1 for ub-shift.
+    /// Per-variable column sign (length nOrig): +1 for lb-shift or free-split, −1 for ub-shift.
     /// Applied to all A entries and the objective coefficient for that variable.
     std::vector<int8_t> varColSign;
+
+    /// For each original variable j: column index of its x⁻ part if it is a fully
+    /// free variable (lb = −∞, ub = +∞), or nCols if not free.
+    /// Length nOrig.
+    std::vector<uint32_t> varFreeNegCol;
 };
 
 /// Convert a Model into standard form.
@@ -92,8 +99,7 @@ struct LPStandardForm {
 /// Integer and Binary variables are treated as continuous (LP relaxation).
 ///
 /// @throws std::invalid_argument if any variable ID in a constraint or in the
-///         objective exceeds Model::numVars(), or if a fully free variable
-///         (lb = −∞ and ub = +∞) is encountered.
+///         objective exceeds Model::numVars().
 LPStandardForm toStandardForm(const Model& model);
 
 } // namespace baguette::internal
