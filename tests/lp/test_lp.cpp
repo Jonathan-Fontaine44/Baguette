@@ -392,3 +392,41 @@ TEST_CASE("LP semi-infinite ub - max x with x in [-inf, 10]", "[lp]") {
     CHECK_THAT(res.objectiveValue,    WithinAbs(10.0, kTol));
     CHECK_THAT(res.primalValues[0],   WithinAbs(10.0, kTol));
 }
+
+TEST_CASE("LP redundant Equal constraint - does not crash", "[lp]") {
+    // min x + y,  x + y = 5,  2x + 2y = 10  (second is 2x first, redundant)
+    // After phase I one artificial cannot be driven out (row is all-zeros in
+    // non-artificial columns). preparePhaseTwo must not access sfOrig.c
+    // out-of-bounds for that row.
+    // Optimal: x + y = 5, obj = 5.
+    Model m;
+    auto x = m.addVar(0.0, kInf, "x");
+    auto y = m.addVar(0.0, kInf, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
+    m.addConstraint(2.0 * x + 2.0 * y, Sense::Equal, 10.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
+    REQUIRE(res.primalValues.size() == 2);
+    CHECK_THAT(res.primalValues[0] + res.primalValues[1], WithinAbs(5.0, kTol));
+}
+
+TEST_CASE("LP redundant GEQ constraint - does not crash", "[lp]") {
+    // min x,  x >= 3,  2x >= 6  (second is 2x first, redundant)
+    // Same structure: phase I leaves one artificial stuck in basis.
+    // Optimal: x = 3, obj = 3.
+    Model m;
+    auto x = m.addVar(0.0, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addConstraint(2.0 * x, Sense::GreaterEq, 6.0);
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,  WithinAbs(3.0, kTol));
+    CHECK_THAT(res.primalValues[0], WithinAbs(3.0, kTol));
+}

@@ -129,6 +129,30 @@ void driveOutArtificials(internal::Tableau& tab,
     }
 }
 
+/// Fix basicCols entries that still point to artificial columns after
+/// driveOutArtificials. This happens for redundant rows (all non-artificial
+/// coefficients are zero, rhs = 0): no pivot was possible so the artificial
+/// stayed in the basis. Assign any currently non-basic column instead; the
+/// row is 0·x = 0 so the choice does not affect the primal solution.
+void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
+    std::vector<bool> inBasis(nOld, false);
+    for (std::size_t i = 0; i < tab.m; ++i)
+        if (tab.basicCols[i] < nOld) inBasis[tab.basicCols[i]] = true;
+
+    for (std::size_t i = 0; i < tab.m; ++i) {
+        if (tab.basicCols[i] < nOld) continue;
+        uint32_t assigned = 0; // fallback if every column is somehow already basic
+        for (std::size_t j = 0; j < nOld; ++j) {
+            if (!inBasis[j]) {
+                assigned = static_cast<uint32_t>(j);
+                inBasis[j] = true;
+                break;
+            }
+        }
+        tab.basicCols[i] = assigned;
+    }
+}
+
 /// Strip artificial columns and re-price the objective row for phase II.
 void preparePhaseTwo(internal::Tableau& tab,
                      const internal::LPStandardForm& sfOrig) {
@@ -144,6 +168,8 @@ void preparePhaseTwo(internal::Tableau& tab,
 
     tab.tab = std::move(newTab);
     tab.n   = nOld;
+
+    repairRedundantRows(tab, nOld);
 
     // Re-price: rc_j = c_j − c_B * B⁻¹ a_j
     tab.rc.assign(nOld + 1, 0.0);
