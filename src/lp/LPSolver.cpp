@@ -167,7 +167,6 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
     det.result.status = status;
 
     const std::size_t nOrig = sf.nOrig;
-    const auto& hot         = model.getHot();
     const bool maximize     = (model.getObjSense() == ObjSense::Maximize);
 
     // Primal: un-shift using varShiftVal and varColSign.

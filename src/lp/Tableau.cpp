@@ -95,8 +95,16 @@ std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
         if (aij <= baguette::pivot_tol) continue; // skip non-positive entries
 
         double ratio = tab[i * (n + 1) + n] / aij;
-        if (ratio < minRatio) {
+        // Full Bland's rule: on ties (within pivot_tol), prefer the row whose
+        // basic variable has the smallest column index. This guarantees finite
+        // termination even on degenerate pivots. The tolerance guards against
+        // floating-point drift causing near-equal ratios to be missed.
+        if (ratio < minRatio - baguette::pivot_tol) {
             minRatio   = ratio;
+            leavingRow = i;
+        } else if (ratio < minRatio + baguette::pivot_tol &&
+                   leavingRow < m &&
+                   basicCols[i] < basicCols[leavingRow]) {
             leavingRow = i;
         }
     }

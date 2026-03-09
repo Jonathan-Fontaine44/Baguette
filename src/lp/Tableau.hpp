@@ -58,9 +58,11 @@ struct Tableau {
     /// Returns n if no improving column exists (current solution is optimal).
     std::size_t selectEntering() const;
 
-    /// Select the leaving row using the minimum ratio test.
+    /// Select the leaving row using the minimum ratio test with full Bland's rule.
     /// Only rows with tab[i*(n+1) + enteringCol] > pivot_tol are considered.
-    /// Returns m if no such row exists (problem is unbounded).
+    /// On ties (ratios within pivot_tol of each other), the row whose basic
+    /// variable has the smallest column index is chosen, completing Bland's
+    /// anti-cycling rule. Returns m if no such row exists (problem is unbounded).
     std::size_t selectLeaving(std::size_t enteringCol) const;
 
     /// Pivot: bring enteringCol into the basis at leavingRow.

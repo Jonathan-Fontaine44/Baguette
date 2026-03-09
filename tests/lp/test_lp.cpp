@@ -165,6 +165,35 @@ TEST_CASE("LP solve - maxIter limit stops early", "[lp]") {
     CHECK((res.status == LPStatus::MaxIter || res.status == LPStatus::Optimal));
 }
 
+TEST_CASE("LP solve - degenerate LP (multiple tie ratios) solves correctly", "[lp]") {
+    // Highly degenerate problem: the optimal vertex is shared by 4 constraints,
+    // forcing multiple ratio-test ties (ratio = 0) during pivoting. Exercises
+    // the Bland tie-breaking in selectLeaving with a finite maxIter guard.
+    //
+    //   min  x + y
+    //   s.t.  x + y >= 4       (binding at (4,0) and (0,4))
+    //         x     <= 4       (binding at (4, *))
+    //             y <= 4       (binding at (*, 4))
+    //         x + y <= 4       (makes (4,0) and (0,4) the only optima — degenerate)
+    //         x, y >= 0
+    // Optimal: obj = 4, degenerate (infinitely many solutions on x+y=4).
+    Model m;
+    auto x = m.addVar(0.0, kInf, "x");
+    auto y = m.addVar(0.0, kInf, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addConstraint(1.0 * x,            Sense::LessEq,    4.0);
+    m.addConstraint(1.0 * y,            Sense::LessEq,    4.0);
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto res = solve(m, /*maxIter=*/200);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue, WithinAbs(4.0, kTol));
+    REQUIRE(res.primalValues.size() == 2);
+    CHECK_THAT(res.primalValues[0] + res.primalValues[1], WithinAbs(4.0, kTol));
+}
+
 TEST_CASE("LP solve - reinversion every pivot yields identical solution", "[lp]") {
     // Force reinvert() after every single pivot (period = 1) and verify that
     // the primal solution and objective are numerically identical to the
