@@ -111,6 +111,40 @@ std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
     return leavingRow;
 }
 
+std::size_t Tableau::selectLeavingDual() const {
+    std::size_t leavingRow = m; // sentinel: primal feasible
+    double minB = -baguette::lp_feasibility_tol;
+
+    for (std::size_t i = 0; i < m; ++i) {
+        double bi = tab[i * (n + 1) + n];
+        if (bi < minB) {
+            minB       = bi;
+            leavingRow = i;
+        }
+    }
+    return leavingRow;
+}
+
+std::size_t Tableau::selectEnteringDual(std::size_t leavingRow) const {
+    double      minRatio    = std::numeric_limits<double>::infinity();
+    std::size_t enteringCol = n; // sentinel: primal infeasible
+
+    for (std::size_t j = 0; j < n; ++j) {
+        double aij = tab[leavingRow * (n + 1) + j];
+        if (aij >= -baguette::pivot_tol) continue; // only strictly negative entries
+
+        // rc[j] ≥ 0 (dual feasibility) and −aij > 0, so ratio ≥ 0.
+        double ratio = rc[j] / (-aij);
+        if (ratio < minRatio - baguette::pivot_tol) {
+            minRatio    = ratio;
+            enteringCol = j;
+        } else if (ratio < minRatio + baguette::pivot_tol && j < enteringCol) {
+            enteringCol = j; // tie-break: smallest column index
+        }
+    }
+    return enteringCol;
+}
+
 void Tableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
     const std::size_t w = n + 1;
 

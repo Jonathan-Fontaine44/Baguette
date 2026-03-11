@@ -65,6 +65,28 @@ struct Tableau {
     /// anti-cycling rule. Returns m if no such row exists (problem is unbounded).
     std::size_t selectLeaving(std::size_t enteringCol) const;
 
+    // ── Dual-simplex pivot selection ─────────────────────────────────────────
+
+    /// Dual-simplex leaving-row selection.
+    ///
+    /// Picks the row i with the most-negative rhs  tab[i*(n+1)+n] < −lp_feasibility_tol.
+    /// Returns m if all rhs values are ≥ −lp_feasibility_tol (primal feasible → optimal
+    /// since the dual simplex maintains dual feasibility throughout).
+    std::size_t selectLeavingDual() const;
+
+    /// Dual-simplex entering-column selection (minimum-ratio test on reduced costs).
+    ///
+    /// For the leaving row @p leavingRow, considers only columns j where
+    /// tab[leavingRow*(n+1)+j] < −pivot_tol, and picks the one minimising
+    ///   rc[j] / |tab[leavingRow*(n+1)+j]|
+    /// with ties broken by smallest column index (Bland-style anti-cycling).
+    ///
+    /// Returns n if no column qualifies (all entries ≥ −pivot_tol), which signals
+    /// that the primal LP is infeasible (dual LP is unbounded in that direction).
+    ///
+    /// @pre  All rc[j] ≥ 0  (dual feasibility is maintained by the caller).
+    std::size_t selectEnteringDual(std::size_t leavingRow) const;
+
     /// Pivot: bring enteringCol into the basis at leavingRow.
     /// Updates tab, rc, and basicCols in-place.
     void pivot(std::size_t leavingRow, std::size_t enteringCol);

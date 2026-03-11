@@ -1,5 +1,6 @@
 #include "baguette/lp/LPSolver.hpp"
 
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -14,8 +15,6 @@ namespace baguette {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 namespace {
-
-using Clock = std::chrono::steady_clock;
 
 /// Augmented standard form extended with artificial variables for phase I.
 struct AugmentedForm {
@@ -141,15 +140,16 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
 
     for (std::size_t i = 0; i < tab.m; ++i) {
         if (tab.basicCols[i] < nOld) continue;
-        uint32_t assigned = 0; // fallback if every column is somehow already basic
+        bool found = false;
         for (std::size_t j = 0; j < nOld; ++j) {
             if (!inBasis[j]) {
-                assigned = static_cast<uint32_t>(j);
+                tab.basicCols[i] = static_cast<uint32_t>(j);
                 inBasis[j] = true;
+                found = true;
                 break;
             }
         }
-        tab.basicCols[i] = assigned;
+        assert(found && "repairRedundantRows: no free column — basis is over-complete");
     }
 }
 
@@ -270,7 +270,7 @@ LPStatus runSimplex(internal::Tableau& tab,
                     const internal::LPStandardForm& sf,
                     uint32_t maxIter,
                     double   timeLimitS,
-                    Clock::time_point startTime) {
+                    SolverClock::time_point startTime) {
     uint32_t iter = 0;
 
     while (true) {
@@ -279,7 +279,7 @@ LPStatus runSimplex(internal::Tableau& tab,
 
         if (timeLimitS > 0.0) {
             double elapsed =
-                std::chrono::duration<double>(Clock::now() - startTime).count();
+                std::chrono::duration<double>(SolverClock::now() - startTime).count();
             if (elapsed >= timeLimitS)
                 return LPStatus::TimeLimit;
         }
@@ -301,14 +301,92 @@ LPStatus runSimplex(internal::Tableau& tab,
     }
 }
 
+/// Dual-simplex loop.
+///
+/// Precondition: the tableau is dual-feasible (all rc[j] ≥ 0).
+/// The loop maintains dual feasibility and drives primal feasibility
+/// until all rhs values are ≥ 0 (optimal) or infeasibility is detected.
+LPStatus runDualSimplex(internal::Tableau& tab,
+                        const internal::LPStandardForm& sf,
+                        uint32_t maxIter,
+                        double   timeLimitS,
+                        SolverClock::time_point startTime) {
+    uint32_t iter = 0;
+
+    while (true) {
+        if (maxIter > 0 && iter >= maxIter)
+            return LPStatus::MaxIter;
+
+        if (timeLimitS > 0.0) {
+            double elapsed =
+                std::chrono::duration<double>(SolverClock::now() - startTime).count();
+            if (elapsed >= timeLimitS)
+                return LPStatus::TimeLimit;
+        }
+
+        std::size_t leaving = tab.selectLeavingDual();
+        if (leaving == tab.m)
+            return LPStatus::Optimal; // primal feasible + dual feasible → optimal
+
+        std::size_t entering = tab.selectEnteringDual(leaving);
+        if (entering == tab.n)
+            return LPStatus::Infeasible; // no improving dual pivot → primal infeasible
+
+        tab.pivot(leaving, entering);
+        ++iter;
+
+        if (baguette::reinversion_period > 0 &&
+            iter % baguette::reinversion_period == 0)
+            tab.reinvert(sf);
+    }
+}
+
+/// Build a dual-feasible initial basis for the dual simplex.
+///
+/// For each row, select the column of the natural basic variable:
+///   - LessEq row i:     slack column sf.rowSlackCol[i]  (coeff +1, b ≥ 0)
+///   - GreaterEq row i:  surplus column sf.rowSlackCol[i] (coeff −1)
+///                       Gauss-Jordan will divide by −1, negating the row.
+///                       The rhs in the tableau becomes −b[i] ≤ 0 (primal infeasible).
+///   - Upper-bound row:  UpperSlack column (coeff +1, b = ub−lb ≥ 0)
+///
+/// Dual feasibility of the resulting basis requires rc[j] ≥ 0 for all
+/// non-basic original columns, which holds when sf.c[j] ≥ 0 (all objective
+/// coefficients non-negative after shifting / sign convention).
+///
+/// @returns The initial basis vector, or an empty vector if the model contains
+///          Sense::Equal constraints (which have no natural basic variable).
+std::vector<uint32_t> buildDualBasis(const internal::LPStandardForm& sf,
+                                     const Model& model) {
+    const auto& constraints = model.getConstraints();
+
+    // Check: any Equal constraint → no natural basis available
+    for (std::size_t i = 0; i < sf.nOrigRows; ++i)
+        if (constraints[i].sense == Sense::Equal)
+            return {}; // signal: not directly applicable
+
+    std::vector<uint32_t> basis(sf.nRows);
+
+    // Model-constraint rows
+    for (std::size_t i = 0; i < sf.nOrigRows; ++i)
+        basis[i] = sf.rowSlackCol[i]; // slack (LessEq) or surplus (GEQ)
+
+    // Upper-bound rows (indices nOrigRows .. nRows-1)
+    // UpperSlack columns: nOrig + nSlack, nOrig + nSlack + 1, ...
+    for (std::size_t i = sf.nOrigRows; i < sf.nRows; ++i)
+        basis[i] = static_cast<uint32_t>(sf.nOrig + sf.nSlack + (i - sf.nOrigRows));
+
+    return basis;
+}
+
 } // anonymous namespace
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 LPDetailedResult solveDetailed(const Model& model,
                                uint32_t maxIter,
-                               double   timeLimitS) {
-    auto startTime = Clock::now();
+                               double   timeLimitS,
+                               SolverClock::time_point startTime) {
 
     // Early infeasibility: a variable with lb > ub has an empty domain.
     // This arises naturally in B&B after bound tightening.
@@ -369,6 +447,68 @@ LPResult solve(const Model& model,
                uint32_t maxIter,
                double   timeLimitS) {
     return solveDetailed(model, maxIter, timeLimitS).result;
+}
+
+LPDetailedResult solveDualDetailed(const Model& model,
+                                   uint32_t maxIter,
+                                   double   timeLimitS,
+                                   SolverClock::time_point startTime) {
+
+    // Early infeasibility: empty variable domain.
+    {
+        const auto& hot = model.getHot();
+        for (std::size_t j = 0; j < model.numVars(); ++j) {
+            if (hot.lb[j] > hot.ub[j]) {
+                LPDetailedResult det;
+                det.result.status = LPStatus::Infeasible;
+                return det;
+            }
+        }
+    }
+
+    // 1. Standard form
+    internal::LPStandardForm sf = internal::toStandardForm(model);
+
+    // 2. Try to build a dual-feasible initial basis (fails if Equal constraints present)
+    std::vector<uint32_t> basis = buildDualBasis(sf, model);
+    if (basis.empty()) {
+        // Fallback: Equal constraints prevent a natural dual-feasible basis.
+        // Delegate to the primal two-phase simplex.
+        return solveDetailed(model, maxIter, timeLimitS, startTime);
+    }
+
+    // 3. Initialise the tableau with the natural slack/surplus basis.
+    //    Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
+    //    negative rhs values for those rows (primal infeasible).
+    internal::Tableau tab;
+    tab.init(sf, basis);
+
+    // 4. Verify dual feasibility: rc[j] ≥ 0 for all non-basic columns.
+    //    If any rc[j] < 0, the starting basis is not dual-feasible
+    //    (e.g. the objective has negative coefficients for some column).
+    //    Fall back to the primal simplex in that case.
+    for (std::size_t j = 0; j < sf.nCols; ++j) {
+        if (tab.rc[j] < -baguette::lp_optimality_tol) {
+            return solveDetailed(model, maxIter, timeLimitS, startTime);
+        }
+    }
+
+    // 5. Run the dual simplex
+    LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime);
+
+    // 6. Extract result
+    LPDetailedResult det = extractDetailed(tab, sf, model, status);
+
+    if (status == LPStatus::Infeasible)
+        det.result.primalValues.clear();
+
+    return det;
+}
+
+LPResult solveDual(const Model& model,
+                   uint32_t maxIter,
+                   double   timeLimitS) {
+    return solveDualDetailed(model, maxIter, timeLimitS).result;
 }
 
 } // namespace baguette

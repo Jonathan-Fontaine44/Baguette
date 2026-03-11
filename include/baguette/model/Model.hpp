@@ -43,8 +43,8 @@ public:
     /// Set the objective function and optimization direction.
     ///
     /// Converts the sparse LinearExpr into the dense `hot.obj` vector.
-    /// The constant term of @p expr is ignored (offsets do not affect
-    /// the optimal solution).
+    /// The constant term of @p expr is stored and added back to the reported
+    /// objective value after solving (it does not affect the optimal solution).
     /// @warning All variables in @p expr must have been created by this Model.
     /// Throws std::out_of_range if a variable ID exceeds numVars().
     void setObjective(LinearExpr expr,
@@ -53,16 +53,18 @@ public:
     std::size_t numVars()        const { return hot.lb.size(); }
     std::size_t numConstraints() const { return constraints.size(); }
 
-    const ModelHot&               getHot()         const { return hot; }
-    const ModelCold&              getCold()        const { return cold; }
+    const ModelHot&               getHot()          const { return hot; }
+    const ModelCold&              getCold()         const { return cold; }
     const std::vector<Constraint>& getConstraints() const { return constraints; }
-    ObjSense                      getObjSense()    const { return objSense; }
+    ObjSense                      getObjSense()     const { return objSense; }
+    double                        getObjConstant()  const { return objConstant; }
 
 private:
     ModelHot  hot;
     ModelCold cold;
     std::vector<Constraint> constraints;
-    ObjSense objSense = ObjSense::Minimize;
+    ObjSense objSense    = ObjSense::Minimize;
+    double   objConstant = 0.0;
 };
 
 } // namespace baguette

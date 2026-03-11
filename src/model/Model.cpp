@@ -27,7 +27,8 @@ void Model::addConstraint(LinearExpr lhs, Sense sense, double rhs) {
 }
 
 void Model::setObjective(LinearExpr expr, ObjSense sense) {
-    objSense = sense;
+    objSense    = sense;
+    objConstant = expr.constant;
 
     std::fill(hot.obj.begin(), hot.obj.end(), 0.0);
 

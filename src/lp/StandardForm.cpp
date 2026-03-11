@@ -81,6 +81,7 @@ LPStandardForm toStandardForm(const Model& model) {
     const bool maximize = (model.getObjSense() == ObjSense::Maximize);
     const double objSign = maximize ? -1.0 : 1.0;
 
+    sf.objOffset = objSign * model.getObjConstant();
     for (std::size_t j = 0; j < nOrig; ++j) {
         double cj = objSign * hot.obj[j];
         sf.c[j]       = sf.varColSign[j] * cj;
@@ -170,6 +171,94 @@ LPStandardForm toStandardForm(const Model& model) {
     }
 
     return sf;
+}
+
+LPStandardForm dualStandardForm(const LPStandardForm& primal) {
+    // Primal: min c^T x,  Ax = b,  x ≥ 0   (m rows, n cols)
+    // Dual:   max b^T y,  A^T y ≤ c,  y free  (m vars, n constraints)
+    //
+    // Standard form of the dual (min, equality, non-negative):
+    //   Split y_i = y⁺_i − y⁻_i  (y⁺, y⁻ ≥ 0)
+    //   Add slack s_j ≥ 0 per dual constraint j.
+    //
+    //   min  −b^T y⁺ + b^T y⁻
+    //   s.t. A^T (y⁺ − y⁻) + s = c   (n rows, one per primal column)
+    //        y⁺, y⁻, s ≥ 0
+
+    const std::size_t m    = primal.nRows;
+    const std::size_t n    = primal.nCols;
+    const std::size_t dCols = 2 * m + n;
+
+    LPStandardForm dual;
+    dual.nRows     = n;
+    dual.nOrigRows = n;
+    dual.nCols     = dCols;
+    dual.nOrig     = 2 * m;  // y⁺ and y⁻ treated as "original" columns
+    dual.nSlack    = n;      // one slack per dual constraint row
+
+    dual.A.assign(n * dCols, 0.0);
+    dual.b.resize(n);
+    dual.c.resize(dCols, 0.0);
+    dual.colKind.resize(dCols);
+    dual.colOrigin.resize(dCols);
+    dual.rowSlackCol.resize(n);
+    dual.rowNegated.resize(n, false);
+
+    // varShiftVal / varColSign / varFreeNegCol: the y⁺/y⁻ variables are
+    // already non-negative (no shift, sign = +1, not free-split).
+    dual.varShiftVal.assign(2 * m, 0.0);
+    dual.varColSign.assign(2 * m, static_cast<int8_t>(+1));
+    dual.varFreeNegCol.assign(2 * m, static_cast<uint32_t>(dCols)); // sentinel: not free
+
+    // Fill constraint matrix rows j = 0..n-1
+    //   A_dual[j, i]       = A_primal[i, j]   (y⁺_i coefficient)
+    //   A_dual[j, m+i]     = −A_primal[i, j]  (y⁻_i coefficient)
+    //   A_dual[j, 2m+j]    = 1.0              (slack s_j)
+    //   b_dual[j]          = c_primal[j]       (rhs of dual constraint j)
+    for (std::size_t j = 0; j < n; ++j) {
+        for (std::size_t i = 0; i < m; ++i) {
+            double aij = primal.A[i * n + j];
+            dual.A[j * dCols + i]       =  aij;
+            dual.A[j * dCols + m + i]   = -aij;
+        }
+        dual.A[j * dCols + 2 * m + j] = 1.0;
+        dual.b[j] = primal.c[j];
+        dual.rowSlackCol[j] = static_cast<uint32_t>(2 * m + j);
+    }
+
+    // Objective: min −b_primal^T y⁺ + b_primal^T y⁻
+    for (std::size_t i = 0; i < m; ++i) {
+        dual.c[i]       = -primal.b[i];  // y⁺_i
+        dual.c[m + i]   = +primal.b[i];  // y⁻_i
+    }
+    // c[2m..2m+n-1] = 0.0  (slacks have zero cost)
+
+    // Normalise: b_dual[j] must be ≥ 0 for the Tableau initialisation.
+    // Negate any row where b_dual[j] = primal.c[j] < 0.
+    for (std::size_t j = 0; j < n; ++j) {
+        if (dual.b[j] < 0.0) {
+            for (std::size_t k = 0; k < dCols; ++k)
+                dual.A[j * dCols + k] = -dual.A[j * dCols + k];
+            dual.b[j]          = -dual.b[j];
+            dual.rowNegated[j] = true;
+        }
+    }
+
+    // Column metadata
+    for (std::size_t i = 0; i < m; ++i) {
+        // y⁺_i: maps to primal row i
+        dual.colKind[i]       = ColumnKind::Original;
+        dual.colOrigin[i]     = static_cast<uint32_t>(i);
+        // y⁻_i: also maps to primal row i (negative counterpart)
+        dual.colKind[m + i]   = ColumnKind::Original;
+        dual.colOrigin[m + i] = static_cast<uint32_t>(i);
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        dual.colKind[2 * m + j]   = ColumnKind::Slack;
+        dual.colOrigin[2 * m + j] = static_cast<uint32_t>(j);
+    }
+
+    return dual;
 }
 
 } // namespace baguette::internal

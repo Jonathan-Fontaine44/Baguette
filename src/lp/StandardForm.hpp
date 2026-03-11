@@ -102,4 +102,28 @@ struct LPStandardForm {
 ///         objective exceeds Model::numVars().
 LPStandardForm toStandardForm(const Model& model);
 
+/// Build the LP dual of a standard-form LP.
+///
+/// Given the primal   min  c^T x   s.t.  Ax = b,  x ≥ 0   (m rows, n cols),
+/// the dual is        max  b^T y   s.t.  A^T y ≤ c,  y free.
+///
+/// Each free dual variable y_i is split as y_i = y⁺_i − y⁻_i, and each
+/// dual inequality is converted to an equality by adding a slack s_j ≥ 0:
+///
+///     min  −b^T y⁺ + b^T y⁻
+///     s.t.  A^T (y⁺ − y⁻) + s = c,   y⁺, y⁻, s ≥ 0.
+///
+/// Column layout of the returned SF:
+///   [0 .. m-1]          y⁺ variables  (one per primal row)
+///   [m .. 2m-1]         y⁻ variables  (one per primal row)
+///   [2m .. 2m+n-1]      slack s        (one per primal column / dual constraint)
+///
+/// The slack columns form a natural initial basis; their rhs is primal.c[j],
+/// which is normalised to ≥ 0 by negating the row when primal.c[j] < 0
+/// (recorded in rowNegated).
+///
+/// @note objOffset is always 0: the dual is derived from the pure
+///       standard-form coefficients, not from a user Model with variable shifts.
+LPStandardForm dualStandardForm(const LPStandardForm& primal);
+
 } // namespace baguette::internal

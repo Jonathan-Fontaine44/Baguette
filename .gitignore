@@ -24,3 +24,6 @@ docs/
 
 # Hidden folders
 .*/
+
+# Local dev notes (not versioned)
+bugTracker.md

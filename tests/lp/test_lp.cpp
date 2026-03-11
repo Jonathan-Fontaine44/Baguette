@@ -430,3 +430,65 @@ TEST_CASE("LP redundant GEQ constraint - does not crash", "[lp]") {
     CHECK_THAT(res.objectiveValue,  WithinAbs(3.0, kTol));
     CHECK_THAT(res.primalValues[0], WithinAbs(3.0, kTol));
 }
+
+// ── Objective constant ────────────────────────────────────────────────────────
+
+TEST_CASE("LP objective constant - Minimize", "[lp]") {
+    // min x + 100  s.t. x >= 3,  x >= 0
+    // Optimal: x = 3, obj = 103.
+    Model m;
+    auto x = m.addVar(0.0, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    LinearExpr obj = 1.0 * x;
+    obj.constant   = 100.0;
+    m.setObjective(obj, ObjSense::Minimize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,  WithinAbs(103.0, kTol));
+    CHECK_THAT(res.primalValues[0], WithinAbs(3.0,   kTol));
+}
+
+TEST_CASE("LP objective constant - Maximize", "[lp]") {
+    // max x - 50  s.t. x <= 7,  x >= 0
+    // Optimal: x = 7, obj = -43.
+    Model m;
+    auto x = m.addVar(0.0, kInf, "x");
+    m.addConstraint(1.0 * x, Sense::LessEq, 7.0);
+    LinearExpr obj = 1.0 * x;
+    obj.constant   = -50.0;
+    m.setObjective(obj, ObjSense::Maximize);
+
+    auto res = solve(m);
+
+    REQUIRE(res.status == LPStatus::Optimal);
+    CHECK_THAT(res.objectiveValue,  WithinAbs(-43.0, kTol));
+    CHECK_THAT(res.primalValues[0], WithinAbs(7.0,   kTol));
+}
+
+TEST_CASE("LP objective constant - does not affect optimal solution", "[lp]") {
+    // Same problem as above with two different constants: solution must be identical.
+    auto makeModel = [](double c) {
+        Model m;
+        auto x = m.addVar(0.0, kInf, "x");
+        auto y = m.addVar(0.0, kInf, "y");
+        m.addConstraint(1.0*x + 1.0*y, Sense::LessEq, 4.0);
+        LinearExpr obj = 1.0*x + 2.0*y;
+        obj.constant   = c;
+        m.setObjective(obj, ObjSense::Minimize);
+        return m;
+    };
+
+    auto r0 = solve(makeModel(0.0));
+    auto r1 = solve(makeModel(99.0));
+
+    REQUIRE(r0.status == LPStatus::Optimal);
+    REQUIRE(r1.status == LPStatus::Optimal);
+    // Optimal solution (x=0, y=0, obj=0 / 99) — same variable values.
+    REQUIRE(r0.primalValues.size() == r1.primalValues.size());
+    for (std::size_t j = 0; j < r0.primalValues.size(); ++j)
+        CHECK_THAT(r1.primalValues[j], WithinAbs(r0.primalValues[j], kTol));
+    // Objective values differ by exactly the constant.
+    CHECK_THAT(r1.objectiveValue - r0.objectiveValue, WithinAbs(99.0, kTol));
+}
