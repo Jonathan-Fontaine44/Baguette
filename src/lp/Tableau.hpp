@@ -48,8 +48,11 @@ struct Tableau {
     ///                     0 for all others.  For phase II (and reinvert), pass the
     ///                     original standard form.
     /// @param initialBasis Column indices forming the initial basis (size == sf.nRows).
-    void init(const LPStandardForm& sf,
-              const std::vector<uint32_t>& initialBasis);
+    /// @return true on success; false if the basis matrix is numerically singular
+    ///         (all pivot candidates in some column are below pivot_tol).
+    ///         On false the tableau is in an undefined state and must not be used.
+    bool init(const LPStandardForm& sf,
+              std::vector<uint32_t> initialBasis);
 
     // ── Simplex operations ───────────────────────────────────────────────────
 
@@ -94,7 +97,9 @@ struct Tableau {
     /// Rebuild B⁻¹ from scratch using the current basicCols to reset
     /// accumulated floating-point errors.
     /// @param sf The standard-form LP (needed for the original A and c).
-    void reinvert(const LPStandardForm& sf);
+    /// @return true on success; false if the basis is numerically singular.
+    ///         On false the tableau is in an undefined state and must not be used.
+    [[nodiscard]] bool reinvert(const LPStandardForm& sf);
 
     // ── Solution extraction ──────────────────────────────────────────────────
 

@@ -316,7 +316,7 @@ LPStatus runSimplex(internal::Tableau& tab,
 
         if (baguette::reinversion_period > 0 &&
             iter % baguette::reinversion_period == 0)
-            tab.reinvert(sf);
+            if (!tab.reinvert(sf)) return LPStatus::MaxIter;
     }
 }
 
@@ -356,7 +356,7 @@ LPStatus runDualSimplex(internal::Tableau& tab,
 
         if (baguette::reinversion_period > 0 &&
             iter % baguette::reinversion_period == 0)
-            tab.reinvert(sf);
+            if (!tab.reinvert(sf)) return LPStatus::MaxIter;
     }
 }
 
@@ -426,7 +426,7 @@ LPDetailedResult solveDetailed(const Model& model,
     // 2. Phase I
     AugmentedForm aug = buildPhaseOne(sf, model);
     internal::Tableau tab;
-    tab.init(aug.sf, aug.initialBasis);
+    assert(tab.init(aug.sf, aug.initialBasis)); // identity basis: cannot be singular
 
     LPStatus p1Status = runSimplex(tab, aug.sf, maxIter, timeLimitS, startTime);
 
@@ -504,12 +504,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         // reinvert rebuilds B⁻¹A with the NEW b (updated bounds shift the RHS)
         // while A and c are unchanged → RC unchanged, dual feasibility preserved.
         tab.basicCols = warmBasis.basicCols;
-        try {
-            tab.reinvert(sf);
-        } catch (const std::runtime_error&) {
-            // Numerically degenerate basis: fall back to cold primal start.
+        if (!tab.reinvert(sf))
             return solveDetailed(model, maxIter, timeLimitS, startTime);
-        }
     } else {
         // ── Cold dual-start path ─────────────────────────────────────────────
         // Build a dual-feasible initial basis from natural slack/surplus columns.
@@ -521,7 +517,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         }
         // Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
         // negative rhs values for those rows (primal infeasible, dual feasible).
-        tab.init(sf, coldBasis);
+        assert(tab.init(sf, coldBasis)); // slack/surplus basis: cannot be singular
     }
 
     // Verify dual feasibility (shared by both paths).

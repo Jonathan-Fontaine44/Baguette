@@ -60,6 +60,7 @@ catch_discover_tests(BaguetteTests DISCOVERY_MODE PRE_TEST)
 add_executable(BaguetteInternalTests
     tests/lp/test_standard_form.cpp
     tests/lp/test_dual_sf.cpp
+    tests/lp/test_tableau_init.cpp
 )
 
 target_link_libraries(BaguetteInternalTests PRIVATE

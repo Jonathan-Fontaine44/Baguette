@@ -11,8 +11,8 @@ namespace baguette::internal {
 
 // ── Construction ─────────────────────────────────────────────────────────────
 
-void Tableau::init(const LPStandardForm& sf,
-                   const std::vector<uint32_t>& initialBasis) {
+bool Tableau::init(const LPStandardForm& sf,
+                   std::vector<uint32_t> initialBasis) {
     assert(initialBasis.size() == sf.nRows);
 
     m = sf.nRows;
@@ -26,27 +26,45 @@ void Tableau::init(const LPStandardForm& sf,
         tab[i * (n + 1) + n] = sf.b[i];
     }
 
-    basicCols.assign(initialBasis.begin(), initialBasis.end());
+    basicCols = std::move(initialBasis);
 
-    // Gauss-Jordan: pivot on each basis column so that B becomes the identity
+    // Gauss-Jordan with partial pivoting: pivot on each basis column so that
+    // B becomes the identity. Partial pivoting avoids false "degenerate basis"
+    // failures when the row order is not triangularly compatible with basicCols
+    // (e.g. after B&B warm-start or mid-solve reinversion).
+    const std::size_t w = n + 1;
     for (std::size_t i = 0; i < m; ++i) {
         std::size_t col = basicCols[i];
-        double pivot = tab[i * (n + 1) + col];
-        if (std::abs(pivot) < baguette::pivot_tol)
-            throw std::runtime_error("Tableau::init: degenerate initial basis");
+
+        // Find the row r in [i, m-1] with the largest |tab[r, col]|.
+        // col is fixed as basicCols[i], so basicCols is never swapped.
+        std::size_t pivotRow = i;
+        double      maxAbs   = 0.0;
+        for (std::size_t r = i; r < m; ++r) {
+            double val = std::abs(tab[r * w + col]);
+            if (val > maxAbs) { maxAbs = val; pivotRow = r; }
+        }
+
+        if (maxAbs < baguette::pivot_tol)
+            return false; // truly singular basis
+
+        // Swap physical rows (not basicCols: col stays basicCols[i]).
+        if (pivotRow != i)
+            for (std::size_t j = 0; j <= n; ++j)
+                std::swap(tab[i * w + j], tab[pivotRow * w + j]);
 
         // Scale pivot row
-        double inv = 1.0 / pivot;
+        double inv = 1.0 / tab[i * w + col];
         for (std::size_t j = 0; j <= n; ++j)
-            tab[i * (n + 1) + j] *= inv;
+            tab[i * w + j] *= inv;
 
         // Eliminate column in all other rows
         for (std::size_t r = 0; r < m; ++r) {
             if (r == i) continue;
-            double factor = tab[r * (n + 1) + col];
+            double factor = tab[r * w + col];
             if (factor == 0.0) continue;
             for (std::size_t j = 0; j <= n; ++j)
-                tab[r * (n + 1) + j] -= factor * tab[i * (n + 1) + j];
+                tab[r * w + j] -= factor * tab[i * w + j];
         }
     }
 
@@ -65,15 +83,16 @@ void Tableau::init(const LPStandardForm& sf,
         for (std::size_t j = 0; j <= n; ++j)
             rc[j] -= cb * tab[i * (n + 1) + j];
     }
+    return true;
 }
 
 // ── Reinversion ──────────────────────────────────────────────────────────────
 
-void Tableau::reinvert(const LPStandardForm& sf) {
+bool Tableau::reinvert(const LPStandardForm& sf) {
     // Rebuild the tableau from scratch using the current basis.
-    // This resets accumulated floating-point errors.
-    std::vector<uint32_t> basis = basicCols; // keep current basis
-    init(sf, basis);
+    // std::move avoids a copy: init() receives the buffer and moves it back
+    // into basicCols via the by-value parameter, reusing the same allocation.
+    return init(sf, std::move(basicCols));
 }
 
 // ── Simplex operations ────────────────────────────────────────────────────────
