@@ -11,6 +11,9 @@ Variable Model::addVar(double lb, double ub, std::string label) {
 }
 
 Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
+    if (lb > ub)
+        throw std::invalid_argument("Model::addVar: lb > ub for variable '" + label + "'");
+
     auto id = static_cast<std::uint32_t>(hot.lb.size());
 
     hot.lb.push_back(lb);
@@ -24,6 +27,9 @@ Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
 }
 
 void Model::addConstraint(LinearExpr lhs, Sense sense, double rhs) {
+    for (uint32_t id : lhs.varIds)
+        if (id >= hot.lb.size())
+            throw std::out_of_range("addConstraint: variable ID " + std::to_string(id) + " out of range (wrong model?)");
     constraints.push_back({std::move(lhs), sense, rhs});
 }
 
@@ -48,7 +54,7 @@ void Model::setObjective(LinearExpr expr, ObjSense sense) {
     for (std::size_t i = 0; i < expr.varIds.size(); ++i) {
         if (expr.varIds[i] >= hot.obj.size())
             throw std::out_of_range("setObjective: variable ID out of range (wrong model?)");
-        hot.obj[expr.varIds[i]] = expr.coeffs[i];
+        hot.obj[expr.varIds[i]] += expr.coeffs[i];
     }
 }
 

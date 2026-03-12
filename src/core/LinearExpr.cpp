@@ -15,7 +15,7 @@ void LinearExpr::addTerm(Variable var, double coeff) {
             coeffs.erase(coeffs.begin() + static_cast<std::ptrdiff_t>(idx));
         }
     } else {
-        if (coeff != 0.0) { // Useless insertion
+        if (std::abs(coeff) > cancellation_tol) {
             std::size_t idx = static_cast<std::size_t>(it - varIds.begin());
             varIds.insert(it, var.id);
             coeffs.insert(coeffs.begin() + static_cast<std::ptrdiff_t>(idx), coeff);

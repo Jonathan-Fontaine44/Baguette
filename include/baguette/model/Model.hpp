@@ -25,6 +25,7 @@ public:
     /// @param ub    Upper bound.
     /// @param label Optional name for display and debugging.
     /// @return A Variable handle valid for the lifetime of this Model.
+    /// @throws std::invalid_argument if lb > ub.
     Variable addVar(double lb, double ub, std::string label = "");
 
     /// Add a decision variable with an explicit type and optional label.
@@ -34,10 +35,11 @@ public:
     /// @param type  Variable type (Continuous, Integer, Binary).
     /// @param label Optional name for display and debugging.
     /// @return A Variable handle valid for the lifetime of this Model.
+    /// @throws std::invalid_argument if lb > ub.
     Variable addVar(double lb, double ub, VarType type, std::string label = "");
 
     /// Add a linear constraint: `lhs sense rhs`.
-    /// @warning All variables in @p lhs must have been created by this Model.
+    /// @throws std::out_of_range if any variable in @p lhs does not belong to this Model.
     void addConstraint(LinearExpr lhs, Sense sense, double rhs);
 
     /// Set the objective function and optimization direction.
@@ -45,8 +47,7 @@ public:
     /// Converts the sparse LinearExpr into the dense `hot.obj` vector.
     /// The constant term of @p expr is stored and added back to the reported
     /// objective value after solving (it does not affect the optimal solution).
-    /// @warning All variables in @p expr must have been created by this Model.
-    /// Throws std::out_of_range if a variable ID exceeds numVars().
+    /// @throws std::out_of_range if any variable in @p expr does not belong to this Model.
     void setObjective(LinearExpr expr,
                       ObjSense sense = ObjSense::Minimize);
 
