@@ -255,7 +255,7 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
         // For Maximize we solved min(-obj), so the standard-form dual has
         // the opposite sign from the max-problem shadow price.
         // Row negation (b[i] < 0 flip) adds another sign flip.
-        double sign;
+        double sign = 0.0;
         if (constraints[i].sense == Sense::Equal) {
             det.dualValues[i] = 0.0; // not recoverable from slack rc
             continue;
@@ -426,7 +426,8 @@ LPDetailedResult solveDetailed(const Model& model,
     // 2. Phase I
     AugmentedForm aug = buildPhaseOne(sf, model);
     internal::Tableau tab;
-    assert(tab.init(aug.sf, aug.initialBasis)); // identity basis: cannot be singular
+    [[maybe_unused]] bool initOk = tab.init(aug.sf, aug.initialBasis);
+    assert(initOk && "identity basis: cannot be singular");
 
     LPStatus p1Status = runSimplex(tab, aug.sf, maxIter, timeLimitS, startTime);
 
@@ -517,7 +518,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         }
         // Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
         // negative rhs values for those rows (primal infeasible, dual feasible).
-        assert(tab.init(sf, coldBasis)); // slack/surplus basis: cannot be singular
+        [[maybe_unused]] bool coldOk = tab.init(sf, coldBasis);
+        assert(coldOk && "slack/surplus basis: cannot be singular");
     }
 
     // Verify dual feasibility (shared by both paths).

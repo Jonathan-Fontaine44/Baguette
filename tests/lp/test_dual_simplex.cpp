@@ -203,10 +203,10 @@ TEST_CASE("dual simplex - maxIter limit respected", "[dual_simplex]") {
     CHECK((res.status == LPStatus::MaxIter || res.status == LPStatus::Optimal));
 }
 
-TEST_CASE("dual simplex - solveDualDetailed implicit conversion to LPResult", "[dual_simplex]") {
+TEST_CASE("dual simplex - solveDualDetailed result sub-object accessible", "[dual_simplex]") {
     LPDetailedResult det = solveDualDetailed(makeMinWithGEQ());
-    const LPResult& res  = det;
-    CHECK(res.status == det.result.status);
+    const LPResult& res  = det.result;
+    CHECK(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(det.result.objectiveValue, kTol));
 }
 

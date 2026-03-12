@@ -268,10 +268,10 @@ TEST_CASE("LP solveDetailed - basis record populated", "[lp]") {
     CHECK(det.basis.colKind.size() == det.basis.colOrigin.size());
 }
 
-TEST_CASE("LP solveDetailed - implicit conversion to LPResult", "[lp]") {
+TEST_CASE("LP solveDetailed - result sub-object accessible", "[lp]") {
     LPDetailedResult det = solveDetailed(makeSimpleMax());
-    const LPResult& res = det; // implicit conversion
-    CHECK(res.status == det.result.status);
+    const LPResult& res = det.result;
+    CHECK(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(det.result.objectiveValue, kTol));
 }
 

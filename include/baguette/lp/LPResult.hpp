@@ -70,8 +70,7 @@ struct BasisRecord {
 /// Contains an LPResult for the basic outcome; the additional fields
 /// (dualValues, reducedCosts, basis) are valid only when result.status == Optimal.
 ///
-/// Implicit conversion to `const LPResult&` allows LPDetailedResult to be
-/// stored or passed wherever an LPResult is expected, without object slicing.
+/// Access the basic result via the public `result` member.
 struct LPDetailedResult {
     /// Basic result: status, objective value, and primal solution.
     LPResult result;
@@ -87,11 +86,6 @@ struct LPDetailedResult {
     /// Basis record for B&B warm-start.
     /// Valid only when result.status == Optimal.
     BasisRecord basis;
-
-    /// Implicit conversion: allows passing an LPDetailedResult where an
-    /// LPResult is expected (e.g. inserting into a std::vector<LPResult>).
-    /// No slicing — only the LPResult sub-object is accessed.
-    operator const LPResult&() const { return result; }
 };
 
 } // namespace baguette
