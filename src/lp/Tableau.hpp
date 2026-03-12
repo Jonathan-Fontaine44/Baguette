@@ -110,12 +110,6 @@ struct Tableau {
     /// Basic variables take their rhs value; non-basic variables are 0.
     std::vector<double> primalSolution() const;
 
-    /// Dual variables y = c_B B⁻¹.
-    /// For the full tableau these are read from the reduced-cost entries of
-    /// the slack columns, sign-corrected for negated rows and surplus sign.
-    ///
-    /// @param sf The standard form (needed for rowSlackCol and rowNegated).
-    std::vector<double> dualSolution(const LPStandardForm& sf) const;
 };
 
 } // namespace baguette::internal

@@ -195,17 +195,5 @@ std::vector<double> Tableau::primalSolution() const {
     return x;
 }
 
-std::vector<double> Tableau::dualSolution(const LPStandardForm& sf) const {
-    // Raw dual: rc[slackCol] for each model row.
-    // Sign corrections for GEQ surplus (coeff −1), row negation, and
-    // Maximize are applied by the caller (LPSolver.cpp) which has access
-    // to the Model's constraint senses.
-    std::vector<double> y(sf.nOrigRows, 0.0);
-    for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
-        double val = rc[sf.rowSlackCol[i]];
-        y[i] = sf.rowNegated[i] ? -val : val;
-    }
-    return y;
-}
 
 } // namespace baguette::internal
