@@ -50,6 +50,55 @@ public:
     void setObjective(LinearExpr expr,
                       ObjSense sense = ObjSense::Minimize);
 
+    /// Update the bounds of @p var in place.
+    ///
+    /// This is the preferred method for Branch & Bound hot loops.  Modify
+    /// bounds before solving a child node, then restore them for backtracking:
+    ///
+    /// @code
+    ///   double savedLb = model.getHot().lb[x.id];
+    ///   double savedUb = model.getHot().ub[x.id];
+    ///   model.setVarBounds(x, newLb, newUb);
+    ///   auto child = solveDualDetailed(model, 0, 0.0, startTime, parentBasis);
+    ///   model.setVarBounds(x, savedLb, savedUb); // backtrack
+    /// @endcode
+    ///
+    /// @warning The finiteness of bounds must not change relative to the solve
+    ///          that produced the BasisRecord you plan to warm-start from.
+    ///          See withVarBounds() for details.
+    ///
+    /// @note No validation of newLb ≤ newUb is performed here.
+    ///       The solver detects empty domains via its early-infeasibility check.
+    /// @note No validation of @p var.id is performed here (intentional: this
+    ///       method sits on the critical path of the B&B hot loop and a bounds
+    ///       check would add overhead to every node).  @p var must have been
+    ///       obtained from addVar() on *this* model; passing a Variable from a
+    ///       different Model instance is undefined behaviour.  A debug-mode
+    ///       assertion catches this during development.
+    void setVarBounds(Variable var, double newLb, double newUb);
+
+    /// Return a copy of this model with updated bounds for @p var.
+    ///
+    /// Convenient for tests and single-shot exploration but incurs an O(model)
+    /// copy (all lb/ub/obj/constraint vectors).  For B&B hot loops, prefer
+    /// setVarBounds() with manual save/restore to avoid per-node allocations.
+    ///
+    /// @warning The finiteness of bounds must not change relative to the
+    ///          model used to produce the BasisRecord you plan to warm-start
+    ///          from.  Specifically, a variable that had an infinite bound in
+    ///          the parent must keep an infinite bound in the child, and vice
+    ///          versa.  Changing finiteness alters the number of rows/columns
+    ///          in the standard form (upper-bound rows, free-split columns),
+    ///          making the parent basis incompatible.  In that case
+    ///          solveDualDetailed() falls back automatically to a cold start.
+    ///
+    /// @note No validation of newLb ≤ newUb is performed here.
+    ///       The solver detects empty domains via its early-infeasibility check.
+    /// @note @p var must have been obtained from addVar() on *this* model.
+    ///       Passing a Variable from a different Model instance is undefined
+    ///       behaviour.
+    Model withVarBounds(Variable var, double newLb, double newUb) const;
+
     std::size_t numVars()        const { return hot.lb.size(); }
     std::size_t numConstraints() const { return constraints.size(); }
 

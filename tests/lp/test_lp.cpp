@@ -492,3 +492,71 @@ TEST_CASE("LP objective constant - does not affect optimal solution", "[lp]") {
     // Objective values differ by exactly the constant.
     CHECK_THAT(r1.objectiveValue - r0.objectiveValue, WithinAbs(99.0, kTol));
 }
+
+// ── Redundant constraints ──────────────────────────────────────────────────────
+
+TEST_CASE("Redundant Equal constraint: correct primal and objective", "[redundant]") {
+    // Bug regression: repairRedundantRows used to assign an original-variable
+    // column (non-zero cost, non-zero tableau entries) to the dummy row produced
+    // by the linearly dependent constraint.  That variable would then enter the
+    // basis at a different row during phase II, creating a duplicate in basicCols.
+    // primalSolution iterates basicCols in order and overwrites x[j] with the
+    // redundant row's value (0), producing a primal solution inconsistent with
+    // the reported objective value.
+    //
+    //   min  x1 - 2*x2
+    //   s.t. x1 + x2 = 4          (Equal)
+    //        2*x1 + 2*x2 = 8      (Equal, linearly dependent on row 0)
+    //        x1, x2 in [0, 10]
+    //
+    // Optimal: x1 = 0, x2 = 4, obj = -8.
+    // Before the fix: primalValues = {0, 0}, objectiveValue = -8  (inconsistent).
+    // After  the fix: primalValues = {0, 4}, objectiveValue = -8  (consistent).
+    Model m;
+    auto x1 = m.addVar(0.0, 10.0, "x1");
+    auto x2 = m.addVar(0.0, 10.0, "x2");
+
+    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::Equal, 4.0);
+    m.addConstraint(2.0 * x1 + 2.0 * x2, Sense::Equal, 8.0);
+    m.setObjective(1.0 * x1 + -2.0 * x2, ObjSense::Minimize);
+
+    auto det = solveDetailed(m);
+    REQUIRE(det.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(det.result.objectiveValue,    WithinAbs(-8.0, kTol));
+    REQUIRE_THAT(det.result.primalValues[x1.id], WithinAbs(0.0,  kTol));
+    REQUIRE_THAT(det.result.primalValues[x2.id], WithinAbs(4.0,  kTol));
+    // Consistency check: obj must equal c^T x, not just the rc-row value.
+    double recomputed = 1.0 * det.result.primalValues[x1.id]
+                      - 2.0 * det.result.primalValues[x2.id];
+    REQUIRE_THAT(recomputed, WithinAbs(det.result.objectiveValue, kTol));
+}
+
+TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]") {
+    // Same regression, GEQ variant. The second constraint (4x+4y >= 8) is
+    // twice the first (2x+2y >= 4) and produces the same degenerate phase-I
+    // exit with an artificial stuck in the basis.
+    //
+    //   min  3x + y
+    //   s.t. 2x + 2y >= 4   (GreaterEq)
+    //        4x + 4y >= 8   (GreaterEq, linearly dependent)
+    //        x, y in [0, 10]
+    //
+    // Optimal on the line 2x+2y=4: minimise 3x+y = 3x+(2-x) = 2+2x → x=0,
+    // y=2, obj=2.
+    Model m;
+    auto x = m.addVar(0.0, 10.0, "x");
+    auto y = m.addVar(0.0, 10.0, "y");
+
+    m.addConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 4.0);
+    m.addConstraint(4.0 * x + 4.0 * y, Sense::GreaterEq, 8.0);
+    m.setObjective(3.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto det = solveDetailed(m);
+    REQUIRE(det.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(det.result.objectiveValue,     WithinAbs(2.0,  kTol));
+    REQUIRE_THAT(det.result.primalValues[x.id], WithinAbs(0.0,  kTol));
+    REQUIRE_THAT(det.result.primalValues[y.id], WithinAbs(2.0,  kTol));
+    double recomputed = 3.0 * det.result.primalValues[x.id]
+                      + 1.0 * det.result.primalValues[y.id];
+    REQUIRE_THAT(recomputed, WithinAbs(det.result.objectiveValue, kTol));
+}

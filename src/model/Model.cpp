@@ -1,6 +1,7 @@
 #include "baguette/model/Model.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <stdexcept>
 
 namespace baguette {
@@ -24,6 +25,18 @@ Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
 
 void Model::addConstraint(LinearExpr lhs, Sense sense, double rhs) {
     constraints.push_back({std::move(lhs), sense, rhs});
+}
+
+void Model::setVarBounds(Variable var, double newLb, double newUb) {
+    assert(var.id < hot.lb.size() && "setVarBounds: variable does not belong to this model");
+    hot.lb[var.id] = newLb;
+    hot.ub[var.id] = newUb;
+}
+
+Model Model::withVarBounds(Variable var, double newLb, double newUb) const {
+    Model copy = *this;
+    copy.setVarBounds(var, newLb, newUb);
+    return copy;
 }
 
 void Model::setObjective(LinearExpr expr, ObjSense sense) {

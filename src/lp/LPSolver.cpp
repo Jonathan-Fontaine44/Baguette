@@ -141,12 +141,31 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
     for (std::size_t i = 0; i < tab.m; ++i) {
         if (tab.basicCols[i] < nOld) continue;
         bool found = false;
-        for (std::size_t j = 0; j < nOld; ++j) {
+
+        // First pass: prefer all-zero columns. A column that is zero in every
+        // tableau row has rc[j] = c[j] after re-pricing, and since a_ij = 0 for
+        // all rows, no pivot can ever make rc[j] negative → it can never enter
+        // the basis. Assigning it to a redundant row (0 = 0) prevents duplicate
+        // basicCols entries that would corrupt primalSolution in phase II.
+        for (std::size_t j = 0; j < nOld && !found; ++j) {
+            if (inBasis[j]) continue;
+            bool allZero = true;
+            for (std::size_t r = 0; r < tab.m && allZero; ++r)
+                allZero = (std::abs(tab.tab[r * (tab.n + 1) + j]) <= baguette::pivot_tol);
+            if (allZero) {
+                tab.basicCols[i] = static_cast<uint32_t>(j);
+                inBasis[j] = true;
+                found = true;
+            }
+        }
+
+        // Fallback: any non-basic column (original behaviour, covers the case
+        // where no all-zero column is available).
+        for (std::size_t j = 0; j < nOld && !found; ++j) {
             if (!inBasis[j]) {
                 tab.basicCols[i] = static_cast<uint32_t>(j);
                 inBasis[j] = true;
                 found = true;
-                break;
             }
         }
         assert(found && "repairRedundantRows: no free column — basis is over-complete");
@@ -443,18 +462,20 @@ LPDetailedResult solveDetailed(const Model& model,
     return det;
 }
 
-LPResult solve(const Model& model,
-               uint32_t maxIter,
-               double   timeLimitS) {
-    return solveDetailed(model, maxIter, timeLimitS).result;
+LPResult solve(const Model&            model,
+               uint32_t                maxIter,
+               double                  timeLimitS,
+               SolverClock::time_point startTime) {
+    return solveDetailed(model, maxIter, timeLimitS, startTime).result;
 }
 
-LPDetailedResult solveDualDetailed(const Model& model,
-                                   uint32_t maxIter,
-                                   double   timeLimitS,
-                                   SolverClock::time_point startTime) {
+LPDetailedResult solveDualDetailed(const Model&            model,
+                                   uint32_t                maxIter,
+                                   double                  timeLimitS,
+                                   SolverClock::time_point startTime,
+                                   const BasisRecord&      warmBasis) {
 
-    // Early infeasibility: empty variable domain.
+    // Early infeasibility: empty variable domain (including B&B bound tightening).
     {
         const auto& hot = model.getHot();
         for (std::size_t j = 0; j < model.numVars(); ++j) {
@@ -466,49 +487,68 @@ LPDetailedResult solveDualDetailed(const Model& model,
         }
     }
 
-    // 1. Standard form
     internal::LPStandardForm sf = internal::toStandardForm(model);
+    internal::Tableau tab;
 
-    // 2. Try to build a dual-feasible initial basis (fails if Equal constraints present)
-    std::vector<uint32_t> basis = buildDualBasis(sf, model);
-    if (basis.empty()) {
-        // Fallback: Equal constraints prevent a natural dual-feasible basis.
-        // Delegate to the primal two-phase simplex.
-        return solveDetailed(model, maxIter, timeLimitS, startTime);
+    if (!warmBasis.basicCols.empty()) {
+        // ── Warm-start path ──────────────────────────────────────────────────
+        // A size mismatch means the bound-finiteness invariant was violated
+        // (a variable gained or lost a finite bound, changing the number of
+        // upper-bound rows or free-split columns). Fall back to cold primal.
+        if (warmBasis.basicCols.size() != sf.nRows ||
+            warmBasis.colKind.size()   != sf.nCols) {
+            return solveDetailed(model, maxIter, timeLimitS, startTime);
+        }
+
+        // Seed the tableau with the parent's basis and reinvert.
+        // reinvert rebuilds B⁻¹A with the NEW b (updated bounds shift the RHS)
+        // while A and c are unchanged → RC unchanged, dual feasibility preserved.
+        tab.basicCols = warmBasis.basicCols;
+        try {
+            tab.reinvert(sf);
+        } catch (const std::runtime_error&) {
+            // Numerically degenerate basis: fall back to cold primal start.
+            return solveDetailed(model, maxIter, timeLimitS, startTime);
+        }
+    } else {
+        // ── Cold dual-start path ─────────────────────────────────────────────
+        // Build a dual-feasible initial basis from natural slack/surplus columns.
+        // Returns empty if any Equal constraint is present (no natural basic var).
+        std::vector<uint32_t> coldBasis = buildDualBasis(sf, model);
+        if (coldBasis.empty()) {
+            // Fallback: Equal constraints prevent a natural dual-feasible basis.
+            return solveDetailed(model, maxIter, timeLimitS, startTime);
+        }
+        // Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
+        // negative rhs values for those rows (primal infeasible, dual feasible).
+        tab.init(sf, coldBasis);
     }
 
-    // 3. Initialise the tableau with the natural slack/surplus basis.
-    //    Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
-    //    negative rhs values for those rows (primal infeasible).
-    internal::Tableau tab;
-    tab.init(sf, basis);
-
-    // 4. Verify dual feasibility: rc[j] ≥ 0 for all non-basic columns.
-    //    If any rc[j] < 0, the starting basis is not dual-feasible
-    //    (e.g. the objective has negative coefficients for some column).
-    //    Fall back to the primal simplex in that case.
+    // Verify dual feasibility (shared by both paths).
+    // Cold path: required for correctness (e.g. objective has negative coefficients).
+    // Warm path: preserved by bound tightening but checked as safety net and
+    //            to detect Maximize / negative-cost fallback cases.
     for (std::size_t j = 0; j < sf.nCols; ++j) {
         if (tab.rc[j] < -baguette::lp_optimality_tol) {
             return solveDetailed(model, maxIter, timeLimitS, startTime);
         }
     }
 
-    // 5. Run the dual simplex
     LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime);
 
-    // 6. Extract result
     LPDetailedResult det = extractDetailed(tab, sf, model, status);
-
     if (status == LPStatus::Infeasible)
         det.result.primalValues.clear();
 
     return det;
 }
 
-LPResult solveDual(const Model& model,
-                   uint32_t maxIter,
-                   double   timeLimitS) {
-    return solveDualDetailed(model, maxIter, timeLimitS).result;
+LPResult solveDual(const Model&            model,
+                   uint32_t                maxIter,
+                   double                  timeLimitS,
+                   SolverClock::time_point startTime,
+                   const BasisRecord&      warmBasis) {
+    return solveDualDetailed(model, maxIter, timeLimitS, startTime, warmBasis).result;
 }
 
 } // namespace baguette

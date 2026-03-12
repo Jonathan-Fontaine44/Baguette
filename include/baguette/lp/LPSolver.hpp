@@ -20,9 +20,12 @@ using SolverClock = std::chrono::steady_clock;
 /// @param maxIter    Maximum number of simplex pivots. 0 = unlimited.
 /// @param timeLimitS Wall-clock time limit in seconds. 0.0 = unlimited.
 ///                   Must be ≥ 0.0 (no unsigned floating-point type in C++).
-LPResult solve(const Model& model,
-               uint32_t maxIter    = 0,
-               double   timeLimitS = 0.0);
+/// @param startTime  Reference point for the time limit. Defaults to now().
+///                   Pass a B&B root startTime to share the budget across nodes.
+LPResult solve(const Model&            model,
+               uint32_t                maxIter    = 0,
+               double                  timeLimitS = 0.0,
+               SolverClock::time_point startTime  = SolverClock::now());
 
 /// Solve the LP relaxation of @p model and return the full detailed result.
 ///
@@ -53,34 +56,54 @@ LPDetailedResult solveDetailed(const Model& model,
 /// Solve @p model using the dual simplex algorithm where applicable,
 /// otherwise fall back to the primal two-phase simplex.
 ///
-/// The dual simplex starts from a dual-feasible basis constructed from the
-/// natural slack / surplus columns of the standard form.  The standard form is
-/// always a minimisation (Maximize is handled by negating the objective), so
-/// dual feasibility of the natural basis requires every standard-form objective
-/// coefficient sf.c[j] ≥ 0.  In practice this holds for Minimize problems with
-/// non-negative costs, and for B&B warm-starts where the parent's optimal basis
-/// is passed via @p startTime (the main intended use case).
-/// GEQ rows are handled natively: the surplus column (coeff −1) is negated by
-/// Gauss-Jordan, giving a primal-infeasible but dual-feasible start.
+/// **Cold start** (default, @p warmBasis empty): builds a dual-feasible basis
+/// from the natural slack / surplus columns of the standard form.  The standard
+/// form is always a minimisation (Maximize is handled by negating the objective),
+/// so dual feasibility of the natural basis requires every standard-form
+/// objective coefficient sf.c[j] ≥ 0.  GEQ rows are handled natively: the
+/// surplus column (coeff −1) is negated by Gauss-Jordan, giving a
+/// primal-infeasible but dual-feasible start.
 ///
-/// Fallback to the primal simplex occurs when:
-///   - Any constraint has `Sense::Equal` (no natural basic variable exists).
-///   - Any standard-form objective coefficient is negative after the lb-shift
-///     (e.g. Maximize with positive costs, or Minimize with negative costs).
+/// **Warm start** (@p warmBasis non-empty, B&B use case): reinverts the
+/// tableau directly from the parent node's BasisRecord, then runs the dual
+/// simplex to restore primal feasibility after bound tightening.  The parent's
+/// basis is still dual-feasible because bound tightening only changes the RHS
+/// vector b, not A or c, so RC = c − c_B B⁻¹ A is unchanged.
+///
+/// **Bound-finiteness invariant for warm start** — the finiteness (finite vs.
+/// infinite) of every variable bound must be the same in @p model as in the
+/// parent model that produced @p warmBasis.  Changing finiteness alters the
+/// standard-form structure (upper-bound rows, free-split columns), making the
+/// basis incompatible.  See Model::withVarBounds() for details.
+///
+/// Automatic fallbacks to a cold primal two-phase solve occur when:
+///   - Cold path: any constraint has `Sense::Equal`, or any standard-form
+///     objective coefficient is negative (e.g. Maximize with positive costs).
+///   - Warm path: @p warmBasis dimensions are incompatible with @p model's
+///     standard form (bound-finiteness invariant violated), or the warm basis
+///     is not dual-feasible after reinversion, or reinversion fails numerically.
 ///
 /// @param model      The model to solve.
-/// @param maxIter    Maximum simplex pivots (0 = unlimited).
+/// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
 /// @param timeLimitS Wall-clock limit in seconds (0.0 = unlimited).
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
-LPResult solveDual(const Model& model,
-                   uint32_t maxIter    = 0,
-                   double   timeLimitS = 0.0);
+/// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
+LPResult solveDual(const Model&            model,
+                   uint32_t                maxIter    = 0,
+                   double                  timeLimitS = 0.0,
+                   SolverClock::time_point startTime  = SolverClock::now(),
+                   const BasisRecord&      warmBasis  = {});
 
-/// Same as solveDual() but returns the full LPDetailedResult.
-LPDetailedResult solveDualDetailed(const Model& model,
-                                   uint32_t maxIter    = 0,
-                                   double   timeLimitS = 0.0,
-                                   SolverClock::time_point startTime = SolverClock::now());
+/// Same as solveDual() but returns the full LPDetailedResult, including a
+/// new BasisRecord suitable for passing to the next level of the B&B tree.
+///
+/// @param startTime  Reference point for the time limit. Defaults to now().
+///                   Pass the B&B root startTime to share the budget across nodes.
+LPDetailedResult solveDualDetailed(const Model&            model,
+                                   uint32_t                maxIter    = 0,
+                                   double                  timeLimitS = 0.0,
+                                   SolverClock::time_point startTime  = SolverClock::now(),
+                                   const BasisRecord&      warmBasis  = {});
 
 } // namespace baguette
