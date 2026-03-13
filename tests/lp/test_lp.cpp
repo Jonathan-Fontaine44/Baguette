@@ -531,6 +531,40 @@ TEST_CASE("Redundant Equal constraint: correct primal and objective", "[redundan
     REQUIRE_THAT(recomputed, WithinAbs(det.result.objectiveValue, kTol));
 }
 
+TEST_CASE("Two redundant Equal constraints: correct primal and objective", "[redundant]") {
+    // Stress-test for the dummy-row parking mechanism with 2 redundant rows.
+    // Each dummy row needs its own non-basic parking column, so a third variable
+    // x3 (unconstrained by the Equal rows) is added to provide it.
+    //
+    //   min  x1 − 2*x2 + x3
+    //   s.t. x1 + x2       = 4   (Equal)
+    //        2*x1 + 2*x2   = 8   (Equal, redundant = 2× row 0)
+    //        4*x1 + 4*x2   = 16  (Equal, redundant = 4× row 0)
+    //        x1, x2, x3 in [0, 10]
+    //
+    // Optimal: x1=0, x2=4, x3=0, obj = 0 − 8 + 0 = −8.
+    Model m;
+    auto x1 = m.addVar(0.0, 10.0, "x1");
+    auto x2 = m.addVar(0.0, 10.0, "x2");
+    auto x3 = m.addVar(0.0, 10.0, "x3");
+
+    m.addConstraint(1.0 * x1 + 1.0 * x2,             Sense::Equal, 4.0);
+    m.addConstraint(2.0 * x1 + 2.0 * x2,             Sense::Equal, 8.0);
+    m.addConstraint(4.0 * x1 + 4.0 * x2,             Sense::Equal, 16.0);
+    m.setObjective(1.0 * x1 + -2.0 * x2 + 1.0 * x3, ObjSense::Minimize);
+
+    auto det = solveDetailed(m);
+    REQUIRE(det.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(det.result.objectiveValue,      WithinAbs(-8.0, kTol));
+    REQUIRE_THAT(det.result.primalValues[x1.id], WithinAbs(0.0,  kTol));
+    REQUIRE_THAT(det.result.primalValues[x2.id], WithinAbs(4.0,  kTol));
+    REQUIRE_THAT(det.result.primalValues[x3.id], WithinAbs(0.0,  kTol));
+    double recomputed = 1.0 * det.result.primalValues[x1.id]
+                      - 2.0 * det.result.primalValues[x2.id]
+                      + 1.0 * det.result.primalValues[x3.id];
+    REQUIRE_THAT(recomputed, WithinAbs(det.result.objectiveValue, kTol));
+}
+
 TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]") {
     // Same regression, GEQ variant. The second constraint (4x+4y >= 8) is
     // twice the first (2x+2y >= 4) and produces the same degenerate phase-I

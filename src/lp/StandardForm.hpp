@@ -21,7 +21,7 @@ namespace baguette::internal {
 ///
 /// Column ordering (contiguous blocks):
 ///   [0 .. nOrig-1]                  shifted original variables (x⁺ for free-split vars)
-///   [nOrig .. nOrig+nSlack-1]       slack / surplus variables (one per model row)
+///   [nOrig .. nOrig+nSlack-1]       slack / surplus variables (one per LessEq / GreaterEq row; Equal rows have none)
 ///   [nOrig+nSlack .. nOrig+nSlack+nUBSlack-1]  upper-bound slacks  x'_j + s = ub_j − lb_j
 ///   [nOrig+nSlack+nUBSlack .. nCols-1]          free-split negative parts x⁻_j
 ///                                               (one per fully free variable)
@@ -34,7 +34,7 @@ struct LPStandardForm {
     std::size_t nOrigRows;  ///< Rows from model constraints.
     std::size_t nCols;      ///< Total columns.
     std::size_t nOrig;      ///< Number of shifted original variables.
-    std::size_t nSlack;     ///< Number of slack / surplus variables.
+    std::size_t nSlack;     ///< Number of slack / surplus variables (Equal rows excluded).
 
     /// Dense constraint matrix, row-major: A[i * nCols + j].
     std::vector<double> A;
@@ -61,6 +61,7 @@ struct LPStandardForm {
     std::vector<uint32_t> colOrigin;
 
     /// For each model constraint row i, the column index of its slack/surplus.
+    /// Equal rows have no slack; for those, rowSlackCol[i] == nCols (sentinel).
     /// Used when extracting dual variables from the tableau's reduced-cost row.
     std::vector<uint32_t> rowSlackCol;
 

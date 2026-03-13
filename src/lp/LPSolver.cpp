@@ -159,12 +159,14 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
             }
         }
 
-        // Fallback: any non-basic column (original behaviour, covers the case
-        // where no all-zero column is available).
+        // Fallback: any non-basic column. With Option A (no phantom slacks for
+        // Equal rows) there may be no all-zero column. The assigned column will
+        // create a duplicate in basicCols that pivot() resolves via hasRedundantRow.
         for (std::size_t j = 0; j < nOld && !found; ++j) {
             if (!inBasis[j]) {
                 tab.basicCols[i] = static_cast<uint32_t>(j);
                 inBasis[j] = true;
+                tab.hasRedundantRow = true;
                 found = true;
             }
         }

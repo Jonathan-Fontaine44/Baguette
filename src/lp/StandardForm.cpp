@@ -44,7 +44,11 @@ LPStandardForm toStandardForm(const Model& model) {
     }
 
     const std::size_t nRows    = nOrigRows + nUBRows;
-    const std::size_t nSlack   = nOrigRows;   // one slack/surplus per model row
+    // Equal rows have no slack/surplus; only LessEq and GEQ get one.
+    std::size_t nSlack = 0;
+    for (std::size_t i = 0; i < nOrigRows; ++i)
+        if (constraints[i].sense != Sense::Equal)
+            ++nSlack;
     const std::size_t nUBSlack = nUBRows;
     const std::size_t nCols    = nOrig + nSlack + nUBSlack + nFree;
 
@@ -71,10 +75,15 @@ LPStandardForm toStandardForm(const Model& model) {
         sf.colKind[j]   = ColumnKind::Original;
         sf.colOrigin[j] = static_cast<uint32_t>(j);
     }
-    for (std::size_t i = 0; i < nSlack; ++i) {
-        std::size_t col = nOrig + i;
-        sf.colKind[col]   = ColumnKind::Slack;
-        sf.colOrigin[col] = static_cast<uint32_t>(i);
+    {
+        std::size_t slackIdx = 0;
+        for (std::size_t i = 0; i < nOrigRows; ++i) {
+            if (constraints[i].sense == Sense::Equal) continue;
+            std::size_t col = nOrig + slackIdx;
+            sf.colKind[col]   = ColumnKind::Slack;
+            sf.colOrigin[col] = static_cast<uint32_t>(i);
+            ++slackIdx;
+        }
     }
 
     // ── Objective vector (lb-shifted, always minimise) ──────────────────────
@@ -89,9 +98,15 @@ LPStandardForm toStandardForm(const Model& model) {
     }
 
     // ── Model constraint rows ───────────────────────────────────────────────
+    // rowSlackCol[i] = nCols (sentinel) for Equal rows (no slack column).
+    // All consumers (extractDetailed, buildDualBasis, buildPhaseOne) skip
+    // Equal rows before dereferencing rowSlackCol, so the sentinel is safe.
+    std::size_t slackColIdx = 0;
     for (std::size_t i = 0; i < nOrigRows; ++i) {
         const auto& con = constraints[i];
-        const std::size_t slackCol = nOrig + i;
+        const std::size_t slackCol = (con.sense != Sense::Equal)
+            ? nOrig + slackColIdx
+            : sf.nCols; // sentinel: Equal rows have no slack
         sf.rowSlackCol[i] = static_cast<uint32_t>(slackCol);
 
         double rhs = con.rhs;
@@ -108,9 +123,11 @@ LPStandardForm toStandardForm(const Model& model) {
         switch (con.sense) {
             case Sense::LessEq:
                 sf.A[i * nCols + slackCol] = +1.0;
+                ++slackColIdx;
                 break;
             case Sense::GreaterEq:
                 sf.A[i * nCols + slackCol] = -1.0;
+                ++slackColIdx;
                 break;
             case Sense::Equal:
                 break;

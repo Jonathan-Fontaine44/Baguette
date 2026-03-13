@@ -35,6 +35,11 @@ struct Tableau {
     /// basicCols[i] = index of the basic column in row i.  Size m.
     std::vector<uint32_t> basicCols;
 
+    /// Set to true by repairRedundantRows when a real column had to be assigned
+    /// to a dummy row (all-zero, from a linearly dependent constraint).  Enables
+    /// the duplicate-basicCols scan in pivot() at zero cost otherwise.
+    bool hasRedundantRow = false;
+
     // ── Construction ────────────────────────────────────────────────────────
 
     /// Build the tableau from a standard form and an initial basis.

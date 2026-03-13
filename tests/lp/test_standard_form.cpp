@@ -65,10 +65,10 @@ TEST_CASE("SF dimensions - two vars, mixed senses", "[standard_form]") {
     auto sf = toStandardForm(m);
 
     CHECK(sf.nOrig     == 2); // x', y'
-    CHECK(sf.nSlack    == 3); // one per constraint
+    CHECK(sf.nSlack    == 2); // LessEq + GreaterEq only (Equal has no slack)
     CHECK(sf.nOrigRows == 3);
     CHECK(sf.nRows     == 3); // no finite UBs
-    CHECK(sf.nCols     == 5); // x', y', s0, s1, s2
+    CHECK(sf.nCols     == 4); // x', y', s_leq, s_surplus
 }
 
 // ── Objective vector ──────────────────────────────────────────────────────────
@@ -167,8 +167,8 @@ TEST_CASE("SF constraint - GreaterEq: surplus has -1", "[standard_form]") {
 }
 
 TEST_CASE("SF constraint - Equal: no slack column entry", "[standard_form]") {
-    // x + y = 5
-    // Row 0: [1, 1, 0 | 5]  (slack col stays 0)
+    // x + y = 5 — Equal rows have no slack column (Option A).
+    // nCols == nOrig == 2; column index 2 is out of bounds.
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
@@ -179,7 +179,8 @@ TEST_CASE("SF constraint - Equal: no slack column entry", "[standard_form]") {
 
     CHECK_THAT(A(sf, 0, 0), WithinAbs(1.0, kTol)); // x'
     CHECK_THAT(A(sf, 0, 1), WithinAbs(1.0, kTol)); // y'
-    CHECK_THAT(A(sf, 0, 2), WithinAbs(0.0, kTol)); // slack column stays 0
+    CHECK(sf.nCols == 2); // no slack column allocated for Equal row
+    CHECK_THROWS_AS(sf.A.at(0 * sf.nCols + 2), std::out_of_range); // column 2 doesn't exist
     CHECK_THAT(sf.b[0],     WithinAbs(5.0, kTol));
 }
 

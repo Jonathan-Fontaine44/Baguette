@@ -183,6 +183,18 @@ void Tableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
             row[j] -= factor * tab[leavingRow * w + j];
     }
 
+    // If enteringCol was already assigned to another row (a dummy redundant row
+    // from repairRedundantRows), give that row the leaving column instead.
+    // The flag avoids this O(m) scan in the common case (no redundant rows).
+    if (hasRedundantRow) {
+        for (std::size_t i = 0; i < m; ++i) {
+            if (i != leavingRow && basicCols[i] == static_cast<uint32_t>(enteringCol)) {
+                basicCols[i] = basicCols[leavingRow];
+                break; // at most one dummy row per entering column
+            }
+        }
+    }
+
     basicCols[leavingRow] = static_cast<uint32_t>(enteringCol);
 }
 
