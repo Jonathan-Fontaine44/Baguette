@@ -40,6 +40,12 @@ struct Tableau {
     /// the duplicate-basicCols scan in pivot() at zero cost otherwise.
     bool hasRedundantRow = false;
 
+    /// Number of columns considered by selectEntering().
+    /// Set to the original (pre-augmentation) column count by preparePhaseTwo()
+    /// so that artificial columns kept for dual extraction cannot enter the basis
+    /// in phase II.  Zero means "use all n columns" (phase I default).
+    std::size_t nActive = 0;
+
     // ── Construction ────────────────────────────────────────────────────────
 
     /// Build the tableau from a standard form and an initial basis.
@@ -78,6 +84,8 @@ struct Tableau {
     /// Dual-simplex leaving-row selection.
     ///
     /// Picks the row i with the most-negative rhs  tab[i*(n+1)+n] < −lp_feasibility_tol.
+    /// On ties (rhs values within lp_feasibility_tol of each other), the row whose
+    /// basic variable has the smallest column index is chosen (Bland's anti-cycling rule).
     /// Returns m if all rhs values are ≥ −lp_feasibility_tol (primal feasible → optimal
     /// since the dual simplex maintains dual feasibility throughout).
     std::size_t selectLeavingDual() const;

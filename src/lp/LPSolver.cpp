@@ -21,6 +21,12 @@ struct AugmentedForm {
     internal::LPStandardForm sf; ///< Extended with artificial columns.
     std::vector<uint32_t>    initialBasis;
     std::size_t              nArt = 0;
+
+    /// For each original constraint row i (size == sf.nOrigRows):
+    /// the column index of the artificial added for that Equal row, or
+    /// sf.nCols (sentinel) if the row is not Equal.
+    /// Used by extractDetailed() to read y_i = −rc[equalArtCol[i]] after phase II.
+    std::vector<uint32_t> equalArtCol;
 };
 
 /// Build the phase-I augmented form from a standard form.
@@ -62,6 +68,9 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
     aug.sf.rowSlackCol = sf.rowSlackCol;
     aug.sf.rowNegated  = sf.rowNegated;
 
+    // Initialise Equal-row artificial mapping with sentinel (= no artificial).
+    aug.equalArtCol.assign(sf.nOrigRows, static_cast<uint32_t>(nOld + nArt));
+
     const std::size_t nNew = nOld + nArt;
     aug.sf.nCols = nNew;
     aug.sf.A.assign(m * nNew, 0.0);
@@ -79,7 +88,8 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
         aug.sf.colOrigin[j] = sf.colOrigin[j];
     }
 
-    // Append artificial columns (phase-I objective = 1 for each)
+    // Append artificial columns (phase-I objective = 1 for each).
+    // Track the column index of each Equal-row artificial for dual extraction.
     std::size_t artCol = nOld;
     for (std::size_t i = 0; i < m; ++i) {
         if (!needsArt[i]) continue;
@@ -87,6 +97,8 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
         aug.sf.c[artCol]            = 1.0;
         aug.sf.colKind[artCol]      = ColumnKind::Slack; // internal marker
         aug.sf.colOrigin[artCol]    = 0;
+        if (i < sf.nOrigRows && constraints[i].sense == Sense::Equal)
+            aug.equalArtCol[i] = static_cast<uint32_t>(artCol);
         ++artCol;
     }
 
@@ -174,42 +186,55 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
     }
 }
 
-/// Strip artificial columns and re-price the objective row for phase II.
+/// Transition the tableau from phase I to phase II.
+///
+/// Artificial columns are NOT stripped from the tableau.  Instead, their
+/// phase-II cost is set to zero and they are excluded from pivot selection
+/// via tab.nActive = sfOrig.nCols.  This keeps their rc entries up-to-date
+/// through every phase-II pivot so that, at optimality:
+///   rc[art_i] = 0 − y_i  →  y_i = −rc[art_i]
+/// enabling dual-variable extraction for Equal constraints (bug #18).
 void preparePhaseTwo(internal::Tableau& tab,
                      const internal::LPStandardForm& sfOrig) {
-    const std::size_t nOld = sfOrig.nCols;
+    const std::size_t nOld = sfOrig.nCols; // columns in the original (non-augmented) form
     const std::size_t m    = tab.m;
+    const std::size_t w    = tab.n + 1;    // full tableau row width (includes artificials + rhs)
 
-    std::vector<double> newTab(m * (nOld + 1));
-    for (std::size_t i = 0; i < m; ++i) {
-        for (std::size_t j = 0; j < nOld; ++j)
-            newTab[i * (nOld + 1) + j] = tab.tab[i * (tab.n + 1) + j];
-        newTab[i * (nOld + 1) + nOld] = tab.tab[i * (tab.n + 1) + tab.n];
-    }
-
-    tab.tab = std::move(newTab);
-    tab.n   = nOld;
+    // Restrict pivot selection to original columns only.
+    tab.nActive = nOld;
 
     repairRedundantRows(tab, nOld);
 
-    // Re-price: rc_j = c_j − c_B * B⁻¹ a_j
-    tab.rc.assign(nOld + 1, 0.0);
+    // Re-price: rc_j = c_j − c_B * B⁻¹ a_j for ALL columns (including artificials).
+    // For j < nOld: c_j = sfOrig.c[j].
+    // For j >= nOld (artificials): c_j = 0 (phase-II cost).
+    tab.rc.assign(w, 0.0);
     for (std::size_t j = 0; j < nOld; ++j)
         tab.rc[j] = sfOrig.c[j];
+    // rc[j] already 0 for j >= nOld (artificials) and for the rhs slot at j = tab.n.
 
     for (std::size_t i = 0; i < m; ++i) {
+        // After driveOutArtificials + repairRedundantRows, basicCols[i] < nOld always.
         double cb = sfOrig.c[tab.basicCols[i]];
         if (cb == 0.0) continue;
-        for (std::size_t j = 0; j <= nOld; ++j)
-            tab.rc[j] -= cb * tab.tab[i * (nOld + 1) + j];
+        for (std::size_t j = 0; j < w; ++j)
+            tab.rc[j] -= cb * tab.tab[i * w + j];
     }
 }
 
 /// Extract the full LPDetailedResult from a solved phase-II tableau.
+///
+/// @p equalArtCol  Optional mapping (size == sf.nOrigRows) from each Equal
+///                 constraint row to the column index of its artificial variable
+///                 in the augmented tableau.  When provided, dual values for
+///                 Equal rows are read as  y_i = −rc[equalArtCol[i]]  instead
+///                 of being left at zero.  Pass an empty vector when the tableau
+///                 contains no artificial columns (e.g. dual-simplex cold start).
 LPDetailedResult extractDetailed(const internal::Tableau& tab,
                                  const internal::LPStandardForm& sf,
                                  const Model& model,
-                                 LPStatus status) {
+                                 LPStatus status,
+                                 const std::vector<uint32_t>& equalArtCol = {}) {
     LPDetailedResult det;
     det.result.status = status;
 
@@ -259,7 +284,18 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
         // Row negation (b[i] < 0 flip) adds another sign flip.
         double sign = 0.0;
         if (constraints[i].sense == Sense::Equal) {
-            det.dualValues[i] = 0.0; // not recoverable from slack rc
+            // Artificial column for this row was kept in the tableau with c_II = 0.
+            // At optimality: rc[art_i] = 0 − y^T * e_i = −y_i  →  y_i = −rc[art_i].
+            // Same sign convention as LessEq (slack is also a unit-vector column).
+            if (!equalArtCol.empty() && equalArtCol[i] < tab.n) {
+                raw  = tab.rc[equalArtCol[i]];
+                sign = -1.0;
+                if (sf.rowNegated[i]) sign = -sign;
+                if (maximize)         sign = -sign;
+                det.dualValues[i] = sign * raw;
+            } else {
+                det.dualValues[i] = 0.0; // dual simplex path: no artificial kept
+            }
             continue;
         } else if (constraints[i].sense == Sense::LessEq) {
             sign = -1.0;
@@ -287,15 +323,20 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
 }
 
 /// Simplex loop shared by both phases.
+///
+/// @p iterConsumed  In/out shared pivot counter.  On entry it holds the number
+///                  of pivots already used (e.g. by phase I); on return it holds
+///                  the updated total.  Passing the same variable to the phase-I
+///                  and phase-II calls ensures both phases draw from a single
+///                  maxIter budget (bug #19).
 LPStatus runSimplex(internal::Tableau& tab,
                     const internal::LPStandardForm& sf,
                     uint32_t maxIter,
                     double   timeLimitS,
-                    SolverClock::time_point startTime) {
-    uint32_t iter = 0;
-
+                    SolverClock::time_point startTime,
+                    uint32_t& iterConsumed) {
     while (true) {
-        if (maxIter > 0 && iter >= maxIter)
+        if (maxIter > 0 && iterConsumed >= maxIter)
             return LPStatus::MaxIter;
 
         if (timeLimitS > 0.0) {
@@ -314,10 +355,10 @@ LPStatus runSimplex(internal::Tableau& tab,
             return LPStatus::Unbounded;
 
         tab.pivot(leaving, entering);
-        ++iter;
+        ++iterConsumed;
 
         if (baguette::reinversion_period > 0 &&
-            iter % baguette::reinversion_period == 0)
+            iterConsumed % baguette::reinversion_period == 0)
             if (!tab.reinvert(sf)) return LPStatus::MaxIter;
     }
 }
@@ -431,7 +472,8 @@ LPDetailedResult solveDetailed(const Model& model,
     [[maybe_unused]] bool initOk = tab.init(aug.sf, aug.initialBasis);
     assert(initOk && "identity basis: cannot be singular");
 
-    LPStatus p1Status = runSimplex(tab, aug.sf, maxIter, timeLimitS, startTime);
+    uint32_t iters = 0;
+    LPStatus p1Status = runSimplex(tab, aug.sf, maxIter, timeLimitS, startTime, iters);
 
     if (p1Status == LPStatus::MaxIter || p1Status == LPStatus::TimeLimit) {
         LPDetailedResult det;
@@ -454,10 +496,10 @@ LPDetailedResult solveDetailed(const Model& model,
     // 4. Phase II
     preparePhaseTwo(tab, sf);
 
-    LPStatus p2Status = runSimplex(tab, sf, maxIter, timeLimitS, startTime);
+    LPStatus p2Status = runSimplex(tab, sf, maxIter, timeLimitS, startTime, iters);
 
     // 5. Extract result
-    LPDetailedResult det = extractDetailed(tab, sf, model, p2Status);
+    LPDetailedResult det = extractDetailed(tab, sf, model, p2Status, aug.equalArtCol);
 
     if (p2Status == LPStatus::Unbounded)
         det.result.primalValues.clear();

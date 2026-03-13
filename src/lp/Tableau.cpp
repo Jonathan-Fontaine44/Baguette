@@ -98,11 +98,14 @@ bool Tableau::reinvert(const LPStandardForm& sf) {
 // ── Simplex operations ────────────────────────────────────────────────────────
 
 std::size_t Tableau::selectEntering() const {
-    // Bland's rule: smallest index with rc[j] < -lp_optimality_tol
-    for (std::size_t j = 0; j < n; ++j)
+    // Bland's rule: smallest index with rc[j] < -lp_optimality_tol.
+    // nActive restricts the search to the first nActive columns when set (phase II
+    // with artificial columns kept for dual extraction); 0 means all n columns (phase I).
+    const std::size_t limit = (nActive > 0) ? nActive : n;
+    for (std::size_t j = 0; j < limit; ++j)
         if (rc[j] < -baguette::lp_optimality_tol)
             return j;
-    return n; // optimal
+    return n; // optimal (no improving column in active range)
 }
 
 std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
@@ -131,13 +134,21 @@ std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
 }
 
 std::size_t Tableau::selectLeavingDual() const {
-    std::size_t leavingRow = m; // sentinel: primal feasible
-    double minB = -baguette::lp_feasibility_tol;
+    std::size_t leavingRow = m; // sentinel: primal feasible (all bi >= -tol)
+    double minB = std::numeric_limits<double>::infinity();
 
     for (std::size_t i = 0; i < m; ++i) {
         double bi = tab[i * (n + 1) + n];
-        if (bi < minB) {
+        if (bi >= -baguette::lp_feasibility_tol) continue; // row is primal feasible
+
+        if (bi < minB - baguette::lp_feasibility_tol) {
+            // Strictly more infeasible: take this row and update threshold
             minB       = bi;
+            leavingRow = i;
+        } else if (bi < minB + baguette::lp_feasibility_tol &&
+                   leavingRow < m &&
+                   basicCols[i] < basicCols[leavingRow]) {
+            // Tie (within tolerance): Bland's rule — prefer smallest basic column index
             leavingRow = i;
         }
     }
