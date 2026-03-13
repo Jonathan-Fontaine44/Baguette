@@ -13,7 +13,7 @@ enum class LPStatus {
     MaxIter,          ///< Iteration limit reached without conclusion.
     TimeLimit,        ///< Wall-clock time limit reached without conclusion.
     NumericalFailure  ///< Basis reinversion failed; tableau state is undefined.
-                      ///< Feasibility of the problem is unknown. primalValues is empty.
+                      ///  Feasibility of the problem is unknown. primalValues is empty.
 };
 
 /// Result returned by solve().

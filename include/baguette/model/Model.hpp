@@ -100,13 +100,20 @@ public:
     ///       behaviour.
     Model withVarBounds(Variable var, double newLb, double newUb) const;
 
+    /// @return Number of decision variables in the model.
     std::size_t numVars()        const { return hot.lb.size(); }
+    /// @return Number of constraints added via addConstraint().
     std::size_t numConstraints() const { return constraints.size(); }
 
+    /// @return Hot data (bounds, objective coefficients) for solver access.
     const ModelHot&               getHot()          const { return hot; }
+    /// @return Cold data (labels, types) for model inspection and output.
     const ModelCold&              getCold()         const { return cold; }
+    /// @return All constraints added via addConstraint().
     const std::vector<Constraint>& getConstraints() const { return constraints; }
+    /// @return Optimization direction (Minimize or Maximize).
     ObjSense                      getObjSense()     const { return objSense; }
+    /// @return Constant offset of the objective (from the constant term of setObjective()).
     double                        getObjConstant()  const { return objConstant; }
 
 private:

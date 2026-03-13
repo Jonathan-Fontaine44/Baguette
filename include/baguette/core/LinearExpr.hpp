@@ -27,7 +27,9 @@ struct LinearExpr {
     std::vector<double>        coeffs;  ///< Coefficients, parallel to varIds.
     double                     constant = 0.0; ///< Constant offset.
 
+    /// @return Number of variable terms (excluding the constant).
     std::size_t size()  const { return varIds.size(); }
+    /// @return `true` if the expression has no variable terms (constant only).
     bool        empty() const { return varIds.empty(); }
 
     /// Add the term `coeff * var` to the expression.
@@ -49,27 +51,31 @@ struct LinearExpr {
     /// Multiply all coefficients and the constant by @p factor in-place.
     /// Equivalent to `scale(factor)`.
     /// Complexity: O(n), where n = `size()`.
+    /// @return Reference to `*this`.
     LinearExpr& operator*=(double factor);
 
     /// Merge @p rhs into this expression in-place.
     /// Equivalent to `*this = *this + rhs`.
     /// Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
+    /// @return Reference to `*this`.
     LinearExpr& operator+=(const LinearExpr& rhs);
 
     /// Subtract @p rhs from this expression in-place.
     /// Equivalent to `*this = *this - rhs`.
     /// Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
+    /// @return Reference to `*this`.
     LinearExpr& operator-=(const LinearExpr& rhs);
 
     /// Divide all coefficients and the constant by @p factor in-place.
     /// Equivalent to `scale(1.0 / factor)`.
     /// Complexity: O(n), where n = `size()`.
+    /// @return Reference to `*this`.
     LinearExpr& operator/=(double factor);
 };
 
 /// Create a single-term expression `coeff * var`.
 LinearExpr operator*(double coeff, Variable var);
-/// @copydoc operator*(double, Variable)
+/// @copydoc baguette::operator*(double, Variable)
 LinearExpr operator*(Variable var, double coeff);
 
 /// Create a single-term expression `(1/coeff) * var`.

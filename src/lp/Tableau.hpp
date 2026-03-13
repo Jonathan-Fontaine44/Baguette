@@ -69,14 +69,17 @@ struct Tableau {
 
     /// Select the entering column using Bland's rule:
     /// the smallest column index j with rc[j] < −lp_optimality_tol.
-    /// Returns n if no improving column exists (current solution is optimal).
+    /// @return Index of the entering column, or `n` if no improving column exists
+    ///         (current solution is optimal).
     std::size_t selectEntering() const;
 
     /// Select the leaving row using the minimum ratio test with full Bland's rule.
     /// Only rows with tab[i*(n+1) + enteringCol] > pivot_tol are considered.
     /// On ties (ratios within pivot_tol of each other), the row whose basic
     /// variable has the smallest column index is chosen, completing Bland's
-    /// anti-cycling rule. Returns m if no such row exists (problem is unbounded).
+    /// anti-cycling rule.
+    /// @return Index of the leaving row, or `m` if no eligible row exists
+    ///         (the problem is unbounded in the entering direction).
     std::size_t selectLeaving(std::size_t enteringCol) const;
 
     // ── Dual-simplex pivot selection ─────────────────────────────────────────
@@ -86,8 +89,8 @@ struct Tableau {
     /// Picks the row i with the most-negative rhs  tab[i*(n+1)+n] < −lp_feasibility_tol.
     /// On ties (rhs values within lp_feasibility_tol of each other), the row whose
     /// basic variable has the smallest column index is chosen (Bland's anti-cycling rule).
-    /// Returns m if all rhs values are ≥ −lp_feasibility_tol (primal feasible → optimal
-    /// since the dual simplex maintains dual feasibility throughout).
+    /// @return Index of the leaving row, or `m` if all rhs values are ≥ −lp_feasibility_tol
+    ///         (primal feasible → optimal, since dual feasibility is maintained throughout).
     std::size_t selectLeavingDual() const;
 
     /// Dual-simplex entering-column selection (minimum-ratio test on reduced costs).
@@ -97,10 +100,13 @@ struct Tableau {
     ///   rc[j] / |tab[leavingRow*(n+1)+j]|
     /// with ties broken by smallest column index (Bland-style anti-cycling).
     ///
-    /// Returns n if no column qualifies (all entries ≥ −pivot_tol), which signals
-    /// that the primal LP is infeasible (dual LP is unbounded in that direction).
+    /// @return Index of the entering column, or `n` if no column qualifies
+    ///         (all entries ≥ −pivot_tol), signalling that the primal LP is
+    ///         infeasible (dual LP is unbounded in that direction).
     ///
     /// @pre  All rc[j] ≥ 0  (dual feasibility is maintained by the caller).
+    ///       Violating this precondition produces incorrect pivot selection and
+    ///       undefined behaviour in subsequent iterations.
     std::size_t selectEnteringDual(std::size_t leavingRow) const;
 
     /// Pivot: bring enteringCol into the basis at leavingRow.

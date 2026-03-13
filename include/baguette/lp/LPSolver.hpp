@@ -98,8 +98,12 @@ LPResult solveDual(const Model&            model,
 /// Same as solveDual() but returns the full LPDetailedResult, including a
 /// new BasisRecord suitable for passing to the next level of the B&B tree.
 ///
+/// @param model      The model to solve.
+/// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
+/// @param timeLimitS Wall-clock limit in seconds (0.0 = unlimited).
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass the B&B root startTime to share the budget across nodes.
+/// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
 LPDetailedResult solveDualDetailed(const Model&            model,
                                    uint32_t                maxIter    = 0,
                                    double                  timeLimitS = 0.0,
