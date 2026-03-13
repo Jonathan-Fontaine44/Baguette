@@ -359,7 +359,7 @@ LPStatus runSimplex(internal::Tableau& tab,
 
         if (baguette::reinversion_period > 0 &&
             iterConsumed % baguette::reinversion_period == 0)
-            if (!tab.reinvert(sf)) return LPStatus::MaxIter;
+            if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
     }
 }
 
@@ -399,7 +399,7 @@ LPStatus runDualSimplex(internal::Tableau& tab,
 
         if (baguette::reinversion_period > 0 &&
             iter % baguette::reinversion_period == 0)
-            if (!tab.reinvert(sf)) return LPStatus::MaxIter;
+            if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
     }
 }
 
@@ -475,7 +475,8 @@ LPDetailedResult solveDetailed(const Model& model,
     uint32_t iters = 0;
     LPStatus p1Status = runSimplex(tab, aug.sf, maxIter, timeLimitS, startTime, iters);
 
-    if (p1Status == LPStatus::MaxIter || p1Status == LPStatus::TimeLimit) {
+    if (p1Status == LPStatus::MaxIter || p1Status == LPStatus::TimeLimit ||
+        p1Status == LPStatus::NumericalFailure) {
         LPDetailedResult det;
         det.result.status = p1Status;
         return det;
@@ -497,6 +498,12 @@ LPDetailedResult solveDetailed(const Model& model,
     preparePhaseTwo(tab, sf);
 
     LPStatus p2Status = runSimplex(tab, sf, maxIter, timeLimitS, startTime, iters);
+
+    if (p2Status == LPStatus::NumericalFailure) {
+        LPDetailedResult det;
+        det.result.status = LPStatus::NumericalFailure;
+        return det;
+    }
 
     // 5. Extract result
     LPDetailedResult det = extractDetailed(tab, sf, model, p2Status, aug.equalArtCol);
@@ -577,6 +584,12 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     }
 
     LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime);
+
+    if (status == LPStatus::NumericalFailure) {
+        LPDetailedResult det;
+        det.result.status = LPStatus::NumericalFailure;
+        return det;
+    }
 
     LPDetailedResult det = extractDetailed(tab, sf, model, status);
     if (status == LPStatus::Infeasible)

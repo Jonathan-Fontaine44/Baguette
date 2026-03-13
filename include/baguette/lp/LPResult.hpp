@@ -7,11 +7,13 @@ namespace baguette {
 
 /// Status returned by the LP solver.
 enum class LPStatus {
-    Optimal,     ///< Solved to optimality.
-    Infeasible,  ///< Problem has no feasible solution (phase-I objective > 0).
-    Unbounded,   ///< Objective is unbounded below (Minimize) or above (Maximize).
-    MaxIter,     ///< Iteration limit reached without conclusion.
-    TimeLimit    ///< Wall-clock time limit reached without conclusion.
+    Optimal,          ///< Solved to optimality.
+    Infeasible,       ///< Problem has no feasible solution (phase-I objective > 0).
+    Unbounded,        ///< Objective is unbounded below (Minimize) or above (Maximize).
+    MaxIter,          ///< Iteration limit reached without conclusion.
+    TimeLimit,        ///< Wall-clock time limit reached without conclusion.
+    NumericalFailure  ///< Basis reinversion failed; tableau state is undefined.
+                      ///< Feasibility of the problem is unknown. primalValues is empty.
 };
 
 /// Result returned by solve().
