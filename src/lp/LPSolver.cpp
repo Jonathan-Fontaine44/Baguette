@@ -592,7 +592,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     }
 
     LPDetailedResult det = extractDetailed(tab, sf, model, status);
-    if (status == LPStatus::Infeasible)
+    if (status != LPStatus::Optimal)
         det.result.primalValues.clear();
 
     return det;
