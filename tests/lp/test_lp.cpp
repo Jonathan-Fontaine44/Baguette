@@ -594,3 +594,8 @@ TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]
                       + 1.0 * det.result.primalValues[y.id];
     REQUIRE_THAT(recomputed, WithinAbs(det.result.objectiveValue, kTol));
 }
+
+TEST_CASE("solve - timeLimitS = 0 returns TimeLimit", "[lp][timelimit]") {
+    auto res = solve(makeSimpleMax(), 0, 0.0);
+    REQUIRE(res.status == LPStatus::TimeLimit);
+}

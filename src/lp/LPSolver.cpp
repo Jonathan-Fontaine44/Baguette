@@ -341,6 +341,10 @@ LPStatus runSimplex(internal::Tableau& tab,
     uint32_t const timePeriod =
         baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
 
+    // Pre-loop check: catches timeLimitS = 0 and exhausted budgets at B&B node entry.
+    if (std::chrono::duration<double>(SolverClock::now() - startTime).count() >= timeLimitS)
+        return LPStatus::TimeLimit;
+
     while (true) {
         if (maxIter > 0 && iterConsumed >= maxIter)
             return LPStatus::MaxIter;
@@ -359,12 +363,10 @@ LPStatus runSimplex(internal::Tableau& tab,
         if (iterConsumed % timePeriod == 0) {
             if (baguette::reinversion_period > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
-            if (timeLimitS > 0.0) {
-                double elapsed =
-                    std::chrono::duration<double>(SolverClock::now() - startTime).count();
-                if (elapsed >= timeLimitS)
-                    return LPStatus::TimeLimit;
-            }
+            double elapsed =
+                std::chrono::duration<double>(SolverClock::now() - startTime).count();
+            if (elapsed >= timeLimitS)
+                return LPStatus::TimeLimit;
         }
     }
 }
@@ -385,6 +387,10 @@ LPStatus runDualSimplex(internal::Tableau& tab,
     uint32_t const timePeriod =
         baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
 
+    // Pre-loop check: catches timeLimitS = 0 and exhausted budgets at B&B node entry.
+    if (std::chrono::duration<double>(SolverClock::now() - startTime).count() >= timeLimitS)
+        return LPStatus::TimeLimit;
+
     while (true) {
         if (maxIter > 0 && iter >= maxIter)
             return LPStatus::MaxIter;
@@ -403,12 +409,10 @@ LPStatus runDualSimplex(internal::Tableau& tab,
         if (iter % timePeriod == 0) {
             if (baguette::reinversion_period > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
-            if (timeLimitS > 0.0) {
-                double elapsed =
-                    std::chrono::duration<double>(SolverClock::now() - startTime).count();
-                if (elapsed >= timeLimitS)
-                    return LPStatus::TimeLimit;
-            }
+            double elapsed =
+                std::chrono::duration<double>(SolverClock::now() - startTime).count();
+            if (elapsed >= timeLimitS)
+                return LPStatus::TimeLimit;
         }
     }
 }

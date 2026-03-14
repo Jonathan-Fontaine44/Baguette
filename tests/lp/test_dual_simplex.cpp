@@ -233,3 +233,8 @@ TEST_CASE("dual simplex - strong duality: solveDual obj == solve obj", "[dual_si
     REQUIRE(dual.status   == LPStatus::Optimal);
     CHECK_THAT(dual.objectiveValue, WithinAbs(primal.objectiveValue, kTol));
 }
+
+TEST_CASE("dual simplex - timeLimitS = 0 returns TimeLimit", "[dual_simplex][timelimit]") {
+    auto res = solveDual(makeMinWithGEQ(), 0, 0.0);
+    REQUIRE(res.status == LPStatus::TimeLimit);
+}

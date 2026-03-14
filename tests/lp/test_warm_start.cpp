@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <limits>
+
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/model/Model.hpp"
@@ -9,6 +11,7 @@ using namespace baguette;
 using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-6;
+static const double kInf = std::numeric_limits<double>::infinity();
 
 // ── Reference LP ──────────────────────────────────────────────────────────────
 //
@@ -56,7 +59,7 @@ TEST_CASE("Warm-start: identity returns same result", "[warm_start]") {
     auto  parent = solveDetailed(m);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
-    auto warm = solveDualDetailed(m, 0, 0.0, SolverClock::now(), parent.basis);
+    auto warm = solveDualDetailed(m, 0, kInf, SolverClock::now(), parent.basis);
     REQUIRE(warm.result.status == LPStatus::Optimal);
     REQUIRE_THAT(warm.result.objectiveValue,
                  WithinAbs(parent.result.objectiveValue, kTol));
@@ -76,7 +79,7 @@ TEST_CASE("Warm-start: left branch x1 <= 1", "[warm_start]") {
 
     Model child_m = parent_m.withVarBounds(x1, 0.0, 1.0);
 
-    auto warm = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), parent.basis);
+    auto warm = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), parent.basis);
     auto cold = solveDetailed(child_m);
 
     REQUIRE(warm.result.status == LPStatus::Optimal);
@@ -96,7 +99,7 @@ TEST_CASE("Warm-start: right branch x1 >= 2", "[warm_start]") {
 
     Model child_m = parent_m.withVarBounds(x1, 2.0, 3.0);
 
-    auto warm = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), parent.basis);
+    auto warm = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), parent.basis);
     auto cold = solveDetailed(child_m);
 
     REQUIRE(warm.result.status == LPStatus::Optimal);
@@ -115,7 +118,7 @@ TEST_CASE("Warm-start: infeasible branch (empty domain lb > ub)", "[warm_start]"
     // Explicitly contradictory bounds: lb > ub.
     Model child_m = parent_m.withVarBounds(x1, 2.0, 1.0);
 
-    auto warm = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), parent.basis);
+    auto warm = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), parent.basis);
     REQUIRE(warm.result.status == LPStatus::Infeasible);
 }
 
@@ -130,7 +133,7 @@ TEST_CASE("Warm-start: infeasible by constraints after tight bounds", "[warm_sta
     Model child_m = parent_m.withVarBounds(x1, 3.0, 3.0)
                              .withVarBounds(x2, 3.0, 3.0);
 
-    auto warm = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), parent.basis);
+    auto warm = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), parent.basis);
     REQUIRE(warm.result.status == LPStatus::Infeasible);
 }
 
@@ -146,7 +149,7 @@ TEST_CASE("Warm-start: incompatible basis falls back to cold solve", "[warm_star
                            ColumnKind::Original,
                            ColumnKind::Original};
 
-    auto result = solveDualDetailed(m, 0, 0.0, SolverClock::now(), bad_basis);
+    auto result = solveDualDetailed(m, 0, kInf, SolverClock::now(), bad_basis);
     REQUIRE(result.result.status == LPStatus::Optimal);
     REQUIRE_THAT(result.result.objectiveValue, WithinAbs(-8.0 / 3.0, kTol));
 }
@@ -171,7 +174,7 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
 
     // ── Left branch ──────────────────────────────────────────────────────────
     m.setVarBounds(x1, 0.0, 1.0);
-    auto left = solveDualDetailed(m, 0, 0.0, SolverClock::now(), root.basis);
+    auto left = solveDualDetailed(m, 0, kInf, SolverClock::now(), root.basis);
     REQUIRE(left.result.status == LPStatus::Optimal);
     REQUIRE_THAT(left.result.objectiveValue, WithinAbs(-2.5, kTol));
     REQUIRE(left.result.primalValues[0] <= 1.0 + kTol);
@@ -183,7 +186,7 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
 
     // ── Right branch (same model instance, same root basis) ──────────────────
     m.setVarBounds(x1, 2.0, 3.0);
-    auto right = solveDualDetailed(m, 0, 0.0, SolverClock::now(), root.basis);
+    auto right = solveDualDetailed(m, 0, kInf, SolverClock::now(), root.basis);
     REQUIRE(right.result.status == LPStatus::Optimal);
     REQUIRE_THAT(right.result.objectiveValue, WithinAbs(-2.0, kTol));
     REQUIRE(right.result.primalValues[0] >= 2.0 - kTol);
@@ -208,11 +211,11 @@ TEST_CASE("Warm-start: two-level B&B tree gives consistent results", "[warm_star
     REQUIRE(root.result.status == LPStatus::Optimal);
 
     Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
-    auto  child   = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), root.basis);
+    auto  child   = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), root.basis);
     REQUIRE(child.result.status == LPStatus::Optimal);
 
     Model grand_m = child_m.withVarBounds(x2, 0.0, 1.0);
-    auto  grand   = solveDualDetailed(grand_m, 0, 0.0, SolverClock::now(), child.basis);
+    auto  grand   = solveDualDetailed(grand_m, 0, kInf, SolverClock::now(), child.basis);
     REQUIRE(grand.result.status == LPStatus::Optimal);
     REQUIRE_THAT(grand.result.objectiveValue, WithinAbs(-2.0, kTol));
     REQUIRE_THAT(grand.result.primalValues[0], WithinAbs(1.0, kTol));
@@ -232,7 +235,7 @@ TEST_CASE("sfCache: populated on Optimal, null on non-Optimal", "[warm_start]") 
 
     // Infeasible node: lb > ub → sfCache not set
     Model inf_m = m.withVarBounds(x1, 2.0, 1.0);
-    auto  inf   = solveDualDetailed(inf_m, 0, 0.0, SolverClock::now(), res.basis);
+    auto  inf   = solveDualDetailed(inf_m, 0, kInf, SolverClock::now(), res.basis);
     REQUIRE(inf.result.status == LPStatus::Infeasible);
     REQUIRE(inf.basis.sfCache == nullptr);
 }
@@ -251,14 +254,14 @@ TEST_CASE("sfCache: three-level chain produces correct results and propagates ca
 
     // Level 1: warm start using root.basis (which carries sfCache)
     Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
-    auto  child   = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), root.basis);
+    auto  child   = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), root.basis);
     REQUIRE(child.result.status == LPStatus::Optimal);
     REQUIRE_THAT(child.result.objectiveValue, WithinAbs(-2.5, kTol));
     REQUIRE(child.basis.sfCache != nullptr);
 
     // Level 2: warm start using child.basis (which also carries sfCache)
     Model grand_m = child_m.withVarBounds(x2, 0.0, 1.0);
-    auto  grand   = solveDualDetailed(grand_m, 0, 0.0, SolverClock::now(), child.basis);
+    auto  grand   = solveDualDetailed(grand_m, 0, kInf, SolverClock::now(), child.basis);
     REQUIRE(grand.result.status == LPStatus::Optimal);
     REQUIRE_THAT(grand.result.objectiveValue, WithinAbs(-2.0, kTol));
     REQUIRE_THAT(grand.result.primalValues[0], WithinAbs(1.0, kTol));
@@ -275,7 +278,7 @@ TEST_CASE("sfCache: result matches cold solve at every level", "[warm_start]") {
     REQUIRE(root.result.status == LPStatus::Optimal);
 
     Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
-    auto  warm    = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), root.basis);
+    auto  warm    = solveDualDetailed(child_m, 0, kInf, SolverClock::now(), root.basis);
     auto  cold    = solveDetailed(child_m);
 
     REQUIRE(warm.result.status == LPStatus::Optimal);

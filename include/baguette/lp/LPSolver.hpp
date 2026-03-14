@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
@@ -18,13 +19,12 @@ using SolverClock = std::chrono::steady_clock;
 ///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum number of simplex pivots. 0 = unlimited.
-/// @param timeLimitS Wall-clock time limit in seconds. 0.0 = unlimited.
-///                   Must be ≥ 0.0 (no unsigned floating-point type in C++).
+/// @param timeLimitS Wall-clock time limit in seconds. infinity() = unlimited.
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
 LPResult solve(const Model&            model,
                uint32_t                maxIter    = 0,
-               double                  timeLimitS = 0.0,
+               double                  timeLimitS = std::numeric_limits<double>::infinity(),
                SolverClock::time_point startTime  = SolverClock::now());
 
 /// Solve the LP relaxation of @p model and return the full detailed result.
@@ -43,12 +43,12 @@ LPResult solve(const Model&            model,
 ///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum number of simplex pivots. 0 = unlimited.
-/// @param timeLimitS Wall-clock time limit in seconds. 0.0 = unlimited.
+/// @param timeLimitS Wall-clock time limit in seconds. infinity() = unlimited.
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
 LPDetailedResult solveDetailed(const Model& model,
                                uint32_t maxIter    = 0,
-                               double   timeLimitS = 0.0,
+                               double   timeLimitS = std::numeric_limits<double>::infinity(),
                                SolverClock::time_point startTime = SolverClock::now());
 
 // ── Dual simplex ───────────────────────────────────────────────────────────────
@@ -93,13 +93,13 @@ LPDetailedResult solveDetailed(const Model& model,
 ///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
-/// @param timeLimitS Wall-clock limit in seconds (0.0 = unlimited).
+/// @param timeLimitS Wall-clock limit in seconds (infinity() = unlimited).
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
 /// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
 LPResult solveDual(const Model&            model,
                    uint32_t                maxIter    = 0,
-                   double                  timeLimitS = 0.0,
+                   double                  timeLimitS = std::numeric_limits<double>::infinity(),
                    SolverClock::time_point startTime  = SolverClock::now(),
                    const BasisRecord&      warmBasis  = {});
 
@@ -108,13 +108,13 @@ LPResult solveDual(const Model&            model,
 ///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
-/// @param timeLimitS Wall-clock limit in seconds (0.0 = unlimited).
+/// @param timeLimitS Wall-clock limit in seconds (infinity() = unlimited).
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass the B&B root startTime to share the budget across nodes.
 /// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
 LPDetailedResult solveDualDetailed(const Model&            model,
                                    uint32_t                maxIter    = 0,
-                                   double                  timeLimitS = 0.0,
+                                   double                  timeLimitS = std::numeric_limits<double>::infinity(),
                                    SolverClock::time_point startTime  = SolverClock::now(),
                                    const BasisRecord&      warmBasis  = {});
 
