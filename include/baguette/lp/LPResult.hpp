@@ -81,10 +81,37 @@ struct BasisRecord {
     std::shared_ptr<internal::LPStandardForm> sfCache;
 };
 
+/// Farkas infeasibility certificate for the LP.
+///
+/// Provides a machine-verifiable proof of infeasibility in one of two forms:
+///
+/// **Tableau certificate** (`y` non-empty, `infeasVarId == -1`):
+///   A vector `y` (size == Model::numConstraints()) such that
+///     A_model^T y >= 0   (component-wise, original constraint coefficients)
+///     b_model^T y < 0    (original RHS values)
+///   Populated when infeasibility is detected by the simplex tableau
+///   (dual-simplex blocking row or primal phase-I objective > 0).
+///
+/// **Bound certificate** (`y` empty, `infeasVarId >= 0`):
+///   Variable `infeasVarId` has lb > ub (domain is empty after B&B branching).
+///   Machine-verifiable: check model.getHot().lb[infeasVarId] > model.getHot().ub[infeasVarId].
+///
+/// Both fields are zero-initialised; at most one is set per Infeasible result.
+struct FarkasRay {
+    /// Farkas multipliers for model constraints (size == Model::numConstraints()).
+    /// Empty for bound-violation infeasibility or when not available.
+    std::vector<double> y;
+
+    /// Variable id where lb > ub caused early infeasibility, or -1 if not applicable.
+    int32_t infeasVarId = -1;
+};
+
 /// Extended result returned by solveDetailed().
 ///
-/// Contains an LPResult for the basic outcome; the additional fields
-/// (dualValues, reducedCosts, basis) are valid only when result.status == Optimal.
+/// Contains an LPResult for the basic outcome; the additional fields are
+/// valid only when noted:
+///   - dualValues, reducedCosts, basis : valid when result.status == Optimal.
+///   - farkas                          : valid when result.status == Infeasible.
 ///
 /// Access the basic result via the public `result` member.
 struct LPDetailedResult {
@@ -102,6 +129,12 @@ struct LPDetailedResult {
     /// Basis record for B&B warm-start.
     /// Valid only when result.status == Optimal.
     BasisRecord basis;
+
+    /// Farkas infeasibility certificate.
+    /// Valid when result.status == Infeasible.
+    /// farkas.y is non-empty for tableau-detected infeasibility.
+    /// farkas.infeasVarId >= 0 for early lb > ub detection.
+    FarkasRay farkas;
 };
 
 } // namespace baguette

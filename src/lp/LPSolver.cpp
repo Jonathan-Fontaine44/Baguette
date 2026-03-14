@@ -376,11 +376,16 @@ LPStatus runSimplex(internal::Tableau& tab,
 /// Precondition: the tableau is dual-feasible (all rc[j] ≥ 0).
 /// The loop maintains dual feasibility and drives primal feasibility
 /// until all rhs values are ≥ 0 (optimal) or infeasibility is detected.
+///
+/// @param outBlockingRow  If non-null, set to the leaving row index when
+///                        infeasibility is detected (all entries >= 0, rhs < 0).
+///                        Enables Farkas certificate extraction by the caller.
 LPStatus runDualSimplex(internal::Tableau& tab,
                         const internal::LPStandardForm& sf,
                         uint32_t maxIter,
                         double   timeLimitS,
-                        SolverClock::time_point startTime) {
+                        SolverClock::time_point startTime,
+                        std::size_t* outBlockingRow = nullptr) {
     uint32_t iter = 0;
 
     // Same batched time-limit check as runSimplex.
@@ -400,8 +405,10 @@ LPStatus runDualSimplex(internal::Tableau& tab,
             return LPStatus::Optimal; // primal feasible + dual feasible → optimal
 
         std::size_t entering = tab.selectEnteringDual(leaving);
-        if (entering == tab.n)
+        if (entering == tab.n) {
+            if (outBlockingRow) *outBlockingRow = leaving;
             return LPStatus::Infeasible; // no improving dual pivot → primal infeasible
+        }
 
         tab.pivot(leaving, entering);
         ++iter;
@@ -455,6 +462,76 @@ std::vector<uint32_t> buildDualBasis(const internal::LPStandardForm& sf,
     return basis;
 }
 
+/// Extract the Farkas infeasibility certificate from the dual-simplex blocking row.
+///
+/// Called when selectEnteringDual() returned n for @p leavingRow, meaning every
+/// tableau entry in that row is >= 0 while the rhs is < 0.  The row represents
+/// a linear combination of the original standard-form rows, and reading its
+/// slack/surplus column entries recovers the Farkas multipliers y such that:
+///   A_model^T y >= 0   (ensured by non-negativity of blocking row entries)
+///   b_model^T y < 0    (ensured by negative rhs of blocking row)
+///
+/// Derivation (sign convention):
+///   tab[r, rowSlackCol[i]] = (B^{-1} A_SF)_{r, slackCol_i}
+///   For LessEq row i (A_SF[i, slackCol_i] = +/-1 due to possible negation):
+///     y_model[i] = tab[r, rowSlackCol[i]]   (negation signs cancel)
+///   For GEQ row i:
+///     y_model[i] = -tab[r, rowSlackCol[i]]  (idem)
+///   Equal rows have no slack column and do not arise on the dual-simplex path
+///   (they force a fallback to primal), so y[i] = 0 for those rows.
+FarkasRay extractFarkasDualRow(const internal::Tableau&        tab,
+                               const internal::LPStandardForm& sf,
+                               const Model&                    model,
+                               std::size_t                     leavingRow) {
+    FarkasRay ray;
+    const auto& constraints = model.getConstraints();
+    ray.y.resize(sf.nOrigRows, 0.0);
+    const std::size_t w = tab.n + 1;
+
+    for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
+        uint32_t slackCol = sf.rowSlackCol[i];
+        if (slackCol >= sf.nCols) continue; // Equal row — no slack, leave 0
+
+        double entry = tab.tab[leavingRow * w + slackCol];
+        ray.y[i] = (constraints[i].sense == Sense::LessEq) ? entry : -entry;
+    }
+    return ray;
+}
+
+/// Extract the Farkas infeasibility certificate from the phase-I tableau.
+///
+/// Called after the phase-I simplex terminates with objective > lp_feasibility_tol,
+/// meaning the original system has no feasible solution.  At optimality the
+/// phase-I dual variables y satisfy A^T y <= 0 and b^T y > 0 (dual feasible,
+/// positive dual objective).  The negated dual, y_farkas = -y, is the Farkas ray:
+///   A_model^T y_farkas >= 0,   b_model^T y_farkas < 0
+///
+/// Extraction from the reduced-cost row (same sign simplification as the dual case):
+///   LessEq row i  : y_farkas[i] = rc[rowSlackCol[i]]
+///   GEQ row i     : y_farkas[i] = -rc[rowSlackCol[i]]
+///   Equal row i   : y_farkas[i] = rc[equalArtCol[i]] - 1
+FarkasRay extractFarkasPhaseI(const internal::Tableau&        tab,
+                              const internal::LPStandardForm& sf,
+                              const AugmentedForm&             aug,
+                              const Model&                    model) {
+    FarkasRay ray;
+    const auto& constraints = model.getConstraints();
+    ray.y.resize(sf.nOrigRows, 0.0);
+
+    for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
+        Sense s = constraints[i].sense;
+        if (s == Sense::Equal) {
+            if (!aug.equalArtCol.empty() && aug.equalArtCol[i] < tab.n)
+                ray.y[i] = tab.rc[aug.equalArtCol[i]] - 1.0;
+        } else {
+            uint32_t slackCol = sf.rowSlackCol[i];
+            if (slackCol >= sf.nCols) continue;
+            ray.y[i] = (s == Sense::LessEq) ? tab.rc[slackCol] : -tab.rc[slackCol];
+        }
+    }
+    return ray;
+}
+
 } // anonymous namespace
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -471,7 +548,8 @@ LPDetailedResult solveDetailed(const Model& model,
         for (std::size_t j = 0; j < model.numVars(); ++j) {
             if (hot.lb[j] > hot.ub[j]) {
                 LPDetailedResult det;
-                det.result.status = LPStatus::Infeasible;
+                det.result.status     = LPStatus::Infeasible;
+                det.farkas.infeasVarId = static_cast<int32_t>(j);
                 return det;
             }
         }
@@ -502,6 +580,7 @@ LPDetailedResult solveDetailed(const Model& model,
     if (tab.objectiveValue() > baguette::lp_feasibility_tol) {
         LPDetailedResult det;
         det.result.status = LPStatus::Infeasible;
+        det.farkas        = extractFarkasPhaseI(tab, sf, aug, model);
         return det;
     }
 
@@ -547,7 +626,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         for (std::size_t j = 0; j < model.numVars(); ++j) {
             if (hot.lb[j] > hot.ub[j]) {
                 LPDetailedResult det;
-                det.result.status = LPStatus::Infeasible;
+                det.result.status     = LPStatus::Infeasible;
+                det.farkas.infeasVarId = static_cast<int32_t>(j);
                 return det;
             }
         }
@@ -618,7 +698,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         }
     }
 
-    LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime);
+    std::size_t blockingRow = tab.m; // sentinel: invalid
+    LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime, &blockingRow);
 
     if (status == LPStatus::NumericalFailure) {
         LPDetailedResult det;
@@ -627,10 +708,13 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     }
 
     LPDetailedResult det = extractDetailed(tab, sf, model, status);
-    if (status != LPStatus::Optimal)
+    if (status != LPStatus::Optimal) {
         det.result.primalValues.clear();
-    else
+        if (status == LPStatus::Infeasible && blockingRow < tab.m)
+            det.farkas = extractFarkasDualRow(tab, sf, model, blockingRow);
+    } else {
         det.basis.sfCache = sfPtr;
+    }
 
     return det;
 }

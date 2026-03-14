@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.2.3 LANGUAGES CXX)
+project(Baguette VERSION 0.2.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,6 +43,7 @@ add_executable(BaguetteTests
     tests/lp/test_lp.cpp
     tests/lp/test_dual_simplex.cpp
     tests/lp/test_warm_start.cpp
+    tests/lp/test_farkas.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE
