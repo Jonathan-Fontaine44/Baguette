@@ -100,6 +100,12 @@ The CP layer starts with **Bounds Consistency (BC)**: operates on `[lb, ub]` int
 
 ---
 
+## Acknowledgements
+
+Baguette is developed with AI assistance (Claude, Anthropic), under the supervision of **Dr. Jonathan Fontaine**.
+
+---
+
 ## License
 
 Baguette is distributed under the [GNU Lesser General Public License v3.0](LICENSE).

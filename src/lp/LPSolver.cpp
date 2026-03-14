@@ -193,7 +193,7 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
 /// via tab.nActive = sfOrig.nCols.  This keeps their rc entries up-to-date
 /// through every phase-II pivot so that, at optimality:
 ///   rc[art_i] = 0 − y_i  →  y_i = −rc[art_i]
-/// enabling dual-variable extraction for Equal constraints (bug #18).
+/// enabling dual-variable extraction for Equal constraints.
 void preparePhaseTwo(internal::Tableau& tab,
                      const internal::LPStandardForm& sfOrig) {
     const std::size_t nOld = sfOrig.nCols; // columns in the original (non-augmented) form
@@ -328,23 +328,22 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
 ///                  of pivots already used (e.g. by phase I); on return it holds
 ///                  the updated total.  Passing the same variable to the phase-I
 ///                  and phase-II calls ensures both phases draw from a single
-///                  maxIter budget (bug #19).
+///                  maxIter budget.
 LPStatus runSimplex(internal::Tableau& tab,
                     const internal::LPStandardForm& sf,
                     uint32_t maxIter,
                     double   timeLimitS,
                     SolverClock::time_point startTime,
                     uint32_t& iterConsumed) {
+    // Check the time limit every reinversion_period pivots to avoid a syscall
+    // on the hot path. Fall back to every 64 pivots when reinversion
+    // is disabled so the time limit is still honoured.
+    uint32_t const timePeriod =
+        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+
     while (true) {
         if (maxIter > 0 && iterConsumed >= maxIter)
             return LPStatus::MaxIter;
-
-        if (timeLimitS > 0.0) {
-            double elapsed =
-                std::chrono::duration<double>(SolverClock::now() - startTime).count();
-            if (elapsed >= timeLimitS)
-                return LPStatus::TimeLimit;
-        }
 
         std::size_t entering = tab.selectEntering();
         if (entering == tab.n)
@@ -357,9 +356,16 @@ LPStatus runSimplex(internal::Tableau& tab,
         tab.pivot(leaving, entering);
         ++iterConsumed;
 
-        if (baguette::reinversion_period > 0 &&
-            iterConsumed % baguette::reinversion_period == 0)
-            if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
+        if (iterConsumed % timePeriod == 0) {
+            if (baguette::reinversion_period > 0)
+                if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
+            if (timeLimitS > 0.0) {
+                double elapsed =
+                    std::chrono::duration<double>(SolverClock::now() - startTime).count();
+                if (elapsed >= timeLimitS)
+                    return LPStatus::TimeLimit;
+            }
+        }
     }
 }
 
@@ -375,16 +381,13 @@ LPStatus runDualSimplex(internal::Tableau& tab,
                         SolverClock::time_point startTime) {
     uint32_t iter = 0;
 
+    // Same batched time-limit check as runSimplex.
+    uint32_t const timePeriod =
+        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+
     while (true) {
         if (maxIter > 0 && iter >= maxIter)
             return LPStatus::MaxIter;
-
-        if (timeLimitS > 0.0) {
-            double elapsed =
-                std::chrono::duration<double>(SolverClock::now() - startTime).count();
-            if (elapsed >= timeLimitS)
-                return LPStatus::TimeLimit;
-        }
 
         std::size_t leaving = tab.selectLeavingDual();
         if (leaving == tab.m)
@@ -397,9 +400,16 @@ LPStatus runDualSimplex(internal::Tableau& tab,
         tab.pivot(leaving, entering);
         ++iter;
 
-        if (baguette::reinversion_period > 0 &&
-            iter % baguette::reinversion_period == 0)
-            if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
+        if (iter % timePeriod == 0) {
+            if (baguette::reinversion_period > 0)
+                if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
+            if (timeLimitS > 0.0) {
+                double elapsed =
+                    std::chrono::duration<double>(SolverClock::now() - startTime).count();
+                if (elapsed >= timeLimitS)
+                    return LPStatus::TimeLimit;
+            }
+        }
     }
 }
 
