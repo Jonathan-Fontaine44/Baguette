@@ -55,6 +55,12 @@ enum class ColumnKind : uint8_t {
 /// Column indices refer to the standard-form column space, which is stable
 /// across B&B nodes as long as variable bounds change but no new variables
 /// are added.
+///
+/// The `sfCache` field carries the standard form built during the last
+/// solveDualDetailed() call.  When passed back as @p warmBasis, the solver
+/// reuses the cached constraint matrix A (O(1) copy via shared_ptr) and only
+/// recomputes the RHS vector b for the new bounds, avoiding an O(m·n)
+/// rebuild of the full standard form.
 struct BasisRecord {
     /// basicCols[i] = index of the basic column in row i.
     /// Length == number of rows in the standard form.

@@ -70,6 +70,13 @@ LPDetailedResult solveDetailed(const Model& model,
 /// basis is still dual-feasible because bound tightening only changes the RHS
 /// vector b, not A or c, so RC = c − c_B B⁻¹ A is unchanged.
 ///
+/// **Standard-form caching**: when @p warmBasis carries a `sfCache` (populated
+/// by a previous solveDualDetailed() call), the constraint matrix A is reused
+/// via shared_ptr (O(1)) and only b, varShiftVal, and objOffset are recomputed
+/// for the new bounds.  This avoids the O(m·n) zero-fill and re-fill of the
+/// full standard form on every B&B node.  The returned BasisRecord always
+/// carries an updated `sfCache` when status == Optimal.
+///
 /// **Bound-finiteness invariant for warm start** — the finiteness (finite vs.
 /// infinite) of every variable bound must be the same in @p model as in the
 /// parent model that produced @p warmBasis.  Changing finiteness alters the
@@ -82,6 +89,7 @@ LPDetailedResult solveDetailed(const Model& model,
 ///   - Warm path: @p warmBasis dimensions are incompatible with @p model's
 ///     standard form (bound-finiteness invariant violated), or the warm basis
 ///     is not dual-feasible after reinversion, or reinversion fails numerically.
+///   All fallback exits also populate `sfCache` in the returned BasisRecord.
 ///
 /// @param model      The model to solve.
 /// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
