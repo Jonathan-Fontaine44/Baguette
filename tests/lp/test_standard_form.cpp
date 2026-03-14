@@ -52,6 +52,23 @@ TEST_CASE("SF dimensions - finite upper bound adds UB row", "[standard_form]") {
     CHECK(sf.nCols     == 3); // x', s_leq, s_ub
 }
 
+TEST_CASE("SF dimensions - two vars, both finite upper bounds", "[standard_form]") {
+    // min x + y  s.t. x + y <= 7,  0 <= x <= 4,  0 <= y <= 6
+    Model m;
+    auto x = m.addVar(0.0, 4.0);
+    auto y = m.addVar(0.0, 6.0);
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 7.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+
+    CHECK(sf.nOrig     == 2); // x', y'
+    CHECK(sf.nSlack    == 1); // slack for LessEq only (UB slacks not counted here)
+    CHECK(sf.nOrigRows == 1);
+    CHECK(sf.nRows     == 3); // 1 constraint + 2 UB rows (one per bounded var)
+    CHECK(sf.nCols     == 5); // x', y', s_leq, s_ub_x, s_ub_y
+}
+
 TEST_CASE("SF dimensions - two vars, mixed senses", "[standard_form]") {
     // min x + y  s.t. x + y <= 4, x >= 1, x = y
     Model m;
