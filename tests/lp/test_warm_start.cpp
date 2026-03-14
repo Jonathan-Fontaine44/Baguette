@@ -218,3 +218,72 @@ TEST_CASE("Warm-start: two-level B&B tree gives consistent results", "[warm_star
     REQUIRE_THAT(grand.result.primalValues[0], WithinAbs(1.0, kTol));
     REQUIRE_THAT(grand.result.primalValues[1], WithinAbs(1.0, kTol));
 }
+
+// ── sfCache ───────────────────────────────────────────────────────────────────
+
+TEST_CASE("sfCache: populated on Optimal, null on non-Optimal", "[warm_start]") {
+    Model    m  = makeFractionalLP();
+    Variable x1{0};
+
+    // solveDualDetailed with no warm basis (cold dual start) → Optimal → sfCache set
+    auto res = solveDualDetailed(m);
+    REQUIRE(res.result.status == LPStatus::Optimal);
+    REQUIRE(res.basis.sfCache != nullptr);
+
+    // Infeasible node: lb > ub → sfCache not set
+    Model inf_m = m.withVarBounds(x1, 2.0, 1.0);
+    auto  inf   = solveDualDetailed(inf_m, 0, 0.0, SolverClock::now(), res.basis);
+    REQUIRE(inf.result.status == LPStatus::Infeasible);
+    REQUIRE(inf.basis.sfCache == nullptr);
+}
+
+TEST_CASE("sfCache: three-level chain produces correct results and propagates cache", "[warm_start]") {
+    // Simulate a B&B path: root → child (x1<=1) → grandchild (x2<=1).
+    // Each level uses the sfCache from the previous level's BasisRecord so
+    // that toStandardFormBoundsOnly is exercised at every step.
+    Model    root_m = makeFractionalLP();
+    Variable x1{0}, x2{1};
+
+    // Level 0: cold dual solve populates sfCache
+    auto root = solveDualDetailed(root_m);
+    REQUIRE(root.result.status == LPStatus::Optimal);
+    REQUIRE(root.basis.sfCache != nullptr);
+
+    // Level 1: warm start using root.basis (which carries sfCache)
+    Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
+    auto  child   = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), root.basis);
+    REQUIRE(child.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(child.result.objectiveValue, WithinAbs(-2.5, kTol));
+    REQUIRE(child.basis.sfCache != nullptr);
+
+    // Level 2: warm start using child.basis (which also carries sfCache)
+    Model grand_m = child_m.withVarBounds(x2, 0.0, 1.0);
+    auto  grand   = solveDualDetailed(grand_m, 0, 0.0, SolverClock::now(), child.basis);
+    REQUIRE(grand.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(grand.result.objectiveValue, WithinAbs(-2.0, kTol));
+    REQUIRE_THAT(grand.result.primalValues[0], WithinAbs(1.0, kTol));
+    REQUIRE_THAT(grand.result.primalValues[1], WithinAbs(1.0, kTol));
+}
+
+TEST_CASE("sfCache: result matches cold solve at every level", "[warm_start]") {
+    // Verify that the sfCache optimisation does not affect correctness by
+    // comparing the warm (cached) result to an independent cold solve.
+    Model    root_m = makeFractionalLP();
+    Variable x1{0};
+
+    auto root = solveDualDetailed(root_m);
+    REQUIRE(root.result.status == LPStatus::Optimal);
+
+    Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
+    auto  warm    = solveDualDetailed(child_m, 0, 0.0, SolverClock::now(), root.basis);
+    auto  cold    = solveDetailed(child_m);
+
+    REQUIRE(warm.result.status == LPStatus::Optimal);
+    REQUIRE(cold.result.status == LPStatus::Optimal);
+    REQUIRE_THAT(warm.result.objectiveValue,
+                 WithinAbs(cold.result.objectiveValue, kTol));
+    REQUIRE_THAT(warm.result.primalValues[0],
+                 WithinAbs(cold.result.primalValues[0], kTol));
+    REQUIRE_THAT(warm.result.primalValues[1],
+                 WithinAbs(cold.result.primalValues[1], kTol));
+}

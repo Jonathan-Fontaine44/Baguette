@@ -22,7 +22,7 @@ bool Tableau::init(const LPStandardForm& sf,
     tab.resize(m * (n + 1));
     for (std::size_t i = 0; i < m; ++i) {
         for (std::size_t j = 0; j < n; ++j)
-            tab[i * (n + 1) + j] = sf.A[i * n + j];
+            tab[i * (n + 1) + j] = (*sf.A)[i * n + j];
         tab[i * (n + 1) + n] = sf.b[i];
     }
 

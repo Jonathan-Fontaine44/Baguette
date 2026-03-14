@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "baguette/lp/LPResult.hpp"
@@ -36,8 +37,8 @@ struct LPStandardForm {
     std::size_t nOrig;      ///< Number of shifted original variables.
     std::size_t nSlack;     ///< Number of slack / surplus variables (Equal rows excluded).
 
-    /// Dense constraint matrix, row-major: A[i * nCols + j].
-    std::vector<double> A;
+    /// Dense constraint matrix, row-major: (*A)[i * nCols + j].
+    std::shared_ptr<std::vector<double>> A;
 
     /// RHS vector b, length nRows.  All entries ≥ 0 after normalisation
     /// (rows where the original rhs < 0 are multiplied by −1).
@@ -102,6 +103,20 @@ struct LPStandardForm {
 /// @throws std::invalid_argument if any variable ID in a constraint or in the
 ///         objective exceeds Model::numVars().
 LPStandardForm toStandardForm(const Model& model);
+
+/// Lightweight bounds-only update of an existing LPStandardForm.
+///
+/// Recomputes b, varShiftVal, and objOffset from the updated variable bounds
+/// in @p model.  A, c, colKind, colOrigin, rowSlackCol, rowNegated, varColSign,
+/// and varFreeNegCol are assumed unchanged and are NOT touched.
+///
+/// Returns true if the update succeeded.  Returns false if:
+///   - The number of variables or constraints changed.
+///   - Any variable's shift type changed (e.g. a bound crossed finite/infinite).
+///   - Any constraint row's shifted RHS would change sign (requiring a row
+///     negation in A that this function does not perform).
+/// The caller must fall back to toStandardForm() when false is returned.
+bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model);
 
 /// Build the LP dual of a standard-form LP.
 ///

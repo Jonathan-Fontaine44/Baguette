@@ -73,7 +73,7 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
 
     const std::size_t nNew = nOld + nArt;
     aug.sf.nCols = nNew;
-    aug.sf.A.assign(m * nNew, 0.0);
+    aug.sf.A = std::make_shared<std::vector<double>>(m * nNew, 0.0);
     aug.sf.c.assign(nNew, 0.0);
     aug.sf.colKind.resize(nNew);
     aug.sf.colOrigin.resize(nNew);
@@ -81,7 +81,7 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
     // Copy original A and column metadata into the wider matrix
     for (std::size_t i = 0; i < m; ++i)
         for (std::size_t j = 0; j < nOld; ++j)
-            aug.sf.A[i * nNew + j] = sf.A[i * nOld + j];
+            (*aug.sf.A)[i * nNew + j] = (*sf.A)[i * nOld + j];
 
     for (std::size_t j = 0; j < nOld; ++j) {
         aug.sf.colKind[j]   = sf.colKind[j];
@@ -93,7 +93,7 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
     std::size_t artCol = nOld;
     for (std::size_t i = 0; i < m; ++i) {
         if (!needsArt[i]) continue;
-        aug.sf.A[i * nNew + artCol] = 1.0;
+        (*aug.sf.A)[i * nNew + artCol] = 1.0;
         aug.sf.c[artCol]            = 1.0;
         aug.sf.colKind[artCol]      = ColumnKind::Slack; // internal marker
         aug.sf.colOrigin[artCol]    = 0;
@@ -539,8 +539,29 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         }
     }
 
-    internal::LPStandardForm sf = internal::toStandardForm(model);
+    // On the warm-start path, A and c are invariant between B&B nodes.
+    // Reuse the cached A (shared_ptr copy is O(1)) and update only b,
+    // varShiftVal, and objOffset via toStandardFormBoundsOnly.
+    auto sfPtr = std::make_shared<internal::LPStandardForm>();
+    if (!warmBasis.basicCols.empty() && warmBasis.sfCache) {
+        *sfPtr = *warmBasis.sfCache; // shallow: A shared_ptr copied O(1)
+        if (!internal::toStandardFormBoundsOnly(*sfPtr, model))
+            *sfPtr = internal::toStandardForm(model); // structure changed: full rebuild
+    } else {
+        *sfPtr = internal::toStandardForm(model);
+    }
+    internal::LPStandardForm& sf = *sfPtr;
     internal::Tableau tab;
+
+    // Helper: fall back to a primal solve and attach sfPtr so the next call
+    // can use toStandardFormBoundsOnly instead of rebuilding A from scratch.
+    // sfPtr is always a valid toStandardForm(model) at this point.
+    auto fallback = [&]() -> LPDetailedResult {
+        LPDetailedResult det = solveDetailed(model, maxIter, timeLimitS, startTime);
+        if (det.result.status == LPStatus::Optimal)
+            det.basis.sfCache = sfPtr;
+        return det;
+    };
 
     if (!warmBasis.basicCols.empty()) {
         // ── Warm-start path ──────────────────────────────────────────────────
@@ -549,7 +570,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         // upper-bound rows or free-split columns). Fall back to cold primal.
         if (warmBasis.basicCols.size() != sf.nRows ||
             warmBasis.colKind.size()   != sf.nCols) {
-            return solveDetailed(model, maxIter, timeLimitS, startTime);
+            return fallback();
         }
 
         // Seed the tableau with the parent's basis and reinvert.
@@ -557,7 +578,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         // while A and c are unchanged → RC unchanged, dual feasibility preserved.
         tab.basicCols = warmBasis.basicCols;
         if (!tab.reinvert(sf))
-            return solveDetailed(model, maxIter, timeLimitS, startTime);
+            return fallback();
     } else {
         // ── Cold dual-start path ─────────────────────────────────────────────
         // Build a dual-feasible initial basis from natural slack/surplus columns.
@@ -565,7 +586,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         std::vector<uint32_t> coldBasis = buildDualBasis(sf, model);
         if (coldBasis.empty()) {
             // Fallback: Equal constraints prevent a natural dual-feasible basis.
-            return solveDetailed(model, maxIter, timeLimitS, startTime);
+            return fallback();
         }
         // Gauss-Jordan will negate GEQ rows (pivot on coeff −1), producing
         // negative rhs values for those rows (primal infeasible, dual feasible).
@@ -579,7 +600,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     //            to detect Maximize / negative-cost fallback cases.
     for (std::size_t j = 0; j < sf.nCols; ++j) {
         if (tab.rc[j] < -baguette::lp_optimality_tol) {
-            return solveDetailed(model, maxIter, timeLimitS, startTime);
+            return fallback();
         }
     }
 
@@ -594,6 +615,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     LPDetailedResult det = extractDetailed(tab, sf, model, status);
     if (status != LPStatus::Optimal)
         det.result.primalValues.clear();
+    else
+        det.basis.sfCache = sfPtr;
 
     return det;
 }

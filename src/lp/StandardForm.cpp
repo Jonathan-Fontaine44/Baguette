@@ -62,7 +62,7 @@ LPStandardForm toStandardForm(const Model& model) {
     sf.varColSign    = std::move(varColSign);
     sf.varFreeNegCol.assign(nOrig, static_cast<uint32_t>(nCols)); // default: not free
 
-    sf.A.assign(nRows * nCols, 0.0);
+    sf.A = std::make_shared<std::vector<double>>(nRows * nCols, 0.0);
     sf.b.resize(nRows, 0.0);
     sf.c.resize(nCols, 0.0);
     sf.colKind.resize(nCols);
@@ -116,17 +116,17 @@ LPStandardForm toStandardForm(const Model& model) {
                 throw std::invalid_argument(
                     "toStandardForm: variable ID out of range in constraint");
             double aij = con.lhs.coeffs[k];
-            sf.A[i * nCols + varId] += sf.varColSign[varId] * aij;
+            (*sf.A)[i * nCols + varId] += sf.varColSign[varId] * aij;
             rhs -= aij * sf.varShiftVal[varId];
         }
 
         switch (con.sense) {
             case Sense::LessEq:
-                sf.A[i * nCols + slackCol] = +1.0;
+                (*sf.A)[i * nCols + slackCol] = +1.0;
                 ++slackColIdx;
                 break;
             case Sense::GreaterEq:
-                sf.A[i * nCols + slackCol] = -1.0;
+                (*sf.A)[i * nCols + slackCol] = -1.0;
                 ++slackColIdx;
                 break;
             case Sense::Equal:
@@ -135,7 +135,7 @@ LPStandardForm toStandardForm(const Model& model) {
 
         if (rhs < 0.0) {
             for (std::size_t j = 0; j < nCols; ++j)
-                sf.A[i * nCols + j] = -sf.A[i * nCols + j];
+                (*sf.A)[i * nCols + j] = -(*sf.A)[i * nCols + j];
             rhs = -rhs;
             sf.rowNegated[i] = true;
         }
@@ -149,8 +149,8 @@ LPStandardForm toStandardForm(const Model& model) {
         if (sf.varColSign[j] != +1 || !std::isfinite(hot.ub[j]))
             continue;
 
-        sf.A[ubRow * nCols + j]           = 1.0;
-        sf.A[ubRow * nCols + ubSlackCol]  = 1.0;
+        (*sf.A)[ubRow * nCols + j]           = 1.0;
+        (*sf.A)[ubRow * nCols + ubSlackCol]  = 1.0;
         sf.b[ubRow]                       = hot.ub[j] - sf.varShiftVal[j];
 
         sf.colKind[ubSlackCol]   = ColumnKind::UpperSlack;
@@ -182,7 +182,7 @@ LPStandardForm toStandardForm(const Model& model) {
         // Model constraint rows: mirror x⁺ coefficient with opposite sign,
         // respecting the row negation already applied.
         for (std::size_t i = 0; i < nOrigRows; ++i)
-            sf.A[i * nCols + negCol] = -sf.A[i * nCols + j];
+            (*sf.A)[i * nCols + negCol] = -(*sf.A)[i * nCols + j];
 
         ++negCol;
     }
@@ -213,7 +213,7 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
     dual.nOrig     = 2 * m;  // y⁺ and y⁻ treated as "original" columns
     dual.nSlack    = n;      // one slack per dual constraint row
 
-    dual.A.assign(n * dCols, 0.0);
+    dual.A = std::make_shared<std::vector<double>>(n * dCols, 0.0);
     dual.b.resize(n);
     dual.c.resize(dCols, 0.0);
     dual.colKind.resize(dCols);
@@ -234,11 +234,11 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
     //   b_dual[j]          = c_primal[j]       (rhs of dual constraint j)
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < m; ++i) {
-            double aij = primal.A[i * n + j];
-            dual.A[j * dCols + i]       =  aij;
-            dual.A[j * dCols + m + i]   = -aij;
+            double aij = (*primal.A)[i * n + j];
+            (*dual.A)[j * dCols + i]       =  aij;
+            (*dual.A)[j * dCols + m + i]   = -aij;
         }
-        dual.A[j * dCols + 2 * m + j] = 1.0;
+        (*dual.A)[j * dCols + 2 * m + j] = 1.0;
         dual.b[j] = primal.c[j];
         dual.rowSlackCol[j] = static_cast<uint32_t>(2 * m + j);
     }
@@ -255,7 +255,7 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
     for (std::size_t j = 0; j < n; ++j) {
         if (dual.b[j] < 0.0) {
             for (std::size_t k = 0; k < dCols; ++k)
-                dual.A[j * dCols + k] = -dual.A[j * dCols + k];
+                (*dual.A)[j * dCols + k] = -(*dual.A)[j * dCols + k];
             dual.b[j]          = -dual.b[j];
             dual.rowNegated[j] = true;
         }
@@ -276,6 +276,70 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
     }
 
     return dual;
+}
+
+bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
+    const auto& hot         = model.getHot();
+    const auto& constraints = model.getConstraints();
+    const std::size_t nOrig     = model.numVars();
+    const std::size_t nOrigRows = model.numConstraints();
+
+    if (nOrig != sf.nOrig || nOrigRows != sf.nOrigRows)
+        return false;
+
+    // Verify that each variable's shift type is unchanged.
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        const bool lbFin   = std::isfinite(hot.lb[j]);
+        const bool ubFin   = std::isfinite(hot.ub[j]);
+        const bool wasFree   = (sf.varFreeNegCol[j] < sf.nCols);
+        const bool wasUbShift = (sf.varColSign[j] == -1);
+        const bool wasLbShift = !wasFree && !wasUbShift;
+
+        if (lbFin  && !wasLbShift)           return false;
+        if (!lbFin && ubFin  && !wasUbShift) return false;
+        if (!lbFin && !ubFin && !wasFree)    return false;
+    }
+
+    // Update varShiftVal.
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (sf.varColSign[j] == +1 && sf.varFreeNegCol[j] == sf.nCols)
+            sf.varShiftVal[j] = hot.lb[j];   // lb-shift
+        else if (sf.varColSign[j] == -1)
+            sf.varShiftVal[j] = hot.ub[j];   // ub-shift
+        // free-split: varShiftVal[j] remains 0.0
+    }
+
+    // Update objOffset.
+    const bool   maximize = (model.getObjSense() == ObjSense::Maximize);
+    const double objSign  = maximize ? -1.0 : 1.0;
+    sf.objOffset = objSign * model.getObjConstant();
+    for (std::size_t j = 0; j < nOrig; ++j)
+        sf.objOffset += objSign * hot.obj[j] * sf.varShiftVal[j];
+
+    // Recompute b for model constraint rows.
+    // Reject if any row's sign would need to flip (A row negation not performed here).
+    for (std::size_t i = 0; i < nOrigRows; ++i) {
+        const auto& con = constraints[i];
+        double rhs = con.rhs;
+        for (std::size_t k = 0; k < con.lhs.size(); ++k)
+            rhs -= con.lhs.coeffs[k] * sf.varShiftVal[con.lhs.varIds[k]];
+
+        const bool needsNeg = (rhs < 0.0);
+        if (needsNeg != sf.rowNegated[i])
+            return false; // sign flip would require updating A — fall back
+        sf.b[i] = needsNeg ? -rhs : rhs;
+    }
+
+    // Recompute b for upper-bound rows.
+    std::size_t ubRow = nOrigRows;
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (sf.varColSign[j] != +1 || !std::isfinite(hot.ub[j]))
+            continue;
+        sf.b[ubRow] = hot.ub[j] - sf.varShiftVal[j];
+        ++ubRow;
+    }
+
+    return true;
 }
 
 } // namespace baguette::internal

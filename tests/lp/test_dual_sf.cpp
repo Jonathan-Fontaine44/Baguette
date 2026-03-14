@@ -19,7 +19,7 @@ static const double     kInf  = std::numeric_limits<double>::infinity();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 static double Ap(const LPStandardForm& sf, std::size_t row, std::size_t col) {
-    return sf.A[row * sf.nCols + col];
+    return (*sf.A)[row * sf.nCols + col];
 }
 
 /// Solve an LPStandardForm with the primal two-phase simplex.
@@ -33,15 +33,15 @@ static std::pair<LPStatus, double> solveRawSF(const LPStandardForm& sf) {
 
     LPStandardForm aug = sf;
     aug.nCols = nNew;
-    aug.A.assign(m * nNew, 0.0);
+    aug.A = std::make_shared<std::vector<double>>(m * nNew, 0.0);
     aug.c.assign(nNew, 0.0);
     aug.colKind.resize(nNew);
     aug.colOrigin.resize(nNew);
 
     for (std::size_t i = 0; i < m; ++i) {
         for (std::size_t j = 0; j < nOld; ++j)
-            aug.A[i * nNew + j] = sf.A[i * nOld + j];
-        aug.A[i * nNew + nOld + i] = 1.0;
+            (*aug.A)[i * nNew + j] = (*sf.A)[i * nOld + j];
+        (*aug.A)[i * nNew + nOld + i] = 1.0;
         aug.c[nOld + i]            = 1.0; // phase-I objective
         aug.colKind[nOld + i]      = ColumnKind::Slack;
         aug.colOrigin[nOld + i]    = 0;
@@ -164,7 +164,7 @@ TEST_CASE("dual SF - A matrix is transposed primal A (y+ block)", "[dual_sf]") {
     //   if rowNegated[j] == true:  A_dual[j, i] == -A_primal[i, j]
     for (std::size_t j = 0; j < nP; ++j) {
         for (std::size_t i = 0; i < mP; ++i) {
-            double expected = primal.A[i * nP + j];
+            double expected = (*primal.A)[i * nP + j];
             if (dual.rowNegated[j]) expected = -expected;
             CHECK_THAT(Ap(dual, j, i), WithinAbs(expected, kTol));
         }

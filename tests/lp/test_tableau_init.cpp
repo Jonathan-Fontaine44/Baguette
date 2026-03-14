@@ -65,7 +65,7 @@ TEST_CASE("Tableau::reinvert - permuted basis, zero at step 0", "[tableau]") {
     REQUIRE(sf.nSlack == 3);
     REQUIRE(sf.nCols  == 5);
     REQUIRE(sf.nRows  == 3);
-    REQUIRE(sf.A[0*5 + 4] == 0.0);  // confirms A[row=0, col=4] = 0
+    REQUIRE((*sf.A)[0*5 + 4] == 0.0);  // confirms A[row=0, col=4] = 0
 
     // Init with the natural slack basis (triangular, always safe).
     Tableau tab;
@@ -108,7 +108,7 @@ TEST_CASE("Tableau::reinvert - permuted basis, zero appears at step 1", "[tablea
     // the entry at (row=1, col=4) becomes 0.
     // A[row=1] = [1,0,0,1,0], A[row=0] = [1,1,1,0,0] → row1 - row0 = [0,-1,-1,1,0]
     // col=4 entry: 0 - 0 = 0. Confirmed.
-    REQUIRE(sf.A[1*5 + 4] == 0.0);  // A[row=1, col=4] = 0 in the original matrix
+    REQUIRE((*sf.A)[1*5 + 4] == 0.0);  // A[row=1, col=4] = 0 in the original matrix
 
     Tableau tab;
     assert(tab.init(sf, {2, 3, 4}));

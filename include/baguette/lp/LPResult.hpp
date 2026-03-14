@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
+
+namespace baguette { namespace internal { struct LPStandardForm; } }
 
 namespace baguette {
 
@@ -65,6 +68,11 @@ struct BasisRecord {
     /// ColumnKind::Slack      → index of the corresponding model constraint.
     /// ColumnKind::UpperSlack → index of the corresponding model variable.
     std::vector<uint32_t> colOrigin;
+
+    /// Cached standard form for bounds-only warm restart in solveDualDetailed().
+    /// Populated only when result.status == Optimal.  Consumers must not modify
+    /// or interpret this field; it is internal to the solver.
+    std::shared_ptr<internal::LPStandardForm> sfCache;
 };
 
 /// Extended result returned by solveDetailed().

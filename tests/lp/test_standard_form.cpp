@@ -17,7 +17,7 @@ static const double kInf = std::numeric_limits<double>::infinity();
 
 /// A(row, col) accessor for the dense row-major matrix.
 static double A(const LPStandardForm& sf, std::size_t row, std::size_t col) {
-    return sf.A[row * sf.nCols + col];
+    return (*sf.A)[row * sf.nCols + col];
 }
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
@@ -180,7 +180,7 @@ TEST_CASE("SF constraint - Equal: no slack column entry", "[standard_form]") {
     CHECK_THAT(A(sf, 0, 0), WithinAbs(1.0, kTol)); // x'
     CHECK_THAT(A(sf, 0, 1), WithinAbs(1.0, kTol)); // y'
     CHECK(sf.nCols == 2); // no slack column allocated for Equal row
-    CHECK_THROWS_AS(sf.A.at(0 * sf.nCols + 2), std::out_of_range); // column 2 doesn't exist
+    CHECK_THROWS_AS((*sf.A).at(0 * sf.nCols + 2), std::out_of_range); // column 2 doesn't exist
     CHECK_THAT(sf.b[0],     WithinAbs(5.0, kTol));
 }
 
@@ -373,4 +373,83 @@ TEST_CASE("SF free-split - A matrix: xneg column is negation of xpos column", "[
     CHECK_THAT(A(sf, 0, 2), WithinAbs(-1.0, kTol)); // x⁻ = −(x⁺ coeff)
     CHECK_THAT(sf.b[0],     WithinAbs( 4.0, kTol));
     CHECK(sf.rowNegated[0] == false);
+}
+
+// ── toStandardFormBoundsOnly ──────────────────────────────────────────────────
+
+TEST_CASE("toStandardFormBoundsOnly - b and objOffset updated, A shared", "[standard_form]") {
+    // min  x1 + x2
+    // s.t. x1 + x2 <= 5
+    //      x1 in [0, 4],  x2 in [0, 4]
+    // After tightening x1 lb to 1: b[0] = 5 - 1 - 0 = 4, objOffset = 1.
+    Model m;
+    auto x1 = m.addVar(0.0, 4.0, "x1");
+    auto x2 = m.addVar(0.0, 4.0, "x2");
+    LinearExpr lhs; lhs.addTerm(x1, 1.0); lhs.addTerm(x2, 1.0);
+    m.addConstraint(lhs, Sense::LessEq, 5.0);
+    LinearExpr obj; obj.addTerm(x1, 1.0); obj.addTerm(x2, 1.0);
+    m.setObjective(obj, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+    CHECK_THAT(sf.b[0],      WithinAbs(5.0, kTol));
+    CHECK_THAT(sf.objOffset, WithinAbs(0.0, kTol));
+
+    const std::vector<double>* aPtr = sf.A.get(); // capture raw pointer
+
+    m.setVarBounds(x1, 1.0, 4.0);
+    bool ok = toStandardFormBoundsOnly(sf, m);
+    REQUIRE(ok);
+
+    CHECK_THAT(sf.b[0],      WithinAbs(4.0, kTol)); // 5 - 1*1 - 1*0
+    CHECK_THAT(sf.objOffset, WithinAbs(1.0, kTol)); // 1*1 + 1*0
+    CHECK(sf.A.get() == aPtr); // A physically shared (same allocation)
+}
+
+TEST_CASE("toStandardFormBoundsOnly - upper-bound row b updated", "[standard_form]") {
+    // x1 in [0, 4]: UB row b = ub - lb = 4.
+    // After setVarBounds(x1, 0, 3): b = 3.
+    Model m;
+    auto x1 = m.addVar(0.0, 4.0, "x1");
+    m.setObjective(1.0 * x1, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+    REQUIRE(sf.nRows == 1);
+    CHECK_THAT(sf.b[0], WithinAbs(4.0, kTol));
+
+    m.setVarBounds(x1, 0.0, 3.0);
+    REQUIRE(toStandardFormBoundsOnly(sf, m));
+    CHECK_THAT(sf.b[0], WithinAbs(3.0, kTol));
+}
+
+TEST_CASE("toStandardFormBoundsOnly - returns false on shift type change", "[standard_form]") {
+    // SF built with lb-shift (lb=0, ub=4, varColSign=+1).
+    // toStandardFormBoundsOnly on a model requiring ub-shift (lb=-inf, ub=4)
+    // must return false.
+    Model m;
+    m.addVar(0.0, 4.0, "x1");
+    m.setObjective(1.0 * Variable{0}, ObjSense::Minimize);
+    auto sf = toStandardForm(m);
+    REQUIRE(sf.varColSign[0] == +1); // lb-shift
+
+    Model m2;
+    m2.addVar(-kInf, 4.0, "x1"); // ub-shift in standard form
+    m2.setObjective(1.0 * Variable{0}, ObjSense::Minimize);
+    REQUIRE_FALSE(toStandardFormBoundsOnly(sf, m2));
+}
+
+TEST_CASE("toStandardFormBoundsOnly - returns false on row-sign flip", "[standard_form]") {
+    // Constraint x1 + x2 <= 1, lb1=lb2=0 → b[0]=1 (rowNegated=false).
+    // Tightening x1 lb to 2 → b_shifted = 1-2 = -1 → sign flip → false.
+    Model m;
+    auto x1 = m.addVar(0.0, 4.0, "x1");
+    auto x2 = m.addVar(0.0, 4.0, "x2");
+    LinearExpr lhs; lhs.addTerm(x1, 1.0); lhs.addTerm(x2, 1.0);
+    m.addConstraint(lhs, Sense::LessEq, 1.0);
+    m.setObjective(1.0 * x1, ObjSense::Minimize);
+
+    auto sf = toStandardForm(m);
+    REQUIRE(sf.rowNegated[0] == false);
+
+    m.setVarBounds(x1, 2.0, 4.0);
+    REQUIRE_FALSE(toStandardFormBoundsOnly(sf, m));
 }
