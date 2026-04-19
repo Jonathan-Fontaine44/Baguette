@@ -41,15 +41,22 @@ LPResult solve(const Model&            model,
 ///       Artificial variables are stripped before phase II, so their shadow
 ///       price cannot be recovered from the tableau's reduced-cost row.
 ///
-/// @param model      The model to solve.
-/// @param maxIter    Maximum number of simplex pivots. 0 = unlimited.
-/// @param timeLimitS Wall-clock time limit in seconds. infinity() = unlimited.
-/// @param startTime  Reference point for the time limit. Defaults to now().
-///                   Pass a B&B root startTime to share the budget across nodes.
+/// @note When @p computeSensitivity is false (default), the
+///       `LPDetailedResult::sensitivity` field is left empty.  Pass true only
+///       when RHS / objective ranging is needed (e.g. root LP analysis); avoid
+///       it in B&B hot loops where the O(m·n) cost is paid at every node.
+///
+/// @param model              The model to solve.
+/// @param maxIter            Maximum number of simplex pivots. 0 = unlimited.
+/// @param timeLimitS         Wall-clock time limit in seconds. infinity() = unlimited.
+/// @param startTime          Reference point for the time limit. Defaults to now().
+///                           Pass a B&B root startTime to share the budget across nodes.
+/// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
 LPDetailedResult solveDetailed(const Model& model,
-                               uint32_t maxIter    = 0,
-                               double   timeLimitS = std::numeric_limits<double>::infinity(),
-                               SolverClock::time_point startTime = SolverClock::now());
+                               uint32_t maxIter            = 0,
+                               double   timeLimitS         = std::numeric_limits<double>::infinity(),
+                               SolverClock::time_point startTime  = SolverClock::now(),
+                               bool     computeSensitivity = false);
 
 // ── Dual simplex ───────────────────────────────────────────────────────────────
 
@@ -106,16 +113,23 @@ LPResult solveDual(const Model&            model,
 /// Same as solveDual() but returns the full LPDetailedResult, including a
 /// new BasisRecord suitable for passing to the next level of the B&B tree.
 ///
-/// @param model      The model to solve.
-/// @param maxIter    Maximum dual-simplex pivots (0 = unlimited).
-/// @param timeLimitS Wall-clock limit in seconds (infinity() = unlimited).
-/// @param startTime  Reference point for the time limit. Defaults to now().
-///                   Pass the B&B root startTime to share the budget across nodes.
-/// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
+/// @note When @p computeSensitivity is false (default), the
+///       `LPDetailedResult::sensitivity` field is left empty.  In B&B warm-start
+///       loops the O(m·n) sensitivity cost would be paid at every node; pass true
+///       only for the root LP or other one-shot solves that need ranging.
+///
+/// @param model              The model to solve.
+/// @param maxIter            Maximum dual-simplex pivots (0 = unlimited).
+/// @param timeLimitS         Wall-clock limit in seconds (infinity() = unlimited).
+/// @param startTime          Reference point for the time limit. Defaults to now().
+///                           Pass the B&B root startTime to share the budget across nodes.
+/// @param warmBasis          Parent node's BasisRecord for warm start. Default {} = cold start.
+/// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
 LPDetailedResult solveDualDetailed(const Model&            model,
-                                   uint32_t                maxIter    = 0,
-                                   double                  timeLimitS = std::numeric_limits<double>::infinity(),
-                                   SolverClock::time_point startTime  = SolverClock::now(),
-                                   const BasisRecord&      warmBasis  = {});
+                                   uint32_t                maxIter            = 0,
+                                   double                  timeLimitS         = std::numeric_limits<double>::infinity(),
+                                   SolverClock::time_point startTime          = SolverClock::now(),
+                                   const BasisRecord&      warmBasis          = {},
+                                   bool                    computeSensitivity = false);
 
 } // namespace baguette

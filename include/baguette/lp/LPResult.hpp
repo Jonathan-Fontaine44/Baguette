@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -106,12 +107,37 @@ struct FarkasRay {
     int32_t infeasVarId = -1;
 };
 
+/// Sensitivity analysis: ranges for the current optimal basis to remain valid.
+///
+/// All ranges are expressed as actual parameter values (not deltas).
+/// ±infinity entries indicate the bound is unlimited in that direction.
+///
+/// Interpretation:
+///   - rhsRange[i] = {lo, hi}: b[i] can take any value in [lo, hi] while
+///     the current basis remains primal feasible (and hence optimal, since
+///     dual feasibility is preserved when only b changes).
+///   - objRange[j] = {lo, hi}: c[j] can take any value in [lo, hi] while
+///     the current basis remains dual feasible (and hence optimal, since
+///     primal feasibility is preserved when only c changes).
+///
+/// Valid only when LPDetailedResult::result.status == Optimal.
+struct SensitivityResult {
+    /// RHS ranging, indexed by model constraint index.
+    /// Size == Model::numConstraints().
+    std::vector<std::array<double, 2>> rhsRange;
+
+    /// Objective ranging, indexed by Variable::id.
+    /// Size == Model::numVars().
+    /// Fully free variables (lb = ub = ±∞) are reported as [−∞, +∞].
+    std::vector<std::array<double, 2>> objRange;
+};
+
 /// Extended result returned by solveDetailed().
 ///
 /// Contains an LPResult for the basic outcome; the additional fields are
 /// valid only when noted:
-///   - dualValues, reducedCosts, basis : valid when result.status == Optimal.
-///   - farkas                          : valid when result.status == Infeasible.
+///   - dualValues, reducedCosts, basis, sensitivity : valid when result.status == Optimal.
+///   - farkas                                       : valid when result.status == Infeasible.
 ///
 /// Access the basic result via the public `result` member.
 struct LPDetailedResult {
@@ -135,6 +161,10 @@ struct LPDetailedResult {
     /// farkas.y is non-empty for tableau-detected infeasibility.
     /// farkas.infeasVarId >= 0 for early lb > ub detection.
     FarkasRay farkas;
+
+    /// Sensitivity analysis: RHS and objective coefficient ranging.
+    /// Valid only when result.status == Optimal.
+    SensitivityResult sensitivity;
 };
 
 } // namespace baguette
