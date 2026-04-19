@@ -38,37 +38,37 @@ struct LinearExpr {
     /// If `|result| <= baguette::cancellation_tol`, the term is removed.
     /// The sorted order of `varIds` is preserved throughout.
     ///
-    /// Complexity: O(n + log n), where n = `size()`.
+    /// @note Complexity: O(n + log n), where n = `size()`.
     ///
     /// @param var   The variable to add.
     /// @param coeff The coefficient for that variable.
     void addTerm(Variable var, double coeff);
 
     /// Multiply all coefficients and the constant by @p factor.
-    /// Complexity: O(n), where n = `size()`.
+    /// @note Complexity: O(n), where n = `size()`.
     void scale(double factor);
 
     /// Multiply all coefficients and the constant by @p factor in-place.
     /// Equivalent to `scale(factor)`.
-    /// Complexity: O(n), where n = `size()`.
+    /// @note Complexity: O(n), where n = `size()`.
     /// @return Reference to `*this`.
     LinearExpr& operator*=(double factor);
 
     /// Merge @p rhs into this expression in-place.
     /// Equivalent to `*this = *this + rhs`.
-    /// Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
+    /// @note Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
     /// @return Reference to `*this`.
     LinearExpr& operator+=(const LinearExpr& rhs);
 
     /// Subtract @p rhs from this expression in-place.
     /// Equivalent to `*this = *this - rhs`.
-    /// Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
+    /// @note Complexity: O(n+m), where n = `size()` and m = `rhs.size()`.
     /// @return Reference to `*this`.
     LinearExpr& operator-=(const LinearExpr& rhs);
 
     /// Divide all coefficients and the constant by @p factor in-place.
     /// Equivalent to `scale(1.0 / factor)`.
-    /// Complexity: O(n), where n = `size()`.
+    /// @note Complexity: O(n), where n = `size()`.
     /// @return Reference to `*this`.
     LinearExpr& operator/=(double factor);
 };
@@ -83,16 +83,16 @@ LinearExpr operator/(Variable var, double coeff);
 
 /// Merge two expressions into a new one.
 /// Terms present in both are summed; terms with a zero result are dropped.
-/// Complexity: O(n+m), where n = `lhs.size()` and m = `rhs.size()`.
+/// @note Complexity: O(n+m), where n = `lhs.size()` and m = `rhs.size()`.
 LinearExpr operator+(LinearExpr lhs, const LinearExpr& rhs);
 
 /// Subtract two expressions.
 /// Terms present in both are differenced; terms with a zero result are dropped.
-/// Complexity: O(n+m), where n = `lhs.size()` and m = `rhs.size()`.
+/// @note Complexity: O(n+m), where n = `lhs.size()` and m = `rhs.size()`.
 LinearExpr operator-(LinearExpr lhs, const LinearExpr& rhs);
 
 /// Divide all coefficients and the constant of @p lhs by @p factor.
-/// Complexity: O(n), where n = `lhs.size()`.
+/// @note Complexity: O(n), where n = `lhs.size()`.
 LinearExpr operator/(LinearExpr lhs, double factor);
 
 } // namespace baguette
