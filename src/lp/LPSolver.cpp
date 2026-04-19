@@ -39,6 +39,10 @@ struct AugmentedForm {
 ///
 /// An artificial column (coeff +1) is appended for every non-natural row.
 /// The phase-I objective is c = 1 for artificials, 0 otherwise.
+///
+/// @note Complexity: O(m · nOrig) for copying A into the augmented matrix,
+///   where m = sf.nRows and nOrig = sf.nCols. Appending nArt artificial columns
+///   is O(nArt). Total O(m · (nOrig + nArt)).
 AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
                              const Model& model) {
     const auto& constraints = model.getConstraints();
@@ -124,6 +128,10 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
 /// Drive any artificial variables still in the basis (at value 0) out by
 /// pivoting in a non-artificial column. Rows where no such pivot exists are
 /// redundant (all original coefficients are zero) and are left unchanged.
+///
+/// @note Complexity: O(nArt · m · n) where nArt = number of artificial basic
+///   variables (≤ nOrigRows). Each candidate search costs O(nOld) and each
+///   pivot costs O(m·n); at most nArt pivots are performed.
 void driveOutArtificials(internal::Tableau& tab,
                          const internal::LPStandardForm& sfOrig) {
     const std::size_t nOld = sfOrig.nCols;
@@ -145,6 +153,11 @@ void driveOutArtificials(internal::Tableau& tab,
 /// coefficients are zero, rhs = 0): no pivot was possible so the artificial
 /// stayed in the basis. Assign any currently non-basic column instead; the
 /// row is 0·x = 0 so the choice does not affect the primal solution.
+///
+/// @note Complexity: O(nRedundant · m · nOld) where nRedundant ≤ m. For each
+///   redundant row the all-zero check requires an inner O(m) scan per column,
+///   giving O(m · nOld) per redundant row. Typically fast since redundant rows
+///   are rare (only occur with linearly dependent constraints).
 void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
     std::vector<bool> inBasis(nOld, false);
     for (std::size_t i = 0; i < tab.m; ++i)
@@ -194,6 +207,10 @@ void repairRedundantRows(internal::Tableau& tab, std::size_t nOld) {
 /// through every phase-II pivot so that, at optimality:
 ///   rc[art_i] = 0 − y_i  →  y_i = −rc[art_i]
 /// enabling dual-variable extraction for Equal constraints.
+///
+/// @note Complexity: O(m·n) for objective repricing (m basic rows, each
+///   updating the length-(n+1) rc vector). m = tab.m, n = tab.n (full width
+///   including artificial columns). repairRedundantRows adds O(nRedundant · m · nOld).
 void preparePhaseTwo(internal::Tableau& tab,
                      const internal::LPStandardForm& sfOrig) {
     const std::size_t nOld = sfOrig.nCols; // columns in the original (non-augmented) form
@@ -393,6 +410,9 @@ SensitivityResult extractSensitivity(const internal::Tableau&        tab,
 ///                 Equal rows are read as  y_i = −rc[equalArtCol[i]]  instead
 ///                 of being left at zero.  Pass an empty vector when the tableau
 ///                 contains no artificial columns (e.g. dual-simplex cold start).
+/// @note Complexity: O(nOrig + nOrigRows + nCols) for primal/dual/reduced-cost
+///   extraction when computeSensitivity is false. When computeSensitivity is true,
+///   dominated by extractSensitivity at O(m·n_eff).
 LPDetailedResult extractDetailed(const internal::Tableau& tab,
                                  const internal::LPStandardForm& sf,
                                  const Model& model,
@@ -496,6 +516,11 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
 ///                  the updated total.  Passing the same variable to the phase-I
 ///                  and phase-II calls ensures both phases draw from a single
 ///                  maxIter budget.
+///
+/// @note Complexity: O(K · m · n) total, where K = number of simplex pivots
+///   (problem-dependent; exponential worst case, polynomial in practice) and
+///   each pivot costs O(m·n). Periodic reinversion every reinversion_period
+///   pivots adds O(m²·n) per cycle.
 LPStatus runSimplex(internal::Tableau& tab,
                     const internal::LPStandardForm& sf,
                     uint32_t maxIter,
@@ -547,6 +572,9 @@ LPStatus runSimplex(internal::Tableau& tab,
 /// @param outBlockingRow  If non-null, set to the leaving row index when
 ///                        infeasibility is detected (all entries >= 0, rhs < 0).
 ///                        Enables Farkas certificate extraction by the caller.
+///
+/// @note Complexity: O(K · m · n) total, where K = number of dual-simplex pivots
+///   and each pivot costs O(m·n). Same periodic reinversion schedule as runSimplex.
 LPStatus runDualSimplex(internal::Tableau& tab,
                         const internal::LPStandardForm& sf,
                         uint32_t maxIter,
@@ -606,6 +634,8 @@ LPStatus runDualSimplex(internal::Tableau& tab,
 ///
 /// @returns The initial basis vector, or an empty vector if the model contains
 ///          Sense::Equal constraints (which have no natural basic variable).
+/// @note Complexity: O(m), where m = sf.nRows. Includes an O(nOrigRows) scan
+///   for Equal constraints and an O(nRows) pass to fill the basis vector.
 std::vector<uint32_t> buildDualBasis(const internal::LPStandardForm& sf,
                                      const Model& model) {
     const auto& constraints = model.getConstraints();
@@ -646,6 +676,7 @@ std::vector<uint32_t> buildDualBasis(const internal::LPStandardForm& sf,
 ///     y_model[i] = -tab[r, rowSlackCol[i]]  (idem)
 ///   Equal rows have no slack column and do not arise on the dual-simplex path
 ///   (they force a fallback to primal), so y[i] = 0 for those rows.
+/// @note Complexity: O(nOrigRows).
 FarkasRay extractFarkasDualRow(const internal::Tableau&        tab,
                                const internal::LPStandardForm& sf,
                                const Model&                    model,
@@ -677,6 +708,7 @@ FarkasRay extractFarkasDualRow(const internal::Tableau&        tab,
 ///   LessEq row i  : y_farkas[i] = rc[rowSlackCol[i]]
 ///   GEQ row i     : y_farkas[i] = -rc[rowSlackCol[i]]
 ///   Equal row i   : y_farkas[i] = rc[equalArtCol[i]] - 1
+/// @note Complexity: O(nOrigRows).
 FarkasRay extractFarkasPhaseI(const internal::Tableau&        tab,
                               const internal::LPStandardForm& sf,
                               const AugmentedForm&             aug,

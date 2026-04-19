@@ -22,6 +22,9 @@ using SolverClock = std::chrono::steady_clock;
 /// @param timeLimitS Wall-clock time limit in seconds. infinity() = unlimited.
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
+/// @note Complexity: O(m·n) for standard-form setup, then O(K·m·n) for the
+///   two-phase simplex where K = total pivot count (problem-dependent).
+///   See solveDetailed() for full details.
 LPResult solve(const Model&            model,
                uint32_t                maxIter    = 0,
                double                  timeLimitS = std::numeric_limits<double>::infinity(),
@@ -52,6 +55,10 @@ LPResult solve(const Model&            model,
 /// @param startTime          Reference point for the time limit. Defaults to now().
 ///                           Pass a B&B root startTime to share the budget across nodes.
 /// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
+/// @note Complexity: O(m·n) for standard-form setup, then O(K·m·n) for the two-phase
+///   primal simplex, where K = total pivot count (problem-dependent; exponential worst
+///   case, polynomial in practice). m = constraint rows (model + UB rows), n = SF columns.
+///   Periodic reinversion adds O(m²·n) every reinversion_period pivots.
 LPDetailedResult solveDetailed(const Model& model,
                                uint32_t maxIter            = 0,
                                double   timeLimitS         = std::numeric_limits<double>::infinity(),
@@ -104,6 +111,9 @@ LPDetailedResult solveDetailed(const Model& model,
 /// @param startTime  Reference point for the time limit. Defaults to now().
 ///                   Pass a B&B root startTime to share the budget across nodes.
 /// @param warmBasis  Parent node's BasisRecord for warm start. Default {} = cold start.
+/// @note Complexity: O(m·n) amortised for standard-form setup (O(1) with sfCache),
+///   then O(K·m·n) for the dual simplex. Falls back to solveDetailed() complexity
+///   when dual feasibility cannot be established. See solveDualDetailed() for full details.
 LPResult solveDual(const Model&            model,
                    uint32_t                maxIter    = 0,
                    double                  timeLimitS = std::numeric_limits<double>::infinity(),
@@ -125,6 +135,10 @@ LPResult solveDual(const Model&            model,
 ///                           Pass the B&B root startTime to share the budget across nodes.
 /// @param warmBasis          Parent node's BasisRecord for warm start. Default {} = cold start.
 /// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
+/// @note Complexity: O(m·n) amortised for standard-form setup (O(1) matrix reuse with
+///   sfCache), then O(K·m·n) for the dual simplex where K = total pivot count.
+///   Warm-start reinversion is O(m²·n). Falls back to solveDetailed() complexity when
+///   dual feasibility cannot be established. m = SF rows, n = SF columns.
 LPDetailedResult solveDualDetailed(const Model&            model,
                                    uint32_t                maxIter            = 0,
                                    double                  timeLimitS         = std::numeric_limits<double>::infinity(),

@@ -102,6 +102,9 @@ struct LPStandardForm {
 ///
 /// @throws std::invalid_argument if any variable ID in a constraint or in the
 ///         objective exceeds Model::numVars().
+/// @note Complexity: O(m·n) dominated by zero-filling and populating the dense
+///   constraint matrix A, where m = nOrigRows + nUBRows and n = nCols.
+///   Free-split negative columns add O(nFree · nOrigRows). Typical case O(m·n).
 LPStandardForm toStandardForm(const Model& model);
 
 /// Lightweight bounds-only update of an existing LPStandardForm.
@@ -116,6 +119,8 @@ LPStandardForm toStandardForm(const Model& model);
 ///   - Any constraint row's shifted RHS would change sign (requiring a row
 ///     negation in A that this function does not perform).
 /// The caller must fall back to toStandardForm() when false is returned.
+/// @note Complexity: O(nOrig + nnz), where nnz = total number of non-zero terms
+///   across all model constraints. No matrix allocation or A-fill is performed.
 bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model);
 
 /// Build the LP dual of a standard-form LP.
@@ -140,6 +145,9 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model);
 ///
 /// @note objOffset is always 0: the dual is derived from the pure
 ///       standard-form coefficients, not from a user Model with variable shifts.
+/// @note Complexity: O(n_p · (m_p + n_p)) for constructing the dual constraint
+///   matrix (A^T fill O(m_p · n_p) + per-row normalisation pass O(n_p · (2m_p + n_p))),
+///   where m_p = primal.nRows and n_p = primal.nCols.
 LPStandardForm dualStandardForm(const LPStandardForm& primal);
 
 } // namespace baguette::internal

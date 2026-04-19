@@ -62,6 +62,8 @@ struct Tableau {
     /// @return true on success; false if the basis matrix is numerically singular
     ///         (all pivot candidates in some column are below pivot_tol).
     ///         On false the tableau is in an undefined state and must not be used.
+    /// @note Complexity: O(m²·n) for Gauss-Jordan (m elimination passes each O(m·n)),
+    ///   plus O(m·n) for objective repricing. m = sf.nRows, n = sf.nCols.
     bool init(const LPStandardForm& sf,
               std::vector<uint32_t> initialBasis);
 
@@ -71,6 +73,7 @@ struct Tableau {
     /// the smallest column index j with rc[j] < −lp_optimality_tol.
     /// @return Index of the entering column, or `n` if no improving column exists
     ///         (current solution is optimal).
+    /// @note Complexity: O(nActive), where nActive equals n when nActive == 0 (phase I).
     std::size_t selectEntering() const;
 
     /// Select the leaving row using the minimum ratio test with full Bland's rule.
@@ -80,6 +83,7 @@ struct Tableau {
     /// anti-cycling rule.
     /// @return Index of the leaving row, or `m` if no eligible row exists
     ///         (the problem is unbounded in the entering direction).
+    /// @note Complexity: O(m).
     std::size_t selectLeaving(std::size_t enteringCol) const;
 
     // ── Dual-simplex pivot selection ─────────────────────────────────────────
@@ -91,6 +95,7 @@ struct Tableau {
     /// basic variable has the smallest column index is chosen (Bland's anti-cycling rule).
     /// @return Index of the leaving row, or `m` if all rhs values are ≥ −lp_feasibility_tol
     ///         (primal feasible → optimal, since dual feasibility is maintained throughout).
+    /// @note Complexity: O(m).
     std::size_t selectLeavingDual() const;
 
     /// Dual-simplex entering-column selection (minimum-ratio test on reduced costs).
@@ -107,10 +112,13 @@ struct Tableau {
     /// @pre  All rc[j] ≥ 0  (dual feasibility is maintained by the caller).
     ///       Violating this precondition produces incorrect pivot selection and
     ///       undefined behaviour in subsequent iterations.
+    /// @note Complexity: O(n).
     std::size_t selectEnteringDual(std::size_t leavingRow) const;
 
     /// Pivot: bring enteringCol into the basis at leavingRow.
     /// Updates tab, rc, and basicCols in-place.
+    /// @note Complexity: O(m·n) for column elimination across all rows and the rc
+    ///   vector. An additional O(m) scan is performed when hasRedundantRow is set.
     void pivot(std::size_t leavingRow, std::size_t enteringCol);
 
     /// Rebuild B⁻¹ from scratch using the current basicCols to reset
@@ -118,6 +126,7 @@ struct Tableau {
     /// @param sf The standard-form LP (needed for the original A and c).
     /// @return true on success; false if the basis is numerically singular.
     ///         On false the tableau is in an undefined state and must not be used.
+    /// @note Complexity: O(m²·n) — delegates to init().
     [[nodiscard]] bool reinvert(const LPStandardForm& sf);
 
     // ── Solution extraction ──────────────────────────────────────────────────
@@ -127,6 +136,7 @@ struct Tableau {
 
     /// Primal solution for all n columns.
     /// Basic variables take their rhs value; non-basic variables are 0.
+    /// @note Complexity: O(m).
     std::vector<double> primalSolution() const;
 
 };
