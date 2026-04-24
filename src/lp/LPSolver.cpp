@@ -52,7 +52,9 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
     std::vector<bool> needsArt(m, false);
     for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
         Sense s = constraints[i].sense;
-        needsArt[i] = (s == Sense::GreaterEq || s == Sense::Equal);
+        // A negated LessEq row has its slack stored with coefficient -1 (not +1),
+        // so it cannot serve as a natural positive basis column and needs an artificial.
+        needsArt[i] = (s == Sense::GreaterEq || s == Sense::Equal || sf.rowNegated[i]);
     }
     // Upper-bound rows have a natural UpperSlack — no artificial needed.
 

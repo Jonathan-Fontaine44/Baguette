@@ -599,3 +599,15 @@ TEST_CASE("solve - timeLimitS = 0 returns TimeLimit", "[lp][timelimit]") {
     auto res = solve(makeSimpleMax(), 0, 0.0);
     REQUIRE(res.status == LPStatus::TimeLimit);
 }
+
+TEST_CASE("LP relaxation infeasible from B&B test", "[lp]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    LPResult lpResult = solve(m);
+
+    REQUIRE(lpResult.status == LPStatus::Infeasible);
+}

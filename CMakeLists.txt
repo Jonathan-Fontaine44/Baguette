@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.2.5 LANGUAGES CXX)
+project(Baguette VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,7 @@ add_library(Baguette
     src/lp/StandardForm.cpp
     src/lp/Tableau.cpp
     src/lp/LPSolver.cpp
+    src/milp/BranchAndBound.cpp
 )
 
 target_include_directories(Baguette PUBLIC
@@ -45,6 +46,7 @@ add_executable(BaguetteTests
     tests/lp/test_warm_start.cpp
     tests/lp/test_farkas.cpp
     tests/lp/test_sensitivity.cpp
+    tests/milp/test_bb.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE

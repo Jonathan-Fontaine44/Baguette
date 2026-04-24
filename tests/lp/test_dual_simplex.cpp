@@ -238,3 +238,15 @@ TEST_CASE("dual simplex - timeLimitS = 0 returns TimeLimit", "[dual_simplex][tim
     auto res = solveDual(makeMinWithGEQ(), 0, 0.0);
     REQUIRE(res.status == LPStatus::TimeLimit);
 }
+
+TEST_CASE("LP relaxation infeasible from B&B test", "[dual_simplex]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
+    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    LPResult lpResult = solveDual(m);
+
+    REQUIRE(lpResult.status == LPStatus::Infeasible);
+}
