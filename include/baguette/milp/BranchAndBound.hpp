@@ -51,6 +51,15 @@ struct BBOptions {
     /// Absolute tolerance for declaring a variable value integer-feasible.
     /// A variable x_i is considered integer if |x_i − round(x_i)| ≤ intFeasTol.
     double intFeasTol = 1e-6;
+
+    /// Absolute MIP gap tolerance. A node is pruned when its LP bound cannot
+    /// improve the incumbent by more than mipGapAbs:
+    ///   Minimize: prune if lpBound ≥ incumbent − mipGapAbs
+    ///   Maximize: prune if lpBound ≤ incumbent + mipGapAbs
+    /// Propagated to every LP bound comparison against the incumbent so that
+    /// near-optimal nodes are not explored unnecessarily.
+    /// The returned solution may be suboptimal by at most mipGapAbs.
+    double mipGapAbs = 1e-6;
 };
 
 /// Shared clock type (same as LPSolver).

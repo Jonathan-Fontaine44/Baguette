@@ -97,11 +97,13 @@ MILPResult solveMILP(const Model&            modelRef,
     };
 
     // ── Pruning predicate ──────────────────────────────────────────────────────
-    // True when an LP bound cannot improve on the current incumbent.
-    // Minimize: prune if lpBound >= incumbent (LP lower bound ≥ best known).
-    // Maximize: prune if lpBound <= incumbent (LP upper bound ≤ best known).
+    // True when an LP bound cannot improve the incumbent by more than mipGapAbs.
+    // Propagated to every LP-bound vs. incumbent comparison in the hot loop.
+    // Minimize: prune if lpBound ≥ incumbent − mipGapAbs.
+    // Maximize: prune if lpBound ≤ incumbent + mipGapAbs.
     auto canPrune = [&](double lpBound) -> bool {
-        return minimize ? (lpBound >= incumbent) : (lpBound <= incumbent);
+        return minimize ? (lpBound >= incumbent - opts.mipGapAbs)
+                        : (lpBound <= incumbent + opts.mipGapAbs);
     };
 
     // ── Node queue comparator (BestBound mode) ─────────────────────────────────
