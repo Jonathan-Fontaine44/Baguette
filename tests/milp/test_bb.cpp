@@ -177,6 +177,26 @@ TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
     REQUIRE_THAT(r1.primalValues[y.id], WithinAbs(r2.primalValues[y.id], kTol));
 }
 
+// ── Test 8: node limit stops search ───────────────────────────────────────────
+
+TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
+    Model m;
+    Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
+    m.addConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
+
+    BBOptions opts;
+    opts.maxNodes = 1;
+
+    MILPResult r = solveMILP(m, opts);
+
+    // Root LP is fractional → no integer solution found in 1 node.
+    REQUIRE(r.status == MILPStatus::MaxNodes);
+    REQUIRE(r.nodesExplored == 1);
+    REQUIRE(r.primalValues.empty());
+}
+
 // ── Test 9: delta-trail restore — deep tree, BestBound vs DepthFirst ────────
 //
 // max 3x + 5y + 2z + 4w
@@ -211,22 +231,35 @@ TEST_CASE("BB: delta-trail restore correct for deep tree (BestBound vs DepthFirs
     REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
 }
 
-// ── Test 8: node limit stops search ───────────────────────────────────────────
+// ── Test 10: HybridPlunge finds same optimal as BestBound ────────────────────
+//
+// max 5x + 4y  s.t. 3x + 2y ≤ 7,  x,y ∈ Z[0,5].  IP optimal: obj=13.
+//
+// HybridPlunge plunges DFS to the first incumbent, then heapifies the queue
+// and finishes in BestBound mode. The optimal must match pure BestBound and
+// pure DepthFirst.
 
-TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
+TEST_CASE("BB: HybridPlunge finds same optimal as BestBound and DepthFirst", "[bb]") {
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
     m.addConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
-    BBOptions opts;
-    opts.maxNodes = 1;
+    BBOptions bb, df, hp;
+    bb.nodeSelect = NodeSelection::BestBound;
+    df.nodeSelect = NodeSelection::DepthFirst;
+    hp.nodeSelect = NodeSelection::HybridPlunge;
 
-    MILPResult r = solveMILP(m, opts);
+    MILPResult r1 = solveMILP(m, bb);
+    MILPResult r2 = solveMILP(m, df);
+    MILPResult r3 = solveMILP(m, hp);
 
-    // Root LP is fractional → no integer solution found in 1 node.
-    REQUIRE(r.status == MILPStatus::MaxNodes);
-    REQUIRE(r.nodesExplored == 1);
-    REQUIRE(r.primalValues.empty());
+    REQUIRE(r1.status == MILPStatus::Optimal);
+    REQUIRE(r2.status == MILPStatus::Optimal);
+    REQUIRE(r3.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r3.objectiveValue, WithinAbs(r1.objectiveValue, kTol));
+    REQUIRE_THAT(r3.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+    REQUIRE_THAT(r3.primalValues[x.id], WithinAbs(r1.primalValues[x.id], kTol));
+    REQUIRE_THAT(r3.primalValues[y.id], WithinAbs(r1.primalValues[y.id], kTol));
 }

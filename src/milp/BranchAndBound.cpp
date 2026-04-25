@@ -115,22 +115,33 @@ MILPResult solveMILP(const Model&            modelRef,
                         : (lpBound <= incumbent + opts.mipGapAbs);
     };
 
-    // ── Node queue comparator (BestBound mode) ─────────────────────────────────
+    // ── Node queue comparator (BestBound / post-plunge mode) ──────────────────
     auto cmpNodes = [minimize](const Node& a, const Node& b) -> bool {
         return minimize ? (a.lpBound > b.lpBound) : (a.lpBound < b.lpBound);
     };
 
-    // ── Queue (vector used as heap or stack depending on nodeSelect) ───────────
+    // ── HybridPlunge phase flag ────────────────────────────────────────────────
+    // Starts true (DFS plunge) and flips to false after the first incumbent is
+    // found, at which point the queue is heapified and BestBound takes over.
+    bool plunging = (opts.nodeSelect == NodeSelection::HybridPlunge);
+
+    // Returns true when heap ordering should be used.
+    auto isHeapMode = [&]() -> bool {
+        return opts.nodeSelect == NodeSelection::BestBound ||
+               (opts.nodeSelect == NodeSelection::HybridPlunge && !plunging);
+    };
+
+    // ── Queue (vector used as heap or stack depending on mode) ─────────────────
     std::vector<Node> queue;
 
     auto pushNode = [&](Node n) {
         queue.push_back(std::move(n));
-        if (opts.nodeSelect == NodeSelection::BestBound)
+        if (isHeapMode())
             std::push_heap(queue.begin(), queue.end(), cmpNodes);
     };
 
     auto popNode = [&]() -> Node {
-        if (opts.nodeSelect == NodeSelection::BestBound)
+        if (isHeapMode())
             std::pop_heap(queue.begin(), queue.end(), cmpNodes);
         Node n = std::move(queue.back());
         queue.pop_back();
@@ -269,6 +280,11 @@ MILPResult solveMILP(const Model&            modelRef,
             if (better) {
                 incumbent    = obj;
                 incumbentSol = lp.result.primalValues;
+                // HybridPlunge: first incumbent found — heapify and switch to BestBound.
+                if (plunging) {
+                    plunging = false;
+                    std::make_heap(queue.begin(), queue.end(), cmpNodes);
+                }
             }
             continue;
         }

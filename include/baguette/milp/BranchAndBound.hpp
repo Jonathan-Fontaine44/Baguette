@@ -33,6 +33,11 @@ enum class NodeSelection {
     /// Explore the deepest node first (stack discipline).
     /// Finds a feasible integer solution faster; smaller basis changes → better warm-start.
     DepthFirst,
+
+    /// Plunge depth-first until the first integer-feasible incumbent is found,
+    /// then switch automatically to BestBound to prove optimality.
+    /// Combines fast incumbent finding (DFS) with tight bound convergence (BestBound).
+    HybridPlunge,
 };
 
 /// Options for solveMILP().
