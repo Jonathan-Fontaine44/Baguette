@@ -177,6 +177,40 @@ TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
     REQUIRE_THAT(r1.primalValues[y.id], WithinAbs(r2.primalValues[y.id], kTol));
 }
 
+// ── Test 9: delta-trail restore — deep tree, BestBound vs DepthFirst ────────
+//
+// max 3x + 5y + 2z + 4w
+//   s.t. 2x + 3y + z + 2w ≤ 10
+//        x + 2y + 3z + w  ≤ 10
+//        x,y,z,w ∈ Z[0,4]
+//
+// Both BestBound (non-LIFO jumps between nodes) and DepthFirst (deep path then
+// backtrack) exercise the delta-trail restore at multiple depths. They must
+// agree on the optimal objective, validating that bound restoration is correct
+// regardless of node processing order.
+
+TEST_CASE("BB: delta-trail restore correct for deep tree (BestBound vs DepthFirst)", "[bb]") {
+    Model m;
+    Variable x = m.addVar(0.0, 4.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 4.0, VarType::Integer, "y");
+    Variable z = m.addVar(0.0, 4.0, VarType::Integer, "z");
+    Variable w = m.addVar(0.0, 4.0, VarType::Integer, "w");
+    m.addConstraint(2.0*x + 3.0*y + 1.0*z + 2.0*w, Sense::LessEq, 10.0);
+    m.addConstraint(1.0*x + 2.0*y + 3.0*z + 1.0*w, Sense::LessEq, 10.0);
+    m.setObjective(3.0*x + 5.0*y + 2.0*z + 4.0*w, ObjSense::Maximize);
+
+    BBOptions bb, df;
+    bb.nodeSelect = NodeSelection::BestBound;
+    df.nodeSelect = NodeSelection::DepthFirst;
+
+    MILPResult r1 = solveMILP(m, bb);
+    MILPResult r2 = solveMILP(m, df);
+
+    REQUIRE(r1.status == MILPStatus::Optimal);
+    REQUIRE(r2.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+}
+
 // ── Test 8: node limit stops search ───────────────────────────────────────────
 
 TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {

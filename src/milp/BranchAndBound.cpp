@@ -17,12 +17,19 @@ namespace {
 
 // ── Internal node ──────────────────────────────────────────────────────────────
 
+// One variable bound change accumulated along the path from the root to a node.
+// newLb / newUb replace the root-level bounds for varId at this depth.
+struct BoundChange {
+    uint32_t varId;
+    double   newLb;
+    double   newUb;
+};
+
 struct Node {
-    std::vector<double> lb;      // complete bounds snapshot for all variables
-    std::vector<double> ub;
-    BasisRecord         basis;   // warm-start data from the parent LP solve
-    double              lpBound; // LP objective at the parent (for pruning + pseudo-costs)
-    int                 depth;
+    std::vector<BoundChange> changes;  // accumulated deltas from root (one per branch depth)
+    BasisRecord              basis;    // warm-start data from the parent LP solve
+    double                   lpBound;  // LP objective at the parent (pruning + pseudo-costs)
+    int                      depth;
 
     // Pseudo-cost bookkeeping: records the branching decision that created this node.
     int    parentBranchVar = -1; // -1 = root node (no parent branch)
@@ -32,7 +39,6 @@ struct Node {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Collect ids of Integer and Binary variables.
 std::vector<uint32_t> collectIntVarIds(const Model& model) {
     const auto& types = model.getCold().types;
     std::vector<uint32_t> ids;
@@ -44,8 +50,6 @@ std::vector<uint32_t> collectIntVarIds(const Model& model) {
     return ids;
 }
 
-// Return the id of the variable to branch on using FirstFractional or MostFractional.
-// Returns -1 if all integer vars are at integer values (|x_i - round(x_i)| <= intFeasTol).
 int selectBranchVar(const std::vector<double>&   sol,
                     const std::vector<uint32_t>& intVarIds,
                     BranchStrategy               strat,
@@ -58,12 +62,11 @@ int selectBranchVar(const std::vector<double>&   sol,
         double frac = x - std::floor(x);
 
         if (frac <= intFeasTol || frac >= 1.0 - intFeasTol)
-            continue; // integer-feasible, skip
+            continue;
 
         if (strat == BranchStrategy::FirstFractional)
             return static_cast<int>(id);
 
-        // MostFractional: maximise min(frac, 1-frac) → closest to 0.5
         double score = std::min(frac, 1.0 - frac);
         if (score > bestScore) {
             bestScore = score;
@@ -80,8 +83,6 @@ int selectBranchVar(const std::vector<double>&   sol,
 MILPResult solveMILP(const Model&            modelRef,
                      const BBOptions&        opts,
                      SolverClock::time_point startTime) {
-    // Work on a mutable copy so that addConstraint() (for cuts) and setVarBounds()
-    // can be called in the hot loop.
     Model model = modelRef;
 
     const bool   minimize = (model.getObjSense() == ObjSense::Minimize);
@@ -136,21 +137,38 @@ MILPResult solveMILP(const Model&            modelRef,
         return n;
     };
 
-    // ── Restore model bounds from a node snapshot ──────────────────────────────
+    // ── Root bounds cache + dirty-variable tracking ────────────────────────────
+    // Root bounds are the model's initial bounds (before any branching).
+    // dirtyVars tracks which variables currently differ from rootLb/rootUb so
+    // that restoreBounds only touches O(prev_depth + curr_depth) variables
+    // instead of O(n) for every node.
+    const std::vector<double> rootLb = model.getHot().lb;
+    const std::vector<double> rootUb = model.getHot().ub;
+    std::vector<uint32_t>     dirtyVars; // varIds that currently differ from root bounds
+
+    // ── Restore model bounds from a node's accumulated delta trail ─────────────
     auto restoreBounds = [&](const Node& node) {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(node.lb.size()); ++i)
-            model.setVarBounds(Variable{i}, node.lb[i], node.ub[i]);
+        // Reset previously modified variables to root bounds.
+        for (uint32_t id : dirtyVars)
+            model.setVarBounds(Variable{id}, rootLb[id], rootUb[id]);
+        // Apply this node's changes and rebuild the dirty set.
+        dirtyVars.clear();
+        for (const BoundChange& bc : node.changes) {
+            model.setVarBounds(Variable{bc.varId}, bc.newLb, bc.newUb);
+            dirtyVars.push_back(bc.varId);
+        }
+        // Deduplicate: the same variable may appear at multiple depths.
+        std::sort(dirtyVars.begin(), dirtyVars.end());
+        dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()), dirtyVars.end());
     };
 
     // ── Root node ──────────────────────────────────────────────────────────────
     {
-        const auto& hot = model.getHot();
         Node root;
-        root.lb      = hot.lb;
-        root.ub      = hot.ub;
-        root.lpBound = minimize ? -inf : inf;
-        root.depth   = 0;
-        // root.basis is empty → solveDualDetailed will cold-start
+        root.changes  = {};               // no changes from root bounds
+        root.lpBound  = minimize ? -inf : inf;
+        root.depth    = 0;
+        // root.basis is default-constructed (empty) → cold start
         pushNode(std::move(root));
     }
 
@@ -162,7 +180,7 @@ MILPResult solveMILP(const Model&            modelRef,
         Node node = popNode();
         ++nodesExplored;
 
-        // Apply this node's bounds to the shared model.
+        // Apply this node's accumulated bound deltas to the shared model.
         restoreBounds(node);
 
         // ── First LP solve ─────────────────────────────────────────────────────
@@ -177,20 +195,12 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── Handle LP outcome ──────────────────────────────────────────────────
         switch (lp.result.status) {
-            case LPStatus::Infeasible:
-                continue;
-            case LPStatus::Unbounded:
-                unboundedHit = true;
-                goto done;
-            case LPStatus::TimeLimit:
-                timeLimitHit = true;
-                goto done;
-            case LPStatus::NumericalFailure:
-                continue;
-            case LPStatus::MaxIter:
-                continue;
-            case LPStatus::Optimal:
-                break;
+            case LPStatus::Infeasible:      continue;
+            case LPStatus::Unbounded:       unboundedHit = true; goto done;
+            case LPStatus::TimeLimit:       timeLimitHit = true; goto done;
+            case LPStatus::NumericalFailure: continue;
+            case LPStatus::MaxIter:         continue;
+            case LPStatus::Optimal:         break;
         }
 
         // ── Pseudo-cost update (branching improvement, pre-cut) ────────────────
@@ -230,15 +240,14 @@ MILPResult solveMILP(const Model&            modelRef,
                     /*computeCutData=*/false);
 
                 switch (lp.result.status) {
-                    case LPStatus::Infeasible:  continue;
-                    case LPStatus::Unbounded:   unboundedHit = true; goto done;
-                    case LPStatus::TimeLimit:   timeLimitHit = true; goto done;
+                    case LPStatus::Infeasible:       continue;
+                    case LPStatus::Unbounded:        unboundedHit = true; goto done;
+                    case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
                     case LPStatus::NumericalFailure: continue;
-                    case LPStatus::MaxIter:     continue;
-                    case LPStatus::Optimal:     break;
+                    case LPStatus::MaxIter:          continue;
+                    case LPStatus::Optimal:          break;
                 }
 
-                // Prune again with the tightened (post-cut) bound.
                 if (canPrune(lp.result.objectiveValue))
                     continue;
             }
@@ -255,7 +264,6 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         if (branchId == -1) {
-            // All integer variables at integer values → feasible solution.
             double obj    = lp.result.objectiveValue;
             bool   better = minimize ? (obj < incumbent) : (obj > incumbent);
             if (better) {
@@ -266,18 +274,21 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Branch ────────────────────────────────────────────────────────────
-        const double xj      = lp.result.primalValues[static_cast<uint32_t>(branchId)];
-        const double floorX  = std::floor(xj);
-        const double ceilX   = std::ceil(xj);
-        const double fracXj  = xj - floorX;
-        const double bound   = lp.result.objectiveValue;
+        const double xj     = lp.result.primalValues[static_cast<uint32_t>(branchId)];
+        const double floorX = std::floor(xj);
+        const double ceilX  = std::ceil(xj);
+        const double fracXj = xj - floorX;
+        const double bound  = lp.result.objectiveValue;
+
+        // Read the variable's current bounds from the model (already restored for this node).
+        const double curLb = model.getHot().lb[static_cast<uint32_t>(branchId)];
+        const double curUb = model.getHot().ub[static_cast<uint32_t>(branchId)];
 
         // Left child:  x_j ≤ floor(x_j)
         if (!canPrune(bound)) {
             Node left;
-            left.lb              = node.lb;
-            left.ub              = node.ub;
-            left.ub[static_cast<uint32_t>(branchId)] = floorX;
+            left.changes = node.changes; // copy parent's trail
+            left.changes.push_back({static_cast<uint32_t>(branchId), curLb, floorX});
             left.lpBound         = bound;
             left.depth           = node.depth + 1;
             left.basis           = lp.basis;
@@ -290,9 +301,8 @@ MILPResult solveMILP(const Model&            modelRef,
         // Right child: x_j ≥ ceil(x_j)
         if (!canPrune(bound)) {
             Node right;
-            right.lb              = node.lb;
-            right.ub              = node.ub;
-            right.lb[static_cast<uint32_t>(branchId)] = ceilX;
+            right.changes = node.changes; // copy parent's trail
+            right.changes.push_back({static_cast<uint32_t>(branchId), ceilX, curUb});
             right.lpBound         = bound;
             right.depth           = node.depth + 1;
             right.basis           = lp.basis;
@@ -304,7 +314,6 @@ MILPResult solveMILP(const Model&            modelRef,
     }
 
 done:
-    // ── Build result ───────────────────────────────────────────────────────────
     MILPResult result;
     result.nodesExplored = nodesExplored;
     result.cutsAdded     = cutsAdded;
