@@ -5,8 +5,10 @@
 #include <limits>
 #include <vector>
 
+#include "baguette/core/Sense.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
+#include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
 namespace baguette {
@@ -19,8 +21,13 @@ struct Node {
     std::vector<double> lb;      // complete bounds snapshot for all variables
     std::vector<double> ub;
     BasisRecord         basis;   // warm-start data from the parent LP solve
-    double              lpBound; // LP objective at the parent (lower/upper bound)
+    double              lpBound; // LP objective at the parent (for pruning + pseudo-costs)
     int                 depth;
+
+    // Pseudo-cost bookkeeping: records the branching decision that created this node.
+    int    parentBranchVar = -1; // -1 = root node (no parent branch)
+    bool   branchedUp      = false;
+    double parentFrac      = 0.0;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -37,8 +44,8 @@ std::vector<uint32_t> collectIntVarIds(const Model& model) {
     return ids;
 }
 
-// Return the id of the variable to branch on, or -1 if all integer vars are
-// at integer values (|x_i - round(x_i)| <= intFeasTol).
+// Return the id of the variable to branch on using FirstFractional or MostFractional.
+// Returns -1 if all integer vars are at integer values (|x_i - round(x_i)| <= intFeasTol).
 int selectBranchVar(const std::vector<double>&   sol,
                     const std::vector<uint32_t>& intVarIds,
                     BranchStrategy               strat,
@@ -73,7 +80,8 @@ int selectBranchVar(const std::vector<double>&   sol,
 MILPResult solveMILP(const Model&            modelRef,
                      const BBOptions&        opts,
                      SolverClock::time_point startTime) {
-    // Work on a mutable copy so that setVarBounds() can be called in the hot loop.
+    // Work on a mutable copy so that addConstraint() (for cuts) and setVarBounds()
+    // can be called in the hot loop.
     Model model = modelRef;
 
     const bool   minimize = (model.getObjSense() == ObjSense::Minimize);
@@ -81,14 +89,18 @@ MILPResult solveMILP(const Model&            modelRef,
 
     const std::vector<uint32_t> intIds = collectIntVarIds(model);
 
+    // ── Pseudo-costs ───────────────────────────────────────────────────────────
+    PseudoCosts pc = initPseudoCosts(static_cast<uint32_t>(model.numVars()));
+
     // ── Incumbent tracking ─────────────────────────────────────────────────────
     double              incumbent    = minimize ? inf : -inf;
     std::vector<double> incumbentSol;
 
-    int  nodesExplored = 0;
-    bool timeLimitHit  = false;
-    bool maxNodesHit   = false;
-    bool unboundedHit  = false;
+    int      nodesExplored = 0;
+    uint32_t cutsAdded     = 0;
+    bool     timeLimitHit  = false;
+    bool     maxNodesHit   = false;
+    bool     unboundedHit  = false;
 
     // ── Time helpers ───────────────────────────────────────────────────────────
     auto elapsedS = [&]() -> double {
@@ -97,20 +109,12 @@ MILPResult solveMILP(const Model&            modelRef,
     };
 
     // ── Pruning predicate ──────────────────────────────────────────────────────
-    // True when an LP bound cannot improve the incumbent by more than mipGapAbs.
-    // Propagated to every LP-bound vs. incumbent comparison in the hot loop.
-    // Minimize: prune if lpBound ≥ incumbent − mipGapAbs.
-    // Maximize: prune if lpBound ≤ incumbent + mipGapAbs.
     auto canPrune = [&](double lpBound) -> bool {
         return minimize ? (lpBound >= incumbent - opts.mipGapAbs)
                         : (lpBound <= incumbent + opts.mipGapAbs);
     };
 
     // ── Node queue comparator (BestBound mode) ─────────────────────────────────
-    // std::push_heap / pop_heap use a max-heap: the element for which cmp(x, top)
-    // is false for all x is placed at the front (popped first).
-    // For Minimize: smallest lpBound first → cmp(a,b) = (a.lpBound > b.lpBound).
-    // For Maximize: largest  lpBound first → cmp(a,b) = (a.lpBound < b.lpBound).
     auto cmpNodes = [minimize](const Node& a, const Node& b) -> bool {
         return minimize ? (a.lpBound > b.lpBound) : (a.lpBound < b.lpBound);
     };
@@ -144,13 +148,13 @@ MILPResult solveMILP(const Model&            modelRef,
         Node root;
         root.lb      = hot.lb;
         root.ub      = hot.ub;
-        root.lpBound = minimize ? -inf : inf; // no LP bound yet for the root
+        root.lpBound = minimize ? -inf : inf;
         root.depth   = 0;
         // root.basis is empty → solveDualDetailed will cold-start
         pushNode(std::move(root));
     }
 
-    // ── Main B&B loop ──────────────────────────────────────────────────────────
+    // ── Main B&C loop ──────────────────────────────────────────────────────────
     while (!queue.empty()) {
         if (elapsedS() >= opts.timeLimitS) { timeLimitHit = true; break; }
         if (opts.maxNodes > 0 && nodesExplored >= opts.maxNodes) { maxNodesHit = true; break; }
@@ -161,86 +165,140 @@ MILPResult solveMILP(const Model&            modelRef,
         // Apply this node's bounds to the shared model.
         restoreBounds(node);
 
-        // Solve LP relaxation at this node.
-        // Pass opts.timeLimitS + startTime so the LP solver shares the global budget.
+        // ── First LP solve ─────────────────────────────────────────────────────
         LPDetailedResult lp = solveDualDetailed(
             model,
             opts.maxIterLP,
             opts.timeLimitS,
             startTime,
-            node.basis);
+            node.basis,
+            /*computeSensitivity=*/false,
+            /*computeCutData=*/opts.enableCuts);
 
         // ── Handle LP outcome ──────────────────────────────────────────────────
         switch (lp.result.status) {
             case LPStatus::Infeasible:
-                continue; // node is infeasible → prune
-
+                continue;
             case LPStatus::Unbounded:
                 unboundedHit = true;
-                goto done; // MILP is also unbounded → abort immediately
-
+                goto done;
             case LPStatus::TimeLimit:
                 timeLimitHit = true;
                 goto done;
-
             case LPStatus::NumericalFailure:
-                // Skip this node conservatively; do not abort the whole search.
                 continue;
-
             case LPStatus::MaxIter:
-                // LP did not converge; skip node (cannot use an unproven bound).
                 continue;
-
             case LPStatus::Optimal:
-                break; // handled below
+                break;
         }
 
-        // ── Prune by bound ─────────────────────────────────────────────────────
+        // ── Pseudo-cost update (branching improvement, pre-cut) ────────────────
+        if (opts.branchStrat == BranchStrategy::PseudoCost &&
+            node.parentBranchVar >= 0) {
+            updatePseudoCosts(pc,
+                              static_cast<uint32_t>(node.parentBranchVar),
+                              node.parentFrac,
+                              node.lpBound,
+                              lp.result.objectiveValue,
+                              node.branchedUp);
+        }
+
+        // ── Prune by bound (pre-cut) ───────────────────────────────────────────
         if (canPrune(lp.result.objectiveValue))
             continue;
 
+        // ── GMI cut generation ─────────────────────────────────────────────────
+        if (opts.enableCuts && !lp.fractionalRows.empty()) {
+            std::vector<Cut> cuts = generateGMICuts(
+                lp.fractionalRows, lp.basis, model,
+                opts.maxCutsPerNode, opts.intFeasTol);
+
+            if (!cuts.empty()) {
+                for (const Cut& c : cuts)
+                    model.addConstraint(c.expr, Sense::GreaterEq, c.rhs);
+                cutsAdded += static_cast<uint32_t>(cuts.size());
+
+                // Re-solve with the new cuts (warm basis incompatible: cold start).
+                lp = solveDualDetailed(
+                    model,
+                    opts.maxIterLP,
+                    opts.timeLimitS,
+                    startTime,
+                    /*warmBasis=*/{},
+                    /*computeSensitivity=*/false,
+                    /*computeCutData=*/false);
+
+                switch (lp.result.status) {
+                    case LPStatus::Infeasible:  continue;
+                    case LPStatus::Unbounded:   unboundedHit = true; goto done;
+                    case LPStatus::TimeLimit:   timeLimitHit = true; goto done;
+                    case LPStatus::NumericalFailure: continue;
+                    case LPStatus::MaxIter:     continue;
+                    case LPStatus::Optimal:     break;
+                }
+
+                // Prune again with the tightened (post-cut) bound.
+                if (canPrune(lp.result.objectiveValue))
+                    continue;
+            }
+        }
+
         // ── Check integer feasibility ──────────────────────────────────────────
-        int branchId = selectBranchVar(
-            lp.result.primalValues, intIds, opts.branchStrat, opts.intFeasTol);
+        int branchId;
+        if (opts.branchStrat == BranchStrategy::PseudoCost) {
+            branchId = selectBranchVarPseudoCost(
+                lp.result.primalValues, intIds, pc, opts.intFeasTol);
+        } else {
+            branchId = selectBranchVar(
+                lp.result.primalValues, intIds, opts.branchStrat, opts.intFeasTol);
+        }
 
         if (branchId == -1) {
-            // All integer variables are at integer values → feasible solution.
+            // All integer variables at integer values → feasible solution.
             double obj    = lp.result.objectiveValue;
             bool   better = minimize ? (obj < incumbent) : (obj > incumbent);
             if (better) {
                 incumbent    = obj;
                 incumbentSol = lp.result.primalValues;
             }
-            continue; // nothing to branch on
+            continue;
         }
 
         // ── Branch ────────────────────────────────────────────────────────────
-        const double xj     = lp.result.primalValues[static_cast<uint32_t>(branchId)];
-        const double floorX = std::floor(xj);
-        const double ceilX  = std::ceil(xj);
-        const double bound  = lp.result.objectiveValue;
+        const double xj      = lp.result.primalValues[static_cast<uint32_t>(branchId)];
+        const double floorX  = std::floor(xj);
+        const double ceilX   = std::ceil(xj);
+        const double fracXj  = xj - floorX;
+        const double bound   = lp.result.objectiveValue;
 
         // Left child:  x_j ≤ floor(x_j)
         if (!canPrune(bound)) {
             Node left;
-            left.lb      = node.lb;
-            left.ub      = node.ub;
+            left.lb              = node.lb;
+            left.ub              = node.ub;
             left.ub[static_cast<uint32_t>(branchId)] = floorX;
-            left.lpBound = bound;
-            left.depth   = node.depth + 1;
-            left.basis   = lp.basis; // warm-start from current LP solution
+            left.lpBound         = bound;
+            left.depth           = node.depth + 1;
+            left.basis           = lp.basis;
+            left.parentBranchVar = branchId;
+            left.branchedUp      = false;
+            left.parentFrac      = fracXj;
             pushNode(std::move(left));
         }
 
         // Right child: x_j ≥ ceil(x_j)
         if (!canPrune(bound)) {
             Node right;
-            right.lb      = node.lb;
-            right.ub      = node.ub;
+            right.lb              = node.lb;
+            right.ub              = node.ub;
             right.lb[static_cast<uint32_t>(branchId)] = ceilX;
-            right.lpBound = bound;
-            right.depth   = node.depth + 1;
-            right.basis   = lp.basis;
+            right.lpBound         = bound;
+            right.depth           = node.depth + 1;
+            right.basis           = lp.basis;
+            right.parentBranchVar = branchId;
+            right.branchedUp      = true;
+            right.parentFrac      = fracXj;
             pushNode(std::move(right));
         }
     }
@@ -249,6 +307,7 @@ done:
     // ── Build result ───────────────────────────────────────────────────────────
     MILPResult result;
     result.nodesExplored = nodesExplored;
+    result.cutsAdded     = cutsAdded;
 
     if (unboundedHit) {
         result.status         = MILPStatus::Unbounded;
@@ -262,7 +321,7 @@ done:
         else if (maxNodesHit)
             result.status = MILPStatus::MaxNodes;
         else
-            result.status = MILPStatus::Optimal; // queue exhausted
+            result.status = MILPStatus::Optimal;
         result.objectiveValue = incumbent;
         result.primalValues   = std::move(incumbentSol);
     } else {

@@ -741,7 +741,8 @@ LPDetailedResult solveDetailed(const Model& model,
                                uint32_t maxIter,
                                double   timeLimitS,
                                SolverClock::time_point startTime,
-                               bool     computeSensitivity) {
+                               bool     computeSensitivity,
+                               bool     computeCutData) {
 
     // Early infeasibility: a variable with lb > ub has an empty domain.
     // This arises naturally in B&B after bound tightening.
@@ -807,6 +808,35 @@ LPDetailedResult solveDetailed(const Model& model,
     if (p2Status == LPStatus::Unbounded)
         det.result.primalValues.clear();
 
+    // Populate fractional rows for GMI cut generation (primal path).
+    // Only the first sf.nCols columns are stored — artificials are excluded.
+    if (computeCutData && p2Status == LPStatus::Optimal) {
+        const auto& types = model.getCold().types;
+        const std::size_t nSF = sf.nCols; // original SF columns (no artificials)
+        const std::size_t np  = tab.n + 1;
+        constexpr double kIntFeasTol = 1e-6;
+
+        for (std::size_t r = 0; r < tab.m; ++r) {
+            uint32_t col = tab.basicCols[r];
+            if (col >= nSF) continue; // artificial column
+            if (sf.colKind[col] != ColumnKind::Original) continue;
+            if (sf.varFreeNegCol[col] < static_cast<uint32_t>(nSF)) continue;
+            uint32_t varId = sf.colOrigin[col];
+            if (types[varId] != VarType::Integer && types[varId] != VarType::Binary)
+                continue;
+            double sfBFS = tab.tab[r * np + tab.n];
+            double frac  = sfBFS - std::floor(sfBFS);
+            if (frac <= kIntFeasTol || frac >= 1.0 - kIntFeasTol) continue;
+
+            FractionalRow fr;
+            fr.origVarId = varId;
+            fr.fracVal   = frac;
+            fr.tabRow.assign(tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np),
+                             tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np + nSF));
+            det.fractionalRows.push_back(std::move(fr));
+        }
+    }
+
     return det;
 }
 
@@ -822,7 +852,8 @@ LPDetailedResult solveDualDetailed(const Model&            model,
                                    double                  timeLimitS,
                                    SolverClock::time_point startTime,
                                    const BasisRecord&      warmBasis,
-                                   bool                    computeSensitivity) {
+                                   bool                    computeSensitivity,
+                                   bool                    computeCutData) {
 
     // Early infeasibility: empty variable domain (including B&B bound tightening).
     {
@@ -856,7 +887,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
     // sfPtr is always a valid toStandardForm(model) at this point.
     auto fallback = [&]() -> LPDetailedResult {
         LPDetailedResult det = solveDetailed(model, maxIter, timeLimitS, startTime,
-                                             computeSensitivity);
+                                             computeSensitivity, computeCutData);
         if (det.result.status == LPStatus::Optimal)
             det.basis.sfCache = sfPtr;
         return det;
@@ -919,6 +950,35 @@ LPDetailedResult solveDualDetailed(const Model&            model,
             det.farkas = extractFarkasDualRow(tab, sf, model, blockingRow);
     } else {
         det.basis.sfCache = sfPtr;
+
+        if (computeCutData) {
+            const auto& types = model.getCold().types;
+            const std::size_t np = tab.n + 1;
+            constexpr double kIntFeasTol = 1e-6;
+
+            for (std::size_t r = 0; r < tab.m; ++r) {
+                uint32_t col = tab.basicCols[r];
+                if (sf.colKind[col] != ColumnKind::Original) continue;
+                // Skip x⁺ of free-split variables; GMI formula requires a single column.
+                if (sf.varFreeNegCol[col] < static_cast<uint32_t>(sf.nCols)) continue;
+                uint32_t varId = sf.colOrigin[col];
+                if (types[varId] != VarType::Integer && types[varId] != VarType::Binary)
+                    continue;
+                // Use the SF variable value (b̄_r) so that frac is frac(x'_j),
+                // which is what the GMI formula requires. For lb-shifted integer
+                // variables this equals frac(x_model); for ub-shifted it differs.
+                double sfBFS = tab.tab[r * np + tab.n];
+                double frac  = sfBFS - std::floor(sfBFS);
+                if (frac <= kIntFeasTol || frac >= 1.0 - kIntFeasTol) continue;
+
+                FractionalRow fr;
+                fr.origVarId = varId;
+                fr.fracVal   = frac;
+                fr.tabRow.assign(tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np),
+                                 tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np + tab.n));
+                det.fractionalRows.push_back(std::move(fr));
+            }
+        }
     }
 
     return det;

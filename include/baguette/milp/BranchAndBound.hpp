@@ -18,6 +18,10 @@ enum class BranchStrategy {
     /// Branch on the most fractional integer variable (fractional part closest to 0.5).
     /// Maximises the minimum of (frac, 1−frac) over all fractional integer variables.
     MostFractional,
+
+    /// Branch on the variable with the best pseudo-cost product score.
+    /// Falls back to MostFractional for variables with no branching history.
+    PseudoCost,
 };
 
 /// Node selection strategy for the B&B queue.
@@ -60,6 +64,16 @@ struct BBOptions {
     /// near-optimal nodes are not explored unnecessarily.
     /// The returned solution may be suboptimal by at most mipGapAbs.
     double mipGapAbs = 1e-6;
+
+    /// If true, generate Gomory Mixed-Integer (GMI) cuts at each node where
+    /// the LP relaxation is fractional and the dual simplex solved optimally.
+    /// Cuts are globally valid and added permanently to the model copy, so
+    /// all subsequent nodes benefit. Default: false.
+    bool enableCuts = false;
+
+    /// Maximum number of GMI cuts generated per node. 0 = unlimited.
+    /// Has no effect when enableCuts is false.
+    uint32_t maxCutsPerNode = 10;
 };
 
 /// Shared clock type (same as LPSolver).

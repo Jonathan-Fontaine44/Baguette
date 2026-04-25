@@ -49,12 +49,18 @@ LPResult solve(const Model&            model,
 ///       when RHS / objective ranging is needed (e.g. root LP analysis); avoid
 ///       it in B&B hot loops where the O(m·n) cost is paid at every node.
 ///
+/// @note When @p computeCutData is false (default), the
+///       `LPDetailedResult::fractionalRows` field is left empty.  Pass true to
+///       enable Gomory cut generation at this node.  Only the first sf.nCols
+///       columns of the phase-II tableau row are stored (artificials excluded).
+///
 /// @param model              The model to solve.
 /// @param maxIter            Maximum number of simplex pivots. 0 = unlimited.
 /// @param timeLimitS         Wall-clock time limit in seconds. infinity() = unlimited.
 /// @param startTime          Reference point for the time limit. Defaults to now().
 ///                           Pass a B&B root startTime to share the budget across nodes.
 /// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
+/// @param computeCutData     If true, fills LPDetailedResult::fractionalRows. Default false.
 /// @note Complexity: O(m·n) for standard-form setup, then O(K·m·n) for the two-phase
 ///   primal simplex, where K = total pivot count (problem-dependent; exponential worst
 ///   case, polynomial in practice). m = constraint rows (model + UB rows), n = SF columns.
@@ -63,7 +69,8 @@ LPDetailedResult solveDetailed(const Model& model,
                                uint32_t maxIter            = 0,
                                double   timeLimitS         = std::numeric_limits<double>::infinity(),
                                SolverClock::time_point startTime  = SolverClock::now(),
-                               bool     computeSensitivity = false);
+                               bool     computeSensitivity = false,
+                               bool     computeCutData     = false);
 
 // ── Dual simplex ───────────────────────────────────────────────────────────────
 
@@ -128,6 +135,12 @@ LPResult solveDual(const Model&            model,
 ///       loops the O(m·n) sensitivity cost would be paid at every node; pass true
 ///       only for the root LP or other one-shot solves that need ranging.
 ///
+/// @note When @p computeCutData is false (default), the
+///       `LPDetailedResult::fractionalRows` field is left empty.  Pass true only
+///       at B&B nodes where cut generation is desired.  Populating the raw tableau
+///       rows costs O(m·n) additional memory.  Not populated on the fallback primal
+///       path.
+///
 /// @param model              The model to solve.
 /// @param maxIter            Maximum dual-simplex pivots (0 = unlimited).
 /// @param timeLimitS         Wall-clock limit in seconds (infinity() = unlimited).
@@ -135,6 +148,9 @@ LPResult solveDual(const Model&            model,
 ///                           Pass the B&B root startTime to share the budget across nodes.
 /// @param warmBasis          Parent node's BasisRecord for warm start. Default {} = cold start.
 /// @param computeSensitivity If true, fills LPDetailedResult::sensitivity. Default false.
+/// @param computeCutData     If true, fills LPDetailedResult::fractionalRows with raw
+///                           tableau rows for basic fractional integer variables.
+///                           Populated only on the dual simplex path when status == Optimal.
 /// @note Complexity: O(m·n) amortised for standard-form setup (O(1) matrix reuse with
 ///   sfCache), then O(K·m·n) for the dual simplex where K = total pivot count.
 ///   Warm-start reinversion is O(m²·n). Falls back to solveDetailed() complexity when
@@ -144,6 +160,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
                                    double                  timeLimitS         = std::numeric_limits<double>::infinity(),
                                    SolverClock::time_point startTime          = SolverClock::now(),
                                    const BasisRecord&      warmBasis          = {},
-                                   bool                    computeSensitivity = false);
+                                   bool                    computeSensitivity = false,
+                                   bool                    computeCutData     = false);
 
 } // namespace baguette

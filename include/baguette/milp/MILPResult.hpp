@@ -33,6 +33,9 @@ struct MILPResult {
 
     /// Total number of B&B nodes explored (including the root).
     int nodesExplored = 0;
+
+    /// Total number of GMI cuts added to the model across all nodes.
+    uint32_t cutsAdded = 0;
 };
 
 } // namespace baguette

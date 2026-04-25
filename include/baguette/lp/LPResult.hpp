@@ -132,12 +132,32 @@ struct SensitivityResult {
     std::vector<std::array<double, 2>> objRange;
 };
 
+/// Raw tableau row for a basic integer variable at a fractional optimal value.
+///
+/// Extracted by solveDualDetailed() when computeCutData == true.
+/// Consumed by the MILP cutting-plane module (CuttingPlanes) to generate
+/// Gomory Mixed-Integer (GMI) cuts; no MILP semantics are embedded here.
+struct FractionalRow {
+    /// Variable::id of the integer-typed model variable basic in this row.
+    uint32_t origVarId = 0;
+
+    /// Fractional part of the basic variable's optimal value: frac ∈ (0, 1).
+    double fracVal = 0.0;
+
+    /// B⁻¹A row for this tableau row, indexed 0 .. BasisRecord::colKind.size()-1.
+    /// Entry j is (B⁻¹A)_{r,j}; basic columns have value 0 or 1 (identity) and
+    /// can be skipped during cut generation.
+    std::vector<double> tabRow;
+};
+
 /// Extended result returned by solveDetailed().
 ///
 /// Contains an LPResult for the basic outcome; the additional fields are
 /// valid only when noted:
 ///   - dualValues, reducedCosts, basis, sensitivity : valid when result.status == Optimal.
 ///   - farkas                                       : valid when result.status == Infeasible.
+///   - fractionalRows                               : valid when result.status == Optimal
+///                                                   and computeCutData == true.
 ///
 /// Access the basic result via the public `result` member.
 struct LPDetailedResult {
@@ -165,6 +185,12 @@ struct LPDetailedResult {
     /// Sensitivity analysis: RHS and objective coefficient ranging.
     /// Valid only when result.status == Optimal.
     SensitivityResult sensitivity;
+
+    /// Raw fractional integer rows from the optimal tableau.
+    /// Populated only when computeCutData == true in solveDualDetailed().
+    /// Empty when status != Optimal or no basic integer variable is fractional.
+    /// Consumed by CuttingPlanes::generateGMICuts() — do not interpret directly.
+    std::vector<FractionalRow> fractionalRows;
 };
 
 } // namespace baguette
