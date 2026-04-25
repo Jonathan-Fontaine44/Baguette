@@ -32,7 +32,7 @@ struct MILPResult {
     std::vector<double> primalValues;
 
     /// Total number of B&B nodes explored (including the root).
-    int nodesExplored = 0;
+    uint32_t nodesExplored = 0;
 
     /// Total number of GMI cuts added to the model across all nodes.
     uint32_t cutsAdded = 0;

@@ -19,20 +19,6 @@ struct Cut {
     double     rhs = 0.0;
 };
 
-/// Per-variable pseudo-cost accumulators for branching score estimation.
-///
-/// Pseudo-costs estimate the objective change per unit of fractionality when
-/// branching up (lb raised to ceil) or down (ub lowered to floor).
-/// Initialised to zero and updated at each node where the LP is solved.
-///
-/// size of each vector == Model::numVars() at construction time.
-struct PseudoCosts {
-    std::vector<double>   upCost;    ///< Accumulated up-branch objective deltas.
-    std::vector<uint32_t> upCount;   ///< Number of up-branch observations.
-    std::vector<double>   downCost;  ///< Accumulated down-branch objective deltas.
-    std::vector<uint32_t> downCount; ///< Number of down-branch observations.
-};
-
 /// Generate Gomory Mixed-Integer (GMI) cuts from fractional tableau rows.
 ///
 /// Each row in @p rows corresponds to a basic fractional integer variable.
@@ -56,43 +42,5 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                                   const Model&                      model,
                                   uint32_t                          maxCuts     = 0,
                                   double                            intFeasTol  = 1e-6);
-
-/// Initialise a PseudoCosts object for a model with @p numVars variables.
-/// All accumulators are set to zero.
-PseudoCosts initPseudoCosts(uint32_t numVars);
-
-/// Select the variable to branch on using pseudo-cost product scoring.
-///
-/// For each fractional integer variable i, the estimated degradations are:
-///   d_up[i]   = (upCount[i]   > 0) ? upCost[i]/upCount[i]   * (1 − frac[i])
-///                                   : frac_score fallback
-///   d_down[i] = (downCount[i] > 0) ? downCost[i]/downCount[i] * frac[i]
-///                                   : frac_score fallback
-/// score[i] = max(d_up[i], eps) × max(d_down[i], eps)
-/// where frac_score = min(frac, 1−frac) (MostFractional fallback).
-///
-/// @returns Variable id to branch on, or -1 if all integer variables are
-///          within @p intFeasTol of an integer value.
-/// @note Complexity: O(|intVarIds|).
-int selectBranchVarPseudoCost(const std::vector<double>&   sol,
-                               const std::vector<uint32_t>& intVarIds,
-                               const PseudoCosts&           pc,
-                               double                       intFeasTol);
-
-/// Update pseudo-costs after observing a branching outcome at one child node.
-///
-/// @param pc          The pseudo-cost table to update (in/out).
-/// @param varId       Model variable id that was branched on.
-/// @param frac        Fractional part of varId's value at the time of branching.
-/// @param parentObj   LP objective at the branching node.
-/// @param childObj    LP objective at the child node after re-solving.
-/// @param branchedUp  True if the child is the up branch (lb raised to ceil).
-/// @note Complexity: O(1).
-void updatePseudoCosts(PseudoCosts& pc,
-                       uint32_t    varId,
-                       double      frac,
-                       double      parentObj,
-                       double      childObj,
-                       bool        branchedUp);
 
 } // namespace baguette

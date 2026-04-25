@@ -76,6 +76,72 @@ int selectBranchVar(const std::vector<double>&   sol,
     return bestId;
 }
 
+// ── Pseudo-cost branching ──────────────────────────────────────────────────────
+// Per-variable accumulators estimating the objective change per unit of
+// fractionality when branching up (lb→ceil) or down (ub→floor).
+// Only used inside solveMILP; not part of the public CuttingPlanes API.
+
+struct PseudoCosts {
+    std::vector<double>   upCost;
+    std::vector<uint32_t> upCount;
+    std::vector<double>   downCost;
+    std::vector<uint32_t> downCount;
+};
+
+PseudoCosts initPseudoCosts(uint32_t numVars) {
+    PseudoCosts pc;
+    pc.upCost.assign(numVars, 0.0);
+    pc.upCount.assign(numVars, 0);
+    pc.downCost.assign(numVars, 0.0);
+    pc.downCount.assign(numVars, 0);
+    return pc;
+}
+
+// Product score: max(dUp, eps) × max(dDown, eps).
+// Falls back to min(frac, 1−frac) for variables with no branching history.
+int selectBranchVarPseudoCost(const std::vector<double>&   sol,
+                               const std::vector<uint32_t>& intVarIds,
+                               const PseudoCosts&           pc,
+                               double                       intFeasTol) {
+    constexpr double kEps = 1e-10;
+    int    bestId    = -1;
+    double bestScore = -1.0;
+
+    for (uint32_t id : intVarIds) {
+        double x  = sol[id];
+        double fr = x - std::floor(x);
+        if (fr <= intFeasTol || fr >= 1.0 - intFeasTol) continue;
+
+        double dUp   = (pc.upCount[id]   > 0)
+                     ? (pc.upCost[id]   / static_cast<double>(pc.upCount[id]))   * (1.0 - fr)
+                     : std::min(fr, 1.0 - fr);
+        double dDown = (pc.downCount[id] > 0)
+                     ? (pc.downCost[id] / static_cast<double>(pc.downCount[id])) * fr
+                     : std::min(fr, 1.0 - fr);
+
+        double score = std::max(dUp, kEps) * std::max(dDown, kEps);
+        if (score > bestScore) {
+            bestScore = score;
+            bestId    = static_cast<int>(id);
+        }
+    }
+    return bestId;
+}
+
+void updatePseudoCosts(PseudoCosts& pc,
+                       uint32_t    varId,
+                       double      frac,
+                       double      parentObj,
+                       double      childObj,
+                       bool        branchedUp) {
+    double delta = std::abs(childObj - parentObj);
+    double denom = branchedUp ? (1.0 - frac) : frac;
+    if (denom <= 0.0) return;
+    double rate = delta / denom;
+    if (branchedUp) { pc.upCost[varId]   += rate; ++pc.upCount[varId]; }
+    else            { pc.downCost[varId] += rate; ++pc.downCount[varId]; }
+}
+
 } // namespace
 
 // ── solveMILP ──────────────────────────────────────────────────────────────────
@@ -97,7 +163,7 @@ MILPResult solveMILP(const Model&            modelRef,
     double              incumbent    = minimize ? inf : -inf;
     std::vector<double> incumbentSol;
 
-    int      nodesExplored = 0;
+    uint32_t nodesExplored = 0;
     uint32_t cutsAdded     = 0;
     bool     timeLimitHit  = false;
     bool     maxNodesHit   = false;
@@ -240,7 +306,17 @@ MILPResult solveMILP(const Model&            modelRef,
                     model.addConstraint(c.expr, Sense::GreaterEq, c.rhs);
                 cutsAdded += static_cast<uint32_t>(cuts.size());
 
-                // Re-solve with the new cuts (warm basis incompatible: cold start).
+                // Re-solve with the new cuts.  The warm basis is passed as {} (cold
+                // start) because addConstraint() changed the model structure: the
+                // sfCache stored in lp.basis refers to the pre-cut standard form and
+                // its dimension no longer matches the current model.
+                //
+                // Side-effect on sibling nodes: nodes already queued (created before
+                // this cut was added) also carry a pre-cut BasisRecord.  When they are
+                // eventually popped, solveDualDetailed() detects the sfCache dimension
+                // mismatch and silently falls back to a cold primal solve as well.
+                // This is correct — their basis is simply stale — but it means that
+                // cut addition degrades warm-start reuse for all queued siblings.
                 lp = solveDualDetailed(
                     model,
                     opts.maxIterLP,

@@ -106,6 +106,16 @@ using SolverClock = std::chrono::steady_clock;
 ///   simplex pivots per node, m = SF rows, n = SF columns.  Warm-start
 ///   reinversion is O(m²·n) per node; standard-form matrix reuse via
 ///   sfCache reduces standard-form setup from O(m·n) to O(1) per node.
+///
+/// @note Cut addition and warm-start: when GMI cuts are enabled, cuts are added
+///   permanently to the working model copy via Model::addConstraint().  After
+///   each cut addition the local LP is re-solved from a cold start (the
+///   pre-cut BasisRecord is structurally incompatible with the enriched model).
+///   Sibling nodes that were queued before the cut was generated also carry
+///   stale BasisRecords; solveDualDetailed() detects the sfCache dimension
+///   mismatch and falls back to a cold primal solve for those nodes too.
+///   This is correct but means that cut generation sacrifices warm-start reuse
+///   for all queued siblings — a known trade-off of the global-cut strategy.
 MILPResult solveMILP(const Model&            model,
                      const BBOptions&        opts      = {},
                      SolverClock::time_point startTime = SolverClock::now());
