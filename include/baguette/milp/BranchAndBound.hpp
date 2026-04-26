@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "baguette/cp/CPConstraints.hpp"
 #include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -116,8 +117,15 @@ using SolverClock = std::chrono::steady_clock;
 ///   mismatch and falls back to a cold primal solve for those nodes too.
 ///   This is correct but means that cut generation sacrifices warm-start reuse
 ///   for all queued siblings — a known trade-off of the global-cut strategy.
+///
+/// @note CP integration: if @p cp is non-empty, propagateCP() is called after
+///   restoreBounds() and before the first LP solve at each node.  Bounds
+///   tightened by CP propagation are tracked in dirtyVars and reset automatically
+///   by the next restoreBounds() call — no extra bookkeeping required.  If CP
+///   reports Infeasible the node is pruned without an LP solve.
 MILPResult solveMILP(const Model&            model,
                      const BBOptions&        opts      = {},
+                     const CPConstraints&    cp        = {},
                      SolverClock::time_point startTime = SolverClock::now());
 
 } // namespace baguette

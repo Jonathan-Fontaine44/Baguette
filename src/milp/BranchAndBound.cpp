@@ -4,8 +4,10 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <cstdint>
 
 #include "baguette/core/Sense.hpp"
+#include "baguette/cp/CPConstraints.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/CuttingPlanes.hpp"
@@ -148,6 +150,7 @@ void updatePseudoCosts(PseudoCosts& pc,
 
 MILPResult solveMILP(const Model&            modelRef,
                      const BBOptions&        opts,
+                     const CPConstraints&    cp,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
 
@@ -260,6 +263,26 @@ MILPResult solveMILP(const Model&            modelRef,
         // Apply this node's accumulated bound deltas to the shared model.
         restoreBounds(node);
 
+        // ── CP propagation (before LP: tighten bounds, prune without LP solve) ──
+        if (!cp.empty()) {
+            PropagationResult pr = propagateCP(cp, model);
+            // Merge CP-tightened vars into dirtyVars so the next restoreBounds()
+            // resets them. pr.changedVarIds is already sorted; dirtyVars is sorted
+            // after restoreBounds, so an inplace_merge avoids a full re-sort.
+            if (!pr.changedVarIds.empty()) {
+                const std::size_t oldSize = dirtyVars.size();
+                dirtyVars.insert(dirtyVars.end(),
+                                 pr.changedVarIds.begin(), pr.changedVarIds.end());
+                std::inplace_merge(dirtyVars.begin(),
+                                   dirtyVars.begin() + static_cast<std::ptrdiff_t>(oldSize),
+                                   dirtyVars.end());
+                dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
+                                dirtyVars.end());
+            }
+            if (pr.status == CPStatus::Infeasible)
+                continue; // node pruned by CP — no LP solve needed
+        }
+
         // ── First LP solve ─────────────────────────────────────────────────────
         LPDetailedResult lp = solveDualDetailed(
             model,
@@ -341,13 +364,25 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Check integer feasibility ──────────────────────────────────────────
-        int branchId;
+        int  branchId;
+        bool cpBranch = false; // true: branching to resolve a CP violation, not LP fractionality
         if (opts.branchStrat == BranchStrategy::PseudoCost) {
             branchId = selectBranchVarPseudoCost(
                 lp.result.primalValues, intIds, pc, opts.intFeasTol);
         } else {
             branchId = selectBranchVar(
                 lp.result.primalValues, intIds, opts.branchStrat, opts.intFeasTol);
+        }
+
+        // If the LP solution is all-integer, verify CP constraints before accepting.
+        // An LP-optimal point may satisfy variable bounds and LP constraints yet
+        // violate a CP constraint (e.g., AllDiff returning x = y = 1 at both lower bounds).
+        if (branchId == -1 && !cp.empty()) {
+            const uint32_t vid = cpViolatedVar(cp, lp.result.primalValues, opts.intFeasTol);
+            if (vid != std::numeric_limits<uint32_t>::max()) {
+                branchId = static_cast<int>(vid);
+                cpBranch = true; // branch to exclude the conflicting integer value
+            }
         }
 
         if (branchId == -1) {
@@ -366,10 +401,12 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Branch ────────────────────────────────────────────────────────────
-        const double xj     = lp.result.primalValues[static_cast<uint32_t>(branchId)];
-        const double floorX = std::floor(xj);
-        const double ceilX  = std::ceil(xj);
-        const double fracXj = xj - floorX;
+        const double xj = lp.result.primalValues[static_cast<uint32_t>(branchId)];
+        // LP-fractional branch: split at floor/ceil of the fractional value.
+        // CP-violated branch: xj is integer — exclude it by branching at xj±1.
+        const double floorX = cpBranch ? (xj - 1.0) : std::floor(xj);
+        const double ceilX  = cpBranch ? (xj + 1.0) : std::ceil(xj);
+        const double fracXj = cpBranch ? 0.5 : (xj - std::floor(xj));
         const double bound  = lp.result.objectiveValue;
 
         // Read the variable's current bounds from the model (already restored for this node).

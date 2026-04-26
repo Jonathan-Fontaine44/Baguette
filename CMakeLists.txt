@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.3.3 LANGUAGES CXX)
+project(Baguette VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,9 @@ add_library(Baguette
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
     src/milp/CuttingPlanes.cpp
+    src/cp/CPConstraints.cpp
+    src/cp/constraints/allDiff.cpp
+    src/cp/constraints/cumulative.cpp
 )
 
 target_include_directories(Baguette PUBLIC
@@ -49,6 +52,9 @@ add_executable(BaguetteTests
     tests/lp/test_sensitivity.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
+    tests/cp/test_cp.cpp
+    tests/cp/constraints/test_allDiff.cpp
+    tests/cp/constraints/test_cumulative.cpp
 )
 
 target_link_libraries(BaguetteTests PRIVATE
