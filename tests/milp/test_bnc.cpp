@@ -24,12 +24,13 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.enableCuts = false;
+    opts.enableCuts   = false;
+    opts.collectStats = true;
 
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
-    REQUIRE(r.cutsAdded == 0);
+    REQUIRE(r.stats->cutsAdded == 0);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(13.0, kTol));
 }
 
@@ -81,11 +82,13 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc]") {
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions noCuts;
-    noCuts.enableCuts = false;
+    noCuts.enableCuts   = false;
+    noCuts.collectStats = true;
 
     BBOptions withCuts;
     withCuts.enableCuts     = true;
     withCuts.maxCutsPerNode = 10;
+    withCuts.collectStats   = true;
 
     MILPResult r1 = solveMILP(m, noCuts);
     MILPResult r2 = solveMILP(m, withCuts);
@@ -97,12 +100,12 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc]") {
     REQUIRE_THAT(r2.objectiveValue, WithinAbs(4.0, kTol));
 
     // With cuts the gap is closed at the root: 1 node.
-    REQUIRE(r2.nodesExplored == 1);
-    REQUIRE(r2.cutsAdded >= 1);
+    REQUIRE(r2.stats->nodesExplored == 1);
+    REQUIRE(r2.stats->cutsAdded >= 1);
 
     // Without cuts branching is required.
-    REQUIRE(r1.nodesExplored > 1);
-    REQUIRE(r1.cutsAdded == 0);
+    REQUIRE(r1.stats->nodesExplored > 1);
+    REQUIRE(r1.stats->cutsAdded == 0);
 }
 
 // ── Test 4: PseudoCost branching gives correct answer ────────────────────────
@@ -167,13 +170,14 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc]") {
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enableCuts = true;
+    opts.enableCuts   = true;
+    opts.collectStats = true;
 
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.primalValues.empty());
-    REQUIRE(r.cutsAdded == 0);
+    REQUIRE(r.stats->cutsAdded == 0);
 }
 
 // ── Test 7: B&C 3-variable problem ──────────────────────────────────────────
@@ -276,14 +280,15 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     m.setObjective(1*x + 1*y + 0.1*z + 0.1*w, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enableCuts = true;
+    opts.enableCuts     = true;
     opts.maxCutsPerNode = 5;
+    opts.collectStats   = true;
 
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
 
-    REQUIRE(r.cutsAdded > 0);
+    REQUIRE(r.stats->cutsAdded > 0);
 
     REQUIRE(std::abs(r.primalValues[x.id] - std::round(r.primalValues[x.id])) < kTol);
     REQUIRE(std::abs(r.primalValues[y.id] - std::round(r.primalValues[y.id])) < kTol);

@@ -191,6 +191,12 @@ struct LPDetailedResult {
     /// Empty when status != Optimal or no basic integer variable is fractional.
     /// Consumed by CuttingPlanes::generateGMICuts() — do not interpret directly.
     std::vector<FractionalRow> fractionalRows;
+
+    /// True when the caller supplied a non-empty warmBasis and solveDualDetailed()
+    /// successfully seeded the dual simplex from it (no sfCache mismatch, no
+    /// reinversion failure, no dual-feasibility fallback to cold primal).
+    /// False when no warm basis was provided or a fallback to cold primal occurred.
+    bool usedWarmStart = false;
 };
 
 } // namespace baguette

@@ -168,6 +168,7 @@ MILPResult solveMILP(const Model&            modelRef,
 
     uint32_t nodesExplored = 0;
     uint32_t cutsAdded     = 0;
+    BBStats  stats_acc;
     bool     timeLimitHit  = false;
     bool     maxNodesHit   = false;
     bool     unboundedHit  = false;
@@ -279,11 +280,14 @@ MILPResult solveMILP(const Model&            modelRef,
                 dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
                                 dirtyVars.end());
             }
-            if (pr.status == CPStatus::Infeasible)
+            if (pr.status == CPStatus::Infeasible) {
+                if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
                 continue; // node pruned by CP — no LP solve needed
+            }
         }
 
         // ── First LP solve ─────────────────────────────────────────────────────
+        if (opts.collectStats) ++stats_acc.lpSolvesTotal;
         LPDetailedResult lp = solveDualDetailed(
             model,
             opts.maxIterLP,
@@ -295,13 +299,20 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── Handle LP outcome ──────────────────────────────────────────────────
         switch (lp.result.status) {
-            case LPStatus::Infeasible:      continue;
+            case LPStatus::Infeasible:
+                if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                continue;
             case LPStatus::Unbounded:       unboundedHit = true; goto done;
             case LPStatus::TimeLimit:       timeLimitHit = true; goto done;
             case LPStatus::NumericalFailure: continue;
             case LPStatus::MaxIter:         continue;
             case LPStatus::Optimal:         break;
         }
+
+        // Warm-start fallback: parent provided a basis but dual simplex fell
+        // back to cold primal (sfCache mismatch or dual-feasibility failure).
+        if (opts.collectStats && !node.basis.basicCols.empty() && !lp.usedWarmStart)
+            ++stats_acc.warmStartFallbacks;
 
         // ── Pseudo-cost update (branching improvement, pre-cut) ────────────────
         if (opts.branchStrat == BranchStrategy::PseudoCost &&
@@ -315,8 +326,10 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Prune by bound (pre-cut) ───────────────────────────────────────────
-        if (canPrune(lp.result.objectiveValue))
+        if (canPrune(lp.result.objectiveValue)) {
+            if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
             continue;
+        }
 
         // ── GMI cut generation ─────────────────────────────────────────────────
         if (opts.enableCuts && !lp.fractionalRows.empty()) {
@@ -329,6 +342,14 @@ MILPResult solveMILP(const Model&            modelRef,
                     model.addLPConstraint(c.expr, Sense::GreaterEq, c.rhs);
                 cutsAdded += static_cast<uint32_t>(cuts.size());
 
+                if (opts.collectStats) {
+                    ++stats_acc.nodesWithCuts;
+                    const auto d = static_cast<uint32_t>(node.depth);
+                    if (d >= stats_acc.cutsPerDepth.size())
+                        stats_acc.cutsPerDepth.resize(d + 1, 0);
+                    stats_acc.cutsPerDepth[d] += static_cast<uint32_t>(cuts.size());
+                }
+
                 // Re-solve with the new cuts.  The warm basis is passed as {} (cold
                 // start) because addLPConstraint() changed the model structure: the
                 // sfCache stored in lp.basis refers to the pre-cut standard form and
@@ -340,6 +361,7 @@ MILPResult solveMILP(const Model&            modelRef,
                 // mismatch and silently falls back to a cold primal solve as well.
                 // This is correct — their basis is simply stale — but it means that
                 // cut addition degrades warm-start reuse for all queued siblings.
+                if (opts.collectStats) ++stats_acc.lpSolvesTotal;
                 lp = solveDualDetailed(
                     model,
                     opts.maxIterLP,
@@ -350,7 +372,9 @@ MILPResult solveMILP(const Model&            modelRef,
                     /*computeCutData=*/false);
 
                 switch (lp.result.status) {
-                    case LPStatus::Infeasible:       continue;
+                    case LPStatus::Infeasible:
+                        if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                        continue;
                     case LPStatus::Unbounded:        unboundedHit = true; goto done;
                     case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
                     case LPStatus::NumericalFailure: continue;
@@ -358,8 +382,10 @@ MILPResult solveMILP(const Model&            modelRef,
                     case LPStatus::Optimal:          break;
                 }
 
-                if (canPrune(lp.result.objectiveValue))
+                if (canPrune(lp.result.objectiveValue)) {
+                    if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
                     continue;
+                }
             }
         }
 
@@ -444,8 +470,12 @@ MILPResult solveMILP(const Model&            modelRef,
 
 done:
     MILPResult result;
-    result.nodesExplored = nodesExplored;
-    result.cutsAdded     = cutsAdded;
+
+    if (opts.collectStats) {
+        stats_acc.nodesExplored = nodesExplored;
+        stats_acc.cutsAdded     = cutsAdded;
+        result.stats = std::move(stats_acc);
+    }
 
     if (unboundedHit) {
         result.status         = MILPStatus::Unbounded;

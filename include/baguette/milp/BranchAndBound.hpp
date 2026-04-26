@@ -79,6 +79,11 @@ struct BBOptions {
     /// Maximum number of GMI cuts generated per node. 0 = unlimited.
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;
+
+    /// If true, populate MILPResult::stats with granular diagnostics.
+    /// When false (default), no counters are maintained — zero overhead on
+    /// production runs.  Enable for cut-effectiveness and warm-start diagnosis.
+    bool collectStats = false;
 };
 
 /// Shared clock type (same as LPSolver).

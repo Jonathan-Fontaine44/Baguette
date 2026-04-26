@@ -981,6 +981,7 @@ LPDetailedResult solveDualDetailed(const Model&            model,
         }
     }
 
+    det.usedWarmStart = !warmBasis.basicCols.empty();
     return det;
 }
 

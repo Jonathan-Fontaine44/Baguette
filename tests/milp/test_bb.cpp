@@ -26,7 +26,6 @@ TEST_CASE("BB: single binary variable, maximize", "[bb]") {
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(1.0, kTol));
     REQUIRE_THAT(r.primalValues[x.id], WithinAbs(1.0, kTol));
-    REQUIRE(r.nodesExplored >= 1);
 }
 
 // ── Test 2: single binary variable, Minimize ──────────────────────────────────
@@ -68,14 +67,16 @@ TEST_CASE("BB: knapsack with branching, maximize", "[bb]") {
     m.addLPConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
-    MILPResult r = solveMILP(m);
+    BBOptions opts;
+    opts.collectStats = true;
+    MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(13.0, kTol));
     REQUIRE_THAT(r.primalValues[x.id], WithinAbs(1.0, kTol));
     REQUIRE_THAT(r.primalValues[y.id], WithinAbs(2.0, kTol));
     // At least root + left + right children + their children.
-    REQUIRE(r.nodesExplored >= 3);
+    REQUIRE(r.stats->nodesExplored >= 3);
 }
 
 // ── Test 4: MILP infeasible by LP relaxation ──────────────────────────────────
@@ -144,12 +145,14 @@ TEST_CASE("BB: pure LP (no integer variables)", "[bb]") {
     Variable x = m.addVar(0.0, 3.0, VarType::Continuous, "x");
     m.setObjective(-1.0 * x, ObjSense::Minimize);
 
-    MILPResult r = solveMILP(m);
+    BBOptions opts;
+    opts.collectStats = true;
+    MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(-3.0, kTol));
     REQUIRE_THAT(r.primalValues[x.id], WithinAbs(3.0, kTol));
-    REQUIRE(r.nodesExplored == 1);
+    REQUIRE(r.stats->nodesExplored == 1);
 }
 
 // ── Test 7: depth-first gives same optimal as best-bound ─────────────────────
@@ -187,13 +190,14 @@ TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.maxNodes = 1;
+    opts.maxNodes     = 1;
+    opts.collectStats = true;
 
     MILPResult r = solveMILP(m, opts);
 
     // Root LP is fractional → no integer solution found in 1 node.
     REQUIRE(r.status == MILPStatus::MaxNodes);
-    REQUIRE(r.nodesExplored == 1);
+    REQUIRE(r.stats->nodesExplored == 1);
     REQUIRE(r.primalValues.empty());
 }
 

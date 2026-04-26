@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.4.1 LANGUAGES CXX)
+project(Baguette VERSION 0.4.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,7 @@ add_executable(BaguetteTests
     tests/lp/test_sensitivity.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
+    tests/milp/test_stats.cpp
     tests/cp/test_cp.cpp
     tests/cp/constraints/test_allDiff.cpp
     tests/cp/constraints/test_cumulative.cpp
