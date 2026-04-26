@@ -1,5 +1,7 @@
 # Baguette
 
+[![GitHub](https://img.shields.io/badge/GitHub-Baguette-blue?logo=github)](https://github.com/Jonathan-Fontaine44/Baguette)
+
 **Baguette** is a research-oriented C++20 solver for hybrid **MILP + Constraint Programming** models.
 
 It implements a Branch & Bound engine enriched with CP global constraints (starting with AllDiff), where a **CP propagator** is enforced at every B&B node to:
@@ -87,7 +89,9 @@ doxygen Doxyfile                         # generate documentation → docs/html/
 | `v0.4.0` | ✅ Done | CP propagation: `propagateCP()` dispatches via `std::variant<AllDiffConstraint, CumulativeConstraint>` — adding a new constraint type requires only a typed struct, a `propagate()` overload, and one line in `AnyConstraint`. **AllDiff BC**: fixed-value elimination to fixpoint + range feasibility check (O(K² × I)). **Cumulative BC**: compulsory-region overload detection + earliest-start tightening (O(N² × D × I)). Integrated in `solveMILP()` as a new `const CPConstraints& cp = {}` parameter: propagation runs after `restoreBounds()`, before the LP, with CP-tightened bounds tracked in `dirtyVars` for automatic backtracking. 12 new Catch2 tests. |
 | `v0.4.1` | ✅ Done | Hybrid closed/open CP architecture: two-tier `CPConstraints` — built-ins (`AllDiff`, `Cumulative`) dispatch via `std::visit` on `BuiltinConstraint = std::variant<...>` (zero virtual overhead); user-defined constraints inherit abstract `CPConstraint` base and are stored as `shared_ptr<const CPConstraint>` (virtual dispatch, one call per node). `Model::addCPConstraints(const CPConstraints&)` integrates CP semantically into the model — `solveMILP()` no longer takes a `cp` parameter, it reads `model.getCPConstraints()` internally. `shared_ptr<const>` keeps Model copyable without `clone()`. |
 | `v0.4.2` | ✅ Done | B&C profiling: opt-in `BBStats` struct in `MILPResult`, controlled by `BBOptions::collectStats` (default false, zero overhead when disabled). Fields: `nodesExplored`, `cutsAdded`, `nodesWithCuts`, `nodesPrunedByBound`, `nodesPrunedByInfeasibility`, `warmStartFallbacks`, `lpSolvesTotal`, `cutsPerDepth`. `LPDetailedResult::usedWarmStart` surfaces warm-start fallbacks from `solveDualDetailed()`. |
-| `v0.5.0` | Planned | Alternative LP solving methods: **interior-point method** (barrier / primal-dual path-following) and potentially **column generation** support. Complements the simplex for large dense LPs where barrier methods converge in fewer iterations. |
+| `v0.5.0` | Planned | **Revised simplex with LU decomposition**: replaces the current dense m×n tableau (full row update at each pivot, O(mn)) with LU factorization of the basis B ∈ ℝᵐˣᵐ with partial pivoting. Each pivot only computes the entering column B⁻¹aⱼ and the leaving row eᵣᵀB⁻¹ in O(m²) instead of O(mn). Rank-1 update of the factorization (eta-file or Forrest-Tomlin) avoids a full refactorization at each step. Required infrastructure for interior-point methods (v0.5.1–0.5.2); decisive improvement for large sparse LPs where m ≪ n. |
+| `v0.5.1` | Planned | **Primal-dual interior-point method** (path-following, Mehrotra predictor-corrector): at each iteration, solves an augmented KKT system of size (m+n)×(m+n) via the LU factorization from v0.5.0 to compute the affine and centering directions. The barrier parameter μ = xᵀs/n decreases toward 0 along the central path; convergence in O(√n) iterations. Returns the same `LPResult` as the simplex — both solvers are interchangeable via an `LPMethod` parameter. |
+| `v0.5.2` | Planned | **Log-barrier method** (classical, Fiacco-McCormick): transforms inequalities into min cᵀx − μ Σ ln(bᵢ − aᵢᵀx) and solves the sequence of unconstrained Newton subproblems as μ → 0. Simpler than the primal-dual (no explicit dual variables), but only superlinear convergence on the central path — slower iterations in practice. Validates v0.5.1 results and serves as a pedagogical reference. |
 | `v0.6.0` | Planned | **B&B log-proof**: machine-verifiable certificate of optimality. Every node records its LP bound, branching decision, and pruning reason (bound dominated, Farkas infeasibility, or integer-feasible leaf). The complete trace constitutes a proof that no unexplored node could improve the incumbent, independently verifiable without re-running the solver. |
 | `v1.0.0` | Planned | Complete solver, stable public API, full documentation. |
 
@@ -104,6 +108,22 @@ The CP layer starts with **Bounds Consistency (BC)**: operates on `[lb, ub]` int
 - Régin, *A Filtering Algorithm for Constraints of Difference in CSPs*, AAAI 1994
 - Hooker, *Integrated Methods for Optimization*, Springer 2007
 - Chvátal, *Linear Programming*, W.H. Freeman 1983
+
+### Revised simplex with LU decomposition (v0.5.0)
+
+- Dantzig, G.B., & Orchard-Hays, W., *The Product Form for the Inverse in the Simplex Method*, Mathematical Tables and Other Aids to Computation 8(46), 1954 — original revised simplex; maintains B⁻¹ as a product of eta-matrices rather than the full tableau
+- Bartels, R.H., & Golub, G.H., *The Simplex Method of Linear Programming Using LU Decomposition*, Communications of the ACM 12(5), 1969 — replaces the eta-file product with a numerically stable LU factorisation of the basis
+- Forrest, J.J.H., & Tomlin, J.A., *Updated Triangular Factors of the Basis to Maintain Sparsity in the Product Form Simplex Method*, Mathematical Programming 2(1), 1972 — rank-1 update of the LU factors (Forrest-Tomlin update) to preserve sparsity between pivots
+
+### Primal-dual interior-point method (v0.5.1)
+
+- Karmarkar, N., *A New Polynomial-Time Algorithm for Linear Programming*, Combinatorica 4(4), 1984 — first polynomial-time interior-point algorithm for LP (projective method)
+- Mehrotra, S., *On the Implementation of a Primal-Dual Interior Point Method*, SIAM Journal on Optimization 2(4), 1992 — predictor-corrector variant of the primal-dual path-following method; standard reference for modern IPM implementations
+
+### Log-barrier method (v0.5.2)
+
+- Fiacco, A.V., & McCormick, G.P., *The Sequential Unconstrained Minimization Technique for Nonlinear Programing, a Primal-Dual Method*, Management Science 10(2), 1964 — original SUMT barrier method paper
+- Fiacco, A.V., & McCormick, G.P., *Nonlinear Programming: Sequential Unconstrained Minimization Techniques*, Wiley, 1968 (republished SIAM 1990) — reference monograph with complete convergence theory
 
 ---
 
