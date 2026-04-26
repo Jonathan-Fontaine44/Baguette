@@ -20,7 +20,7 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
-    m.addConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.addLPConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
@@ -43,7 +43,7 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc]") {
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
-    m.addConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.addLPConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions noCuts;
@@ -77,7 +77,7 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc]") {
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
-    m.addConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 7.0);
+    m.addLPConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 7.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions noCuts;
@@ -113,7 +113,7 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
-    m.addConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.addLPConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions mf;
@@ -141,7 +141,7 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc]") {
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
-    m.addConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 7.0);
+    m.addLPConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 7.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
@@ -163,7 +163,7 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
@@ -197,8 +197,8 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc]") {
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
     Variable z = m.addVar(0.0, 5.0, VarType::Integer, "z");
-    m.addConstraint(2.0*x + 1.0*y + 1.0*z, Sense::LessEq, 6.0);
-    m.addConstraint(1.0*x + 2.0*y + 1.0*z, Sense::LessEq, 6.0);
+    m.addLPConstraint(2.0*x + 1.0*y + 1.0*z, Sense::LessEq, 6.0);
+    m.addLPConstraint(1.0*x + 2.0*y + 1.0*z, Sense::LessEq, 6.0);
     m.setObjective(5.0*x + 4.0*y + 3.0*z, ObjSense::Maximize);
 
     BBOptions noCuts;
@@ -230,7 +230,7 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     Model m;
     Variable x = m.addVar(0.0, 3.2, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Continuous, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.5);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.5);
     m.setObjective(0.0 * x + 1.0 * y, ObjSense::Minimize); // LP: x=3.5 (fractional int), y=0
 
     // Solve relaxation LP
@@ -272,7 +272,7 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
     Variable z = m.addVar(0.0, 2.0, VarType::Continuous, "z");
     Variable w = m.addVar(0.0, 2.0, VarType::Continuous, "w");
-    m.addConstraint(2*x + 2*y + 1*z + 1*w, Sense::GreaterEq, 7.5);
+    m.addLPConstraint(2*x + 2*y + 1*z + 1*w, Sense::GreaterEq, 7.5);
     m.setObjective(1*x + 1*y + 0.1*z + 0.1*w, ObjSense::Minimize);
 
     BBOptions opts;
@@ -301,7 +301,7 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge]") {
 
     Variable x = m.addVar(0.0, 1.0, VarType::Integer, "x");
 
-    m.addConstraint(1.0 * x, Sense::Equal, 0.5);
+    m.addLPConstraint(1.0 * x, Sense::Equal, 0.5);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     BBOptions opts;

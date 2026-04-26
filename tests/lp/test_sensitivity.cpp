@@ -41,8 +41,8 @@ static Model makeLPA() {
     Model m;
     auto x1 = m.addVar(0.0, kInf, "x1");
     auto x2 = m.addVar(0.0, kInf, "x2");
-    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
-    m.addConstraint(1.0 * x1 - 1.0 * x2, Sense::LessEq, 2.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x1 - 1.0 * x2, Sense::LessEq, 2.0);
     m.setObjective(-1.0 * x1 - 2.0 * x2, ObjSense::Minimize);
     return m;
 }
@@ -57,8 +57,8 @@ static Model makeLPB() {
     Model m;
     auto x1 = m.addVar(0.0, kInf, "x1");
     auto x2 = m.addVar(0.0, kInf, "x2");
-    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
-    m.addConstraint(1.0 * x1 - 1.0 * x2, Sense::LessEq, 2.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x1 - 1.0 * x2, Sense::LessEq, 2.0);
     m.setObjective(1.0 * x1 + 2.0 * x2, ObjSense::Maximize);
     return m;
 }
@@ -79,8 +79,8 @@ static Model makeLPB() {
 static Model makeLPC() {
     Model m;
     auto x1 = m.addVar(0.0, kInf, "x1");
-    m.addConstraint(1.0 * x1, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0 * x1, Sense::LessEq,   10.0);
+    m.addLPConstraint(1.0 * x1, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x1, Sense::LessEq,   10.0);
     m.setObjective(1.0 * x1, ObjSense::Minimize);
     return m;
 }
@@ -101,7 +101,7 @@ static Model makeLPD() {
     Model m;
     auto x1 = m.addVar(0.0, kInf, "x1");
     auto x2 = m.addVar(0.0, kInf, "x2");
-    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::Equal, 4.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2, Sense::Equal, 4.0);
     m.setObjective(1.0 * x1, ObjSense::Minimize);
     return m;
 }
@@ -127,9 +127,9 @@ static Model makeLPE() {
     Model m;
     auto x1 = m.addVar(0.0, kInf, "x1");
     auto x2 = m.addVar(0.0, kInf, "x2");
-    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::GreaterEq, 4.0);
-    m.addConstraint(1.0 * x1,             Sense::LessEq,    5.0);
-    m.addConstraint(1.0 * x2,             Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0 * x1,             Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * x2,             Sense::LessEq,    5.0);
     m.setObjective(3.0 * x1 + 2.0 * x2, ObjSense::Minimize);
     return m;
 }
@@ -371,8 +371,8 @@ TEST_CASE("Sensitivity LP-E: primal and dual paths agree") {
 TEST_CASE("Sensitivity empty when status is Infeasible") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 5.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    3.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 5.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     LPDetailedResult res = solveDualDetailed(m, 0, kInf, SolverClock::now(), {}, true);
@@ -400,7 +400,7 @@ TEST_CASE("Sensitivity LP-A: current parameter values are inside their ranges") 
     LPDetailedResult res = solveDetailed(m, 0, kInf, SolverClock::now(), true);
     REQUIRE(res.result.status == LPStatus::Optimal);
 
-    const auto& constraints = m.getConstraints();
+    const auto& constraints = m.getLPConstraints();
     const auto& rhs         = res.sensitivity.rhsRange;
 
     for (std::size_t i = 0; i < constraints.size(); ++i) {
@@ -422,7 +422,7 @@ TEST_CASE("Sensitivity LP-E dual: current parameter values are inside their rang
     LPDetailedResult res = solveDualDetailed(m, 0, kInf, SolverClock::now(), {}, true);
     REQUIRE(res.result.status == LPStatus::Optimal);
 
-    const auto& constraints = m.getConstraints();
+    const auto& constraints = m.getLPConstraints();
     const auto& rhs         = res.sensitivity.rhsRange;
 
     for (std::size_t i = 0; i < constraints.size(); ++i) {

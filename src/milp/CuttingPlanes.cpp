@@ -35,7 +35,7 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                                   double                            intFeasTol) {
     const auto& hot         = model.getHot();
     const auto& types       = model.getCold().types;
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     const double kInf        = std::numeric_limits<double>::infinity();
 
     std::vector<Cut> cuts;

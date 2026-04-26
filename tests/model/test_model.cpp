@@ -51,40 +51,40 @@ TEST_CASE("Model addVar initialises objective coefficient to zero", "[Model]") {
     REQUIRE(m.getHot().obj[0] == Approx(0.0));
 }
 
-// ── addConstraint ─────────────────────────────────────────────────────────────
+// ── addLPConstraint ─────────────────────────────────────────────────────────────
 
-TEST_CASE("Model addConstraint stores sense and rhs", "[Model]") {
+TEST_CASE("Model addLPConstraint stores sense and rhs", "[Model]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0);
     Variable y = m.addVar(0.0, 10.0);
 
-    m.addConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 20.0);
+    m.addLPConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 20.0);
 
     REQUIRE(m.numConstraints() == 1);
-    const auto& c = m.getConstraints()[0];
+    const auto& c = m.getLPConstraints()[0];
     REQUIRE(c.sense == Sense::LessEq);
     REQUIRE(c.rhs   == Approx(20.0));
 }
 
-TEST_CASE("Model addConstraint stores lhs terms", "[Model]") {
+TEST_CASE("Model addLPConstraint stores lhs terms", "[Model]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0);
     Variable y = m.addVar(0.0, 10.0);
 
-    m.addConstraint(2.0 * x + 3.0 * y, Sense::Equal, 15.0);
+    m.addLPConstraint(2.0 * x + 3.0 * y, Sense::Equal, 15.0);
 
-    const auto& lhs = m.getConstraints()[0].lhs;
+    const auto& lhs = m.getLPConstraints()[0].lhs;
     REQUIRE(lhs.size() == 2);
     REQUIRE(lhs.coeffs[0] == Approx(2.0));  // x has id=0, sorted first
     REQUIRE(lhs.coeffs[1] == Approx(3.0));
 }
 
-TEST_CASE("Model addConstraint multiple constraints", "[Model]") {
+TEST_CASE("Model addLPConstraint multiple constraints", "[Model]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0);
 
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 1.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    9.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 1.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    9.0);
 
     REQUIRE(m.numConstraints() == 2);
 }

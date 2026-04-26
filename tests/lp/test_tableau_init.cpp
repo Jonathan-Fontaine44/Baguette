@@ -40,9 +40,9 @@ static Model makeTestLP() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0*x + 1.0*y, Sense::LessEq, 4.0);
-    m.addConstraint(1.0*x,          Sense::LessEq, 3.0);
-    m.addConstraint(        1.0*y,  Sense::LessEq, 3.0);
+    m.addLPConstraint(1.0*x + 1.0*y, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0*x,          Sense::LessEq, 3.0);
+    m.addLPConstraint(        1.0*y,  Sense::LessEq, 3.0);
     m.setObjective(1.0*x + 2.0*y, ObjSense::Minimize);
     return m;
 }

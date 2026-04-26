@@ -141,10 +141,9 @@ TEST_CASE("AllDiff+MILP: 3-permutation minimize sum", "[cp][alldiff][milp]") {
     Variable z = m.addVar(1.0, 3.0, VarType::Integer, "z");
     m.setObjective(1.0 * x + 1.0 * y + 1.0 * z, ObjSense::Minimize);
 
-    CPConstraints cp;
-    cp.add(AllDiffConstraint{x, y, z});
+    m.addCPConstraint(AllDiffConstraint{x, y, z});
 
-    MILPResult r = solveMILP(m, BBOptions{}, cp);
+    MILPResult r = solveMILP(m, BBOptions{});
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(6.0, kTol));
@@ -171,9 +170,8 @@ TEST_CASE("AllDiff+MILP: range infeasibility detected at root node", "[cp][alldi
     Variable z = m.addVar(1.0, 2.0, VarType::Integer, "z");
     m.setObjective(1.0 * x + 1.0 * y + 1.0 * z, ObjSense::Minimize);
 
-    CPConstraints cp;
-    cp.add(AllDiffConstraint{x, y, z});
+    m.addCPConstraint(AllDiffConstraint{x, y, z});
 
-    MILPResult r = solveMILP(m, BBOptions{}, cp);
+    MILPResult r = solveMILP(m, BBOptions{});
     REQUIRE(r.status == MILPStatus::Infeasible);
 }

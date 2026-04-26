@@ -26,9 +26,9 @@ static Model makeSimpleMax() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq, 3.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq, 3.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq, 3.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq, 3.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Maximize);
     return m;
 }
@@ -43,8 +43,8 @@ static Model makeMinWithGEQ() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
     m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
     return m;
 }
@@ -58,7 +58,7 @@ static Model makeEqualityConstraint() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
     return m;
 }
@@ -68,8 +68,8 @@ static Model makeEqualityConstraint() {
 static Model makeInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    2.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
     return m;
 }
@@ -79,7 +79,7 @@ static Model makeInfeasible() {
 static Model makeUnbounded() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 0.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 0.0);
     m.setObjective(-1.0 * x, ObjSense::Minimize);
     return m;
 }
@@ -180,10 +180,10 @@ TEST_CASE("LP solve - degenerate LP (multiple tie ratios) solves correctly", "[l
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,    4.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,    4.0);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,    4.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,    4.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto res = solve(m, /*maxIter=*/200);
@@ -304,7 +304,7 @@ TEST_CASE("LP fully free variable - max x in [-inf, +inf] with x <= 4", "[lp]") 
     // Solved via split x = x⁺ − x⁻. Optimal: x = 4, obj = 4.
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
     auto res = solve(m);
@@ -333,7 +333,7 @@ TEST_CASE("LP fully free variable - min x with x >= -3 (GEQ constraint)", "[lp]"
     // Optimal: x = −3, obj = −3.
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, -3.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, -3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto res = solve(m);
@@ -350,7 +350,7 @@ TEST_CASE("LP two free variables - min x+y with x+y >= 5", "[lp]") {
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
     auto y = m.addVar(-kInf, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto res = solve(m);
@@ -368,7 +368,7 @@ TEST_CASE("LP fully free variable - Equal constraint", "[lp]") {
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
     auto y = m.addVar(0.0,   kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 3.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 3.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto res = solve(m);
@@ -402,8 +402,8 @@ TEST_CASE("LP redundant Equal constraint - does not crash", "[lp]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
-    m.addConstraint(2.0 * x + 2.0 * y, Sense::Equal, 10.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
+    m.addLPConstraint(2.0 * x + 2.0 * y, Sense::Equal, 10.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto res = solve(m);
@@ -420,8 +420,8 @@ TEST_CASE("LP redundant GEQ constraint - does not crash", "[lp]") {
     // Optimal: x = 3, obj = 3.
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addConstraint(2.0 * x, Sense::GreaterEq, 6.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(2.0 * x, Sense::GreaterEq, 6.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto res = solve(m);
@@ -438,7 +438,7 @@ TEST_CASE("LP objective constant - Minimize", "[lp]") {
     // Optimal: x = 3, obj = 103.
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
     LinearExpr obj = 1.0 * x;
     obj.constant   = 100.0;
     m.setObjective(obj, ObjSense::Minimize);
@@ -455,7 +455,7 @@ TEST_CASE("LP objective constant - Maximize", "[lp]") {
     // Optimal: x = 7, obj = -43.
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 7.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 7.0);
     LinearExpr obj = 1.0 * x;
     obj.constant   = -50.0;
     m.setObjective(obj, ObjSense::Maximize);
@@ -473,7 +473,7 @@ TEST_CASE("LP objective constant - does not affect optimal solution", "[lp]") {
         Model m;
         auto x = m.addVar(0.0, kInf, "x");
         auto y = m.addVar(0.0, kInf, "y");
-        m.addConstraint(1.0*x + 1.0*y, Sense::LessEq, 4.0);
+        m.addLPConstraint(1.0*x + 1.0*y, Sense::LessEq, 4.0);
         LinearExpr obj = 1.0*x + 2.0*y;
         obj.constant   = c;
         m.setObjective(obj, ObjSense::Minimize);
@@ -516,8 +516,8 @@ TEST_CASE("Redundant Equal constraint: correct primal and objective", "[redundan
     auto x1 = m.addVar(0.0, 10.0, "x1");
     auto x2 = m.addVar(0.0, 10.0, "x2");
 
-    m.addConstraint(1.0 * x1 + 1.0 * x2, Sense::Equal, 4.0);
-    m.addConstraint(2.0 * x1 + 2.0 * x2, Sense::Equal, 8.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2, Sense::Equal, 4.0);
+    m.addLPConstraint(2.0 * x1 + 2.0 * x2, Sense::Equal, 8.0);
     m.setObjective(1.0 * x1 + -2.0 * x2, ObjSense::Minimize);
 
     auto det = solveDetailed(m);
@@ -548,9 +548,9 @@ TEST_CASE("Two redundant Equal constraints: correct primal and objective", "[red
     auto x2 = m.addVar(0.0, 10.0, "x2");
     auto x3 = m.addVar(0.0, 10.0, "x3");
 
-    m.addConstraint(1.0 * x1 + 1.0 * x2,             Sense::Equal, 4.0);
-    m.addConstraint(2.0 * x1 + 2.0 * x2,             Sense::Equal, 8.0);
-    m.addConstraint(4.0 * x1 + 4.0 * x2,             Sense::Equal, 16.0);
+    m.addLPConstraint(1.0 * x1 + 1.0 * x2,             Sense::Equal, 4.0);
+    m.addLPConstraint(2.0 * x1 + 2.0 * x2,             Sense::Equal, 8.0);
+    m.addLPConstraint(4.0 * x1 + 4.0 * x2,             Sense::Equal, 16.0);
     m.setObjective(1.0 * x1 + -2.0 * x2 + 1.0 * x3, ObjSense::Minimize);
 
     auto det = solveDetailed(m);
@@ -581,8 +581,8 @@ TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]
     auto x = m.addVar(0.0, 10.0, "x");
     auto y = m.addVar(0.0, 10.0, "y");
 
-    m.addConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(4.0 * x + 4.0 * y, Sense::GreaterEq, 8.0);
+    m.addLPConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(4.0 * x + 4.0 * y, Sense::GreaterEq, 8.0);
     m.setObjective(3.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto det = solveDetailed(m);
@@ -604,7 +604,7 @@ TEST_CASE("LP relaxation infeasible from B&B test", "[lp]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     LPResult lpResult = solve(m);

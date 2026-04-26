@@ -42,12 +42,12 @@ static Model makeFractionalLP() {
     LinearExpr c1;
     c1.addTerm(x1, 2.0);
     c1.addTerm(x2, 1.0);
-    m.addConstraint(c1, Sense::LessEq, 4.0);
+    m.addLPConstraint(c1, Sense::LessEq, 4.0);
 
     LinearExpr c2;
     c2.addTerm(x1, 1.0);
     c2.addTerm(x2, 2.0);
-    m.addConstraint(c2, Sense::LessEq, 4.0);
+    m.addLPConstraint(c2, Sense::LessEq, 4.0);
 
     return m;
 }

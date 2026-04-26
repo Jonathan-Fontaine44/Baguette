@@ -109,8 +109,8 @@ TEST_CASE("dual SF - dimensions match transposition", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 4.0);
-    m.addConstraint(3.0 * x + 1.0 * y, Sense::LessEq, 6.0);
+    m.addLPConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 4.0);
+    m.addLPConstraint(3.0 * x + 1.0 * y, Sense::LessEq, 6.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);  // 2 rows, 4 cols (x, y, s0, s1)
@@ -128,7 +128,7 @@ TEST_CASE("dual SF - single LessEq constraint dimensions", "[dual_sf]") {
     // Dual SF: 2 rows, 2*1+2 = 4 cols (y+, y-, s0, s1)
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 5.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 5.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -149,8 +149,8 @@ TEST_CASE("dual SF - A matrix is transposed primal A (y+ block)", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 10.0);
-    m.addConstraint(1.0 * x + 4.0 * y, Sense::LessEq,  8.0);
+    m.addLPConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x + 4.0 * y, Sense::LessEq,  8.0);
     m.setObjective(5.0 * x + 2.0 * y, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -175,7 +175,7 @@ TEST_CASE("dual SF - y- block is negation of y+ block", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 10.0);
+    m.addLPConstraint(2.0 * x + 3.0 * y, Sense::LessEq, 10.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -192,7 +192,7 @@ TEST_CASE("dual SF - y- block is negation of y+ block", "[dual_sf]") {
 TEST_CASE("dual SF - slack block is identity", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 5.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 5.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -218,8 +218,8 @@ TEST_CASE("dual SF - objective is negated primal rhs", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 7.0);
-    m.addConstraint(3.0 * x + 1.0 * y, Sense::LessEq, 9.0);
+    m.addLPConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.addLPConstraint(3.0 * x + 1.0 * y, Sense::LessEq, 9.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -240,7 +240,7 @@ TEST_CASE("dual SF - rhs is primal objective (normalised)", "[dual_sf]") {
     // b_dual[j] = |c_primal[j]| after row normalisation
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 5.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 5.0);
     m.setObjective(3.0 * x, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -254,7 +254,7 @@ TEST_CASE("dual SF - rowSlackCol points to slack block", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto primal = toStandardForm(m);
@@ -283,7 +283,7 @@ TEST_CASE("dual SF - strong duality: simple min LessEq", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
     m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
 
     auto primal_sf = toStandardForm(m);
@@ -306,8 +306,8 @@ TEST_CASE("dual SF - strong duality: two LessEq constraints", "[dual_sf]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(6.0 * x + 4.0 * y, Sense::GreaterEq, 24.0);
-    m.addConstraint(1.0 * x + 2.0 * y, Sense::GreaterEq,  6.0);
+    m.addLPConstraint(6.0 * x + 4.0 * y, Sense::GreaterEq, 24.0);
+    m.addLPConstraint(1.0 * x + 2.0 * y, Sense::GreaterEq,  6.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Minimize);
 
     auto primal_sf = toStandardForm(m);
@@ -335,7 +335,7 @@ TEST_CASE("dual SF - double dual has same optimal value as primal", "[dual_sf]")
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 1.6);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 1.6);
     m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
 
     auto primal_sf   = toStandardForm(m);
@@ -356,8 +356,8 @@ TEST_CASE("dual SF - primal infeasible implies dual unbounded", "[dual_sf]") {
     // Infeasible primal: x >= 3 AND x <= 2
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    2.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto primal_sf = toStandardForm(m);

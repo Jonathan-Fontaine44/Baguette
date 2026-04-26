@@ -7,6 +7,7 @@
 #include "baguette/core/LinearExpr.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/core/Variable.hpp"
+#include "baguette/cp/CPConstraints.hpp"
 #include "baguette/model/ModelData.hpp"
 
 namespace baguette {
@@ -40,7 +41,7 @@ public:
 
     /// Add a linear constraint: `lhs sense rhs`.
     /// @throws std::out_of_range if any variable in @p lhs does not belong to this Model.
-    void addConstraint(LinearExpr lhs, Sense sense, double rhs);
+    void addLPConstraint(LinearExpr lhs, Sense sense, double rhs);
 
     /// Set the objective function and optimization direction.
     ///
@@ -102,23 +103,32 @@ public:
 
     /// @return Number of decision variables in the model.
     std::size_t numVars()        const { return hot.lb.size(); }
-    /// @return Number of constraints added via addConstraint().
+    /// @return Number of constraints added via addLPConstraint().
     std::size_t numConstraints() const { return constraints.size(); }
 
     /// @return Hot data (bounds, objective coefficients) for solver access.
     const ModelHot&               getHot()          const { return hot; }
     /// @return Cold data (labels, types) for model inspection and output.
     const ModelCold&              getCold()         const { return cold; }
-    /// @return All constraints added via addConstraint().
-    const std::vector<Constraint>& getConstraints() const { return constraints; }
+    /// @return All constraints added via addLPConstraint().
+    const std::vector<Constraint>& getLPConstraints() const { return constraints; }
     /// @return Optimization direction (Minimize or Maximize).
     ObjSense                      getObjSense()     const { return objSense; }
     /// @return Constant offset of the objective (from the constant term of setObjective()).
     double                        getObjConstant()  const { return objConstant; }
 
+    /// Add a single CP constraint (built-in or user-defined).
+    /// Delegates directly to cpConstraints.add().
+    void addCPConstraint(BuiltinConstraint c)                   { cpConstraints.add(std::move(c)); }
+    void addCPConstraint(std::shared_ptr<const CPConstraint> c) { cpConstraints.add(std::move(c)); }
+
+    /// @return The CP constraints attached to this model.
+    const CPConstraints& getCPConstraints() const { return cpConstraints; }
+
 private:
-    ModelHot  hot;
-    ModelCold cold;
+    ModelHot      hot;
+    ModelCold     cold;
+    CPConstraints cpConstraints;
     std::vector<Constraint> constraints;
     ObjSense objSense    = ObjSense::Minimize;
     double   objConstant = 0.0;

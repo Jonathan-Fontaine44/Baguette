@@ -26,7 +26,7 @@ TEST_CASE("SF dimensions - single LessEq, no bounds", "[standard_form]") {
     // min x  s.t. x <= 5,  x >= 0
     Model m;
     auto x = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, 5.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 5.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -42,7 +42,7 @@ TEST_CASE("SF dimensions - finite upper bound adds UB row", "[standard_form]") {
     // min x  s.t. x <= 3,  0 <= x <= 5
     Model m;
     auto x = m.addVar(0.0, 5.0);
-    m.addConstraint(1.0 * x, Sense::LessEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -57,7 +57,7 @@ TEST_CASE("SF dimensions - two vars, both finite upper bounds", "[standard_form]
     Model m;
     auto x = m.addVar(0.0, 4.0);
     auto y = m.addVar(0.0, 6.0);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 7.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 7.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -74,9 +74,9 @@ TEST_CASE("SF dimensions - two vars, mixed senses", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
-    m.addConstraint(1.0 * x,            Sense::GreaterEq, 1.0);
-    m.addConstraint(1.0 * x - 1.0 * y, Sense::Equal,     0.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
+    m.addLPConstraint(1.0 * x,            Sense::GreaterEq, 1.0);
+    m.addLPConstraint(1.0 * x - 1.0 * y, Sense::Equal,     0.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -94,7 +94,7 @@ TEST_CASE("SF objective - minimize, no lb shift", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 10.0);
     m.setObjective(3.0 * x + 5.0 * y, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -110,7 +110,7 @@ TEST_CASE("SF objective - minimize, non-zero lb shifts offset", "[standard_form]
     // After shift: min 2(x'+3) = 2x' + 6  → c[0]=2, objOffset=6
     Model m;
     auto x = m.addVar(3.0, 10.0);
-    m.addConstraint(1.0 * x, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 10.0);
     m.setObjective(2.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -123,7 +123,7 @@ TEST_CASE("SF objective - maximize negates costs", "[standard_form]") {
     // max 3x  →  standard form: min -3x',  objOffset = 0
     Model m;
     auto x = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 10.0);
     m.setObjective(3.0 * x, ObjSense::Maximize);
 
     auto sf = toStandardForm(m);
@@ -136,7 +136,7 @@ TEST_CASE("SF objective - maximize with lb: offset negated", "[standard_form]") 
     // max 2x,  2 <= x  →  standard form: min -2x', objOffset = -2*2 = -4
     Model m;
     auto x = m.addVar(2.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 10.0);
     m.setObjective(2.0 * x, ObjSense::Maximize);
 
     auto sf = toStandardForm(m);
@@ -153,7 +153,7 @@ TEST_CASE("SF constraint - LessEq: slack has +1", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 6.0);
+    m.addLPConstraint(1.0 * x + 2.0 * y, Sense::LessEq, 6.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -171,7 +171,7 @@ TEST_CASE("SF constraint - GreaterEq: surplus has -1", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -189,7 +189,7 @@ TEST_CASE("SF constraint - Equal: no slack column entry", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -206,7 +206,7 @@ TEST_CASE("SF constraint - negative rhs is normalised", "[standard_form]") {
     // Original: x + s = -2  →  normalised: -x - s = 2
     Model m;
     auto x = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, -2.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, -2.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -226,7 +226,7 @@ TEST_CASE("SF lb-shift - rhs absorbs lb contribution", "[standard_form]") {
     Model m;
     auto x = m.addVar(2.0, kInf);
     auto y = m.addVar(3.0, kInf);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 10.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -282,7 +282,7 @@ TEST_CASE("SF column metadata - kinds and origins", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, 5.0, "x"); // id=0
     auto y = m.addVar(0.0, 3.0, "y"); // id=1
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -310,9 +310,9 @@ TEST_CASE("SF rowSlackCol - points to correct column", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
     auto y = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x,            Sense::LessEq,    5.0);
-    m.addConstraint(1.0 * y,            Sense::GreaterEq, 1.0);
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal,     4.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * y,            Sense::GreaterEq, 1.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal,     4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -327,7 +327,7 @@ TEST_CASE("SF rowSlackCol - points to correct column", "[standard_form]") {
 TEST_CASE("SF infinite ub - no UB row added", "[standard_form]") {
     Model m;
     auto x = m.addVar(0.0, kInf);
-    m.addConstraint(1.0 * x, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 10.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -344,7 +344,7 @@ TEST_CASE("SF free-split - dimensions and column count", "[standard_form]") {
     // No UB row (ub = +inf).
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -360,7 +360,7 @@ TEST_CASE("SF free-split - varFreeNegCol and ColumnKind::FreeNeg", "[standard_fo
     // Same model as above.
     Model m;
     auto x = m.addVar(-kInf, kInf, "x"); // id = 0
-    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -380,7 +380,7 @@ TEST_CASE("SF free-split - A matrix: xneg column is negation of xpos column", "[
     // Row 0: [A(x⁺)=1, A(s)=+1, A(x⁻)=-1 | b=4]  (LessEq, not negated)
     Model m;
     auto x = m.addVar(-kInf, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);
@@ -403,7 +403,7 @@ TEST_CASE("toStandardFormBoundsOnly - b and objOffset updated, A shared", "[stan
     auto x1 = m.addVar(0.0, 4.0, "x1");
     auto x2 = m.addVar(0.0, 4.0, "x2");
     LinearExpr lhs; lhs.addTerm(x1, 1.0); lhs.addTerm(x2, 1.0);
-    m.addConstraint(lhs, Sense::LessEq, 5.0);
+    m.addLPConstraint(lhs, Sense::LessEq, 5.0);
     LinearExpr obj; obj.addTerm(x1, 1.0); obj.addTerm(x2, 1.0);
     m.setObjective(obj, ObjSense::Minimize);
 
@@ -461,7 +461,7 @@ TEST_CASE("toStandardFormBoundsOnly - returns false on row-sign flip", "[standar
     auto x1 = m.addVar(0.0, 4.0, "x1");
     auto x2 = m.addVar(0.0, 4.0, "x2");
     LinearExpr lhs; lhs.addTerm(x1, 1.0); lhs.addTerm(x2, 1.0);
-    m.addConstraint(lhs, Sense::LessEq, 1.0);
+    m.addLPConstraint(lhs, Sense::LessEq, 1.0);
     m.setObjective(1.0 * x1, ObjSense::Minimize);
 
     auto sf = toStandardForm(m);

@@ -45,7 +45,7 @@ struct AugmentedForm {
 ///   is O(nArt). Total O(m · (nOrig + nArt)).
 AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
                              const Model& model) {
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     const std::size_t m    = sf.nRows;
     const std::size_t nOld = sf.nCols;
 
@@ -267,7 +267,7 @@ SensitivityResult extractSensitivity(const internal::Tableau&        tab,
                                      const std::vector<uint32_t>&    equalArtCol) {
     using Lim = std::numeric_limits<double>;
     const bool   maximize    = (model.getObjSense() == ObjSense::Maximize);
-    const auto&  constraints = model.getConstraints();
+    const auto&  constraints = model.getLPConstraints();
     const auto&  objCoeffs   = model.getHot().obj;
     const double inf         = Lim::infinity();
 
@@ -455,7 +455,7 @@ LPDetailedResult extractDetailed(const internal::Tableau& tab,
     // For an Equal row:   no slack → dual is read differently (via artificial's rc,
     //                     but artificials are stripped; use shadow from reinverted basis)
     // Row negation (b[i] < 0 flip) is corrected by sf.rowNegated.
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     det.dualValues.resize(sf.nOrigRows);
     for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
         uint32_t slackCol = sf.rowSlackCol[i];
@@ -640,7 +640,7 @@ LPStatus runDualSimplex(internal::Tableau& tab,
 ///   for Equal constraints and an O(nRows) pass to fill the basis vector.
 std::vector<uint32_t> buildDualBasis(const internal::LPStandardForm& sf,
                                      const Model& model) {
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
 
     // Check: any Equal constraint → no natural basis available
     for (std::size_t i = 0; i < sf.nOrigRows; ++i)
@@ -684,7 +684,7 @@ FarkasRay extractFarkasDualRow(const internal::Tableau&        tab,
                                const Model&                    model,
                                std::size_t                     leavingRow) {
     FarkasRay ray;
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     ray.y.resize(sf.nOrigRows, 0.0);
     const std::size_t w = tab.n + 1;
 
@@ -716,7 +716,7 @@ FarkasRay extractFarkasPhaseI(const internal::Tableau&        tab,
                               const AugmentedForm&             aug,
                               const Model&                    model) {
     FarkasRay ray;
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     ray.y.resize(sf.nOrigRows, 0.0);
 
     for (std::size_t i = 0; i < sf.nOrigRows; ++i) {

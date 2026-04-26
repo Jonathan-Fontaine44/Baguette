@@ -26,10 +26,10 @@ Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
     return Variable{id};
 }
 
-void Model::addConstraint(LinearExpr lhs, Sense sense, double rhs) {
+void Model::addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
     for (uint32_t id : lhs.varIds)
         if (id >= hot.lb.size())
-            throw std::out_of_range("addConstraint: variable ID " + std::to_string(id) + " out of range (wrong model?)");
+            throw std::out_of_range("addLPConstraint: variable ID " + std::to_string(id) + " out of range (wrong model?)");
     constraints.push_back({std::move(lhs), sense, rhs});
 }
 

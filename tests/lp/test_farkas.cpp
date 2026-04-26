@@ -23,7 +23,7 @@ static const double     kInf = std::numeric_limits<double>::infinity();
 static bool checkFarkasProperty(const FarkasRay& ray, const Model& model,
                                  double tol = 1e-6) {
     if (ray.y.empty()) return false;
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     if (ray.y.size() != constraints.size()) return false;
 
     const std::size_t nVars = model.numVars();
@@ -59,8 +59,8 @@ static bool checkFarkasProperty(const FarkasRay& ray, const Model& model,
 static Model makeSimpleInfeasibleDual() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    2.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
     return m;
 }
@@ -70,9 +70,9 @@ static Model makeMultiVarInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 10.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,     3.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,     3.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 10.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,     3.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,     3.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
     return m;
 }
@@ -82,9 +82,9 @@ static Model makeEqualConstraintInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal,   10.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,   3.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,   3.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal,   10.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,   3.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,   3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
     return m;
 }
@@ -95,8 +95,8 @@ static Model makeFeasibleLP() {
     Model m;
     auto x1 = m.addVar(0.0, 3.0, "x1");
     auto x2 = m.addVar(0.0, 3.0, "x2");
-    m.addConstraint(2.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
-    m.addConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
+    m.addLPConstraint(2.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
+    m.addLPConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
     m.setObjective(-1.0 * x1 + -1.0 * x2, ObjSense::Minimize);
     return m;
 }
@@ -152,9 +152,9 @@ TEST_CASE("Farkas - no ray when status is Optimal") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,    5.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,    5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     LPDetailedResult res = solveDualDetailed(m);
@@ -195,8 +195,8 @@ TEST_CASE("Farkas - B&B warm-start infeasible child: tableau-based certificate")
     Model root_m;
     auto x1 = root_m.addVar(0.0, 3.0, "x1");
     auto x2 = root_m.addVar(0.0, 3.0, "x2");
-    root_m.addConstraint(2.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
-    root_m.addConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
+    root_m.addLPConstraint(2.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
+    root_m.addLPConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
     root_m.setObjective(-1.0 * x1 + -1.0 * x2, ObjSense::Minimize);
 
     LPDetailedResult rootRes = solveDualDetailed(root_m);

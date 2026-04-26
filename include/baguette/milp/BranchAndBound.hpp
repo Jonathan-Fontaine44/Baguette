@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <limits>
 
-#include "baguette/cp/CPConstraints.hpp"
 #include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -109,7 +108,7 @@ using SolverClock = std::chrono::steady_clock;
 ///   sfCache reduces standard-form setup from O(m·n) to O(1) per node.
 ///
 /// @note Cut addition and warm-start: when GMI cuts are enabled, cuts are added
-///   permanently to the working model copy via Model::addConstraint().  After
+///   permanently to the working model copy via Model::addLPConstraint().  After
 ///   each cut addition the local LP is re-solved from a cold start (the
 ///   pre-cut BasisRecord is structurally incompatible with the enriched model).
 ///   Sibling nodes that were queued before the cut was generated also carry
@@ -118,14 +117,14 @@ using SolverClock = std::chrono::steady_clock;
 ///   This is correct but means that cut generation sacrifices warm-start reuse
 ///   for all queued siblings — a known trade-off of the global-cut strategy.
 ///
-/// @note CP integration: if @p cp is non-empty, propagateCP() is called after
-///   restoreBounds() and before the first LP solve at each node.  Bounds
-///   tightened by CP propagation are tracked in dirtyVars and reset automatically
-///   by the next restoreBounds() call — no extra bookkeeping required.  If CP
-///   reports Infeasible the node is pruned without an LP solve.
+/// @note CP integration: if the model has CP constraints (added via
+///   Model::addCPConstraint()), propagateCP() is called after restoreBounds()
+///   and before the first LP solve at each node.  Bounds tightened by CP
+///   propagation are tracked in dirtyVars and reset automatically by the next
+///   restoreBounds() call — no extra bookkeeping required.  If CP reports
+///   Infeasible the node is pruned without an LP solve.
 MILPResult solveMILP(const Model&            model,
                      const BBOptions&        opts      = {},
-                     const CPConstraints&    cp        = {},
                      SolverClock::time_point startTime = SolverClock::now());
 
 } // namespace baguette

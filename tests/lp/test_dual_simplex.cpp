@@ -25,9 +25,9 @@ static Model makeSimpleMinLEQ() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,    5.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,    5.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,    5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
     return m;
 }
@@ -38,8 +38,8 @@ static Model makeMinWithGEQ() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
     m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
     return m;
 }
@@ -47,8 +47,8 @@ static Model makeMinWithGEQ() {
 static Model makeInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
-    m.addConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0 * x, Sense::LessEq,    2.0);
+    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
     return m;
 }
@@ -102,9 +102,9 @@ TEST_CASE("dual simplex - LessEq only, non-negative costs", "[dual_simplex]") {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 10.0);
-    m.addConstraint(1.0 * x,            Sense::LessEq,  7.0);
-    m.addConstraint(1.0 * y,            Sense::LessEq,  8.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 10.0);
+    m.addLPConstraint(1.0 * x,            Sense::LessEq,  7.0);
+    m.addLPConstraint(1.0 * y,            Sense::LessEq,  8.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Minimize);
 
     auto res = solveDual(m);
@@ -124,9 +124,9 @@ TEST_CASE("dual simplex - objective value matches primal (5-var problem)", "[dua
     auto x3 = m.addVar(0.0, kInf, "x3");
     auto x4 = m.addVar(0.0, kInf, "x4");
     auto x5 = m.addVar(0.0, kInf, "x5");
-    m.addConstraint(1.0*x1 + 1.0*x2 + 1.0*x3,                    Sense::GreaterEq, 6.0);
-    m.addConstraint(           1.0*x2 + 1.0*x3 + 1.0*x4,          Sense::GreaterEq, 4.0);
-    m.addConstraint(                    1.0*x3 + 1.0*x4 + 1.0*x5, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0*x1 + 1.0*x2 + 1.0*x3,                    Sense::GreaterEq, 6.0);
+    m.addLPConstraint(           1.0*x2 + 1.0*x3 + 1.0*x4,          Sense::GreaterEq, 4.0);
+    m.addLPConstraint(                    1.0*x3 + 1.0*x4 + 1.0*x5, Sense::GreaterEq, 3.0);
     m.setObjective(3.0*x1 + 2.0*x2 + 1.0*x3 + 4.0*x4 + 2.0*x5, ObjSense::Minimize);
 
     auto primal = solve(m);
@@ -190,7 +190,7 @@ TEST_CASE("dual simplex - fallback for Equal constraint gives correct result", "
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     auto res = solveDual(m);
@@ -221,9 +221,9 @@ TEST_CASE("dual simplex - strong duality: solveDual obj == solve obj", "[dual_si
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
     auto z = m.addVar(0.0, kInf, "z");
-    m.addConstraint(2.0*x + 1.0*y + 1.0*z, Sense::GreaterEq, 4.0);
-    m.addConstraint(1.0*x + 2.0*y + 1.0*z, Sense::GreaterEq, 3.0);
-    m.addConstraint(1.0*x + 1.0*y + 2.0*z, Sense::GreaterEq, 2.0);
+    m.addLPConstraint(2.0*x + 1.0*y + 1.0*z, Sense::GreaterEq, 4.0);
+    m.addLPConstraint(1.0*x + 2.0*y + 1.0*z, Sense::GreaterEq, 3.0);
+    m.addLPConstraint(1.0*x + 1.0*y + 2.0*z, Sense::GreaterEq, 2.0);
     m.setObjective(6.0*x + 4.0*y + 3.0*z, ObjSense::Minimize);
 
     auto primal = solve(m);
@@ -243,7 +243,7 @@ TEST_CASE("LP relaxation infeasible from B&B test", "[dual_simplex]") {
     Model m;
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
-    m.addConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
+    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     LPResult lpResult = solveDual(m);

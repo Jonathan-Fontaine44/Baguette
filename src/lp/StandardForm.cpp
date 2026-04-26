@@ -8,7 +8,7 @@ namespace baguette::internal {
 
 LPStandardForm toStandardForm(const Model& model) {
     const auto& hot         = model.getHot();
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     const std::size_t nOrig     = model.numVars();
     const std::size_t nOrigRows = model.numConstraints();
 
@@ -280,7 +280,7 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
 
 bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
     const auto& hot         = model.getHot();
-    const auto& constraints = model.getConstraints();
+    const auto& constraints = model.getLPConstraints();
     const std::size_t nOrig     = model.numVars();
     const std::size_t nOrigRows = model.numConstraints();
 

@@ -150,9 +150,9 @@ void updatePseudoCosts(PseudoCosts& pc,
 
 MILPResult solveMILP(const Model&            modelRef,
                      const BBOptions&        opts,
-                     const CPConstraints&    cp,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
+    const CPConstraints& cp = model.getCPConstraints();
 
     const bool   minimize = (model.getObjSense() == ObjSense::Minimize);
     const double inf      = std::numeric_limits<double>::infinity();
@@ -326,11 +326,11 @@ MILPResult solveMILP(const Model&            modelRef,
 
             if (!cuts.empty()) {
                 for (const Cut& c : cuts)
-                    model.addConstraint(c.expr, Sense::GreaterEq, c.rhs);
+                    model.addLPConstraint(c.expr, Sense::GreaterEq, c.rhs);
                 cutsAdded += static_cast<uint32_t>(cuts.size());
 
                 // Re-solve with the new cuts.  The warm basis is passed as {} (cold
-                // start) because addConstraint() changed the model structure: the
+                // start) because addLPConstraint() changed the model structure: the
                 // sfCache stored in lp.basis refers to the pre-cut standard form and
                 // its dimension no longer matches the current model.
                 //
