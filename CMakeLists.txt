@@ -14,8 +14,11 @@ endif()
 add_library(Baguette
     src/core/LinearExpr.cpp
     src/model/Model.cpp
-    src/lp/StandardForm.cpp
-    src/lp/Tableau.cpp
+    src/lp/algorithms/StandardForm.cpp
+    src/lp/algorithms/SimplexTableau.cpp
+    src/lp/algorithms/Extractor.cpp
+    src/lp/algorithms/PrimalSimplex.cpp
+    src/lp/algorithms/DualSimplex.cpp
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
     src/milp/CuttingPlanes.cpp
@@ -68,7 +71,7 @@ catch_discover_tests(BaguetteTests DISCOVERY_MODE PRE_TEST)
 
 # ── Internal (white-box) tests ─────────────────────────────────────────────────
 # These tests have access to src/ headers and exercise internal components
-# (StandardForm, Tableau) that are not part of the public API.
+# (StandardForm, SimplexTableau) that are not part of the public API.
 
 add_executable(BaguetteInternalTests
     tests/lp/test_standard_form.cpp

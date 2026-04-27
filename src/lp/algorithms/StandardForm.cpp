@@ -250,7 +250,7 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal) {
     }
     // c[2m..2m+n-1] = 0.0  (slacks have zero cost)
 
-    // Normalise: b_dual[j] must be ≥ 0 for the Tableau initialisation.
+    // Normalise: b_dual[j] must be ≥ 0 for the SimplexTableau initialisation.
     // Negate any row where b_dual[j] = primal.c[j] < 0.
     for (std::size_t j = 0; j < n; ++j) {
         if (dual.b[j] < 0.0) {

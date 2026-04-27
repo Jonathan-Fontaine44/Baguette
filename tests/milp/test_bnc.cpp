@@ -238,14 +238,8 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     m.setObjective(0.0 * x + 1.0 * y, ObjSense::Minimize); // LP: x=3.5 (fractional int), y=0
 
     // Solve relaxation LP
-    LPDetailedResult lp = solveDualDetailed(
-        m,
-        0,
-        std::numeric_limits<double>::infinity(),
-        SolverClock::now(),
-        {},
-        /*computeSensitivity=*/false,
-        /*computeCutData=*/true);
+    LPOptions lpOpts; lpOpts.computeCutData = true;
+    LPDetailedResult lp = solveLPDetailed(m, lpOpts);
 
     REQUIRE(lp.result.status == LPStatus::Optimal);
 
@@ -312,7 +306,7 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge]") {
     BBOptions opts;
     opts.enableCuts = true;
 
-    LPDetailedResult lp = solveDualDetailed(m);
+    LPDetailedResult lp = solveLPDetailed(m);
 
     REQUIRE(lp.result.status == LPStatus::Optimal);
 

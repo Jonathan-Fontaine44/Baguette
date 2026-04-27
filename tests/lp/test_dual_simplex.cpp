@@ -17,9 +17,6 @@ static const double     kInf = std::numeric_limits<double>::infinity();
 /// Reuse model builders from the primal test suite (redeclared locally).
 
 static Model makeSimpleMinLEQ() {
-    // min 2x + 3y  s.t. x+y<=4, x<=3, y<=3,  x,y>=0
-    // Optimal: x=0, y=0, obj=0  (unbounded below without >= constraint).
-    // Use a meaningful problem instead:
     // min x + y  s.t. x+y>=4, x<=5, y<=5,  x,y>=0
     // Optimal: x+y=4, obj=4.
     Model m;
@@ -53,11 +50,14 @@ static Model makeInfeasible() {
     return m;
 }
 
-// ── Tests: solveDual matches solve() ─────────────────────────────────────────
+// ── Tests: dual simplex matches primal ───────────────────────────────────────
 
 TEST_CASE("dual simplex - GEQ min: matches primal solve", "[dual_simplex]") {
-    auto primal = solve(makeMinWithGEQ());
-    auto dual   = solveDual(makeMinWithGEQ());
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+
+    auto primal = solveLP(makeMinWithGEQ(), primalOpts);
+    auto dual   = solveLP(makeMinWithGEQ(), dualOpts);
 
     REQUIRE(primal.status == LPStatus::Optimal);
     REQUIRE(dual.status   == LPStatus::Optimal);
@@ -68,9 +68,12 @@ TEST_CASE("dual simplex - GEQ min: matches primal solve", "[dual_simplex]") {
 }
 
 TEST_CASE("dual simplex - mixed LEQ+GEQ: matches primal solve", "[dual_simplex]") {
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
     auto m1 = makeSimpleMinLEQ();
-    auto primal = solve(m1);
-    auto dual   = solveDual(m1);
+
+    auto primal = solveLP(m1, primalOpts);
+    auto dual   = solveLP(m1, dualOpts);
 
     REQUIRE(primal.status == LPStatus::Optimal);
     REQUIRE(dual.status   == LPStatus::Optimal);
@@ -79,7 +82,8 @@ TEST_CASE("dual simplex - mixed LEQ+GEQ: matches primal solve", "[dual_simplex]"
 
 TEST_CASE("dual simplex - infeasible detected correctly", "[dual_simplex]") {
     // x >= 3 AND x <= 2: infeasible
-    auto res = solveDual(makeInfeasible());
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto res = solveLP(makeInfeasible(), dualOpts);
     REQUIRE(res.status == LPStatus::Infeasible);
     CHECK(res.primalValues.empty());
 }
@@ -90,7 +94,8 @@ TEST_CASE("dual simplex - single variable bounded: min x in [3, inf]", "[dual_si
     auto x = m.addVar(3.0, kInf, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto res = solveDual(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto res = solveLP(m, dualOpts);
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(3.0, kTol));
     CHECK_THAT(res.primalValues[0], WithinAbs(3.0, kTol));
@@ -107,7 +112,8 @@ TEST_CASE("dual simplex - LessEq only, non-negative costs", "[dual_simplex]") {
     m.addLPConstraint(1.0 * y,            Sense::LessEq,  8.0);
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Minimize);
 
-    auto res = solveDual(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto res = solveLP(m, dualOpts);
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(0.0, kTol));
 }
@@ -129,8 +135,11 @@ TEST_CASE("dual simplex - objective value matches primal (5-var problem)", "[dua
     m.addLPConstraint(                    1.0*x3 + 1.0*x4 + 1.0*x5, Sense::GreaterEq, 3.0);
     m.setObjective(3.0*x1 + 2.0*x2 + 1.0*x3 + 4.0*x4 + 2.0*x5, ObjSense::Minimize);
 
-    auto primal = solve(m);
-    auto dual   = solveDual(m);
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+
+    auto primal = solveLP(m, primalOpts);
+    auto dual   = solveLP(m, dualOpts);
 
     REQUIRE(primal.status == LPStatus::Optimal);
     REQUIRE(dual.status   == LPStatus::Optimal);
@@ -143,8 +152,11 @@ TEST_CASE("dual simplex - Upper-bound variable", "[dual_simplex]") {
     auto x = m.addVar(0.0, 5.0, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto primal = solve(m);
-    auto dual   = solveDual(m);
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+
+    auto primal = solveLP(m, primalOpts);
+    auto dual   = solveLP(m, dualOpts);
 
     REQUIRE(primal.status == LPStatus::Optimal);
     REQUIRE(dual.status   == LPStatus::Optimal);
@@ -152,11 +164,14 @@ TEST_CASE("dual simplex - Upper-bound variable", "[dual_simplex]") {
     CHECK_THAT(dual.primalValues[0], WithinAbs(primal.primalValues[0], kTol));
 }
 
-// ── Tests: solveDualDetailed ──────────────────────────────────────────────────
+// ── Tests: solveLPDetailed (dual path) ───────────────────────────────────────
 
 TEST_CASE("dual simplex - solveDualDetailed primal matches solve", "[dual_simplex]") {
-    auto detailed = solveDualDetailed(makeMinWithGEQ());
-    auto simple   = solve(makeMinWithGEQ());
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+
+    auto detailed = solveLPDetailed(makeMinWithGEQ(), dualOpts);
+    auto simple   = solveLP(makeMinWithGEQ(), primalOpts);
 
     REQUIRE(detailed.result.status == LPStatus::Optimal);
     CHECK_THAT(detailed.result.objectiveValue, WithinAbs(simple.objectiveValue, kTol));
@@ -167,7 +182,8 @@ TEST_CASE("dual simplex - solveDualDetailed primal matches solve", "[dual_simple
 }
 
 TEST_CASE("dual simplex - solveDualDetailed dual values non-negative (GEQ min)", "[dual_simplex]") {
-    auto det = solveDualDetailed(makeMinWithGEQ());
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto det = solveLPDetailed(makeMinWithGEQ(), dualOpts);
     REQUIRE(det.result.status == LPStatus::Optimal);
     REQUIRE(det.dualValues.size() == 2);
     // GEQ constraints, min problem → shadow prices >= 0
@@ -176,7 +192,8 @@ TEST_CASE("dual simplex - solveDualDetailed dual values non-negative (GEQ min)",
 }
 
 TEST_CASE("dual simplex - solveDualDetailed reduced costs at optimum", "[dual_simplex]") {
-    auto det = solveDualDetailed(makeMinWithGEQ());
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto det = solveLPDetailed(makeMinWithGEQ(), dualOpts);
     REQUIRE(det.result.status == LPStatus::Optimal);
     // Basic (non-zero) variables must have zero reduced cost
     for (std::size_t j = 0; j < det.result.primalValues.size(); ++j)
@@ -193,18 +210,23 @@ TEST_CASE("dual simplex - fallback for Equal constraint gives correct result", "
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto res = solveDual(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    auto res = solveLP(m, dualOpts);
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
 }
 
 TEST_CASE("dual simplex - maxIter limit respected", "[dual_simplex]") {
-    auto res = solveDual(makeMinWithGEQ(), /*maxIter=*/1);
+    LPOptions opts;
+    opts.method  = LPMethod::DualSimplex;
+    opts.maxIter = 1;
+    auto res = solveLP(makeMinWithGEQ(), opts);
     CHECK((res.status == LPStatus::MaxIter || res.status == LPStatus::Optimal));
 }
 
 TEST_CASE("dual simplex - solveDualDetailed result sub-object accessible", "[dual_simplex]") {
-    LPDetailedResult det = solveDualDetailed(makeMinWithGEQ());
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPDetailedResult det = solveLPDetailed(makeMinWithGEQ(), dualOpts);
     const LPResult& res  = det.result;
     CHECK(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(det.result.objectiveValue, kTol));
@@ -226,8 +248,11 @@ TEST_CASE("dual simplex - strong duality: solveDual obj == solve obj", "[dual_si
     m.addLPConstraint(1.0*x + 1.0*y + 2.0*z, Sense::GreaterEq, 2.0);
     m.setObjective(6.0*x + 4.0*y + 3.0*z, ObjSense::Minimize);
 
-    auto primal = solve(m);
-    auto dual   = solveDual(m);
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+
+    auto primal = solveLP(m, primalOpts);
+    auto dual   = solveLP(m, dualOpts);
 
     REQUIRE(primal.status == LPStatus::Optimal);
     REQUIRE(dual.status   == LPStatus::Optimal);
@@ -235,7 +260,10 @@ TEST_CASE("dual simplex - strong duality: solveDual obj == solve obj", "[dual_si
 }
 
 TEST_CASE("dual simplex - timeLimitS = 0 returns TimeLimit", "[dual_simplex][timelimit]") {
-    auto res = solveDual(makeMinWithGEQ(), 0, 0.0);
+    LPOptions opts;
+    opts.method     = LPMethod::DualSimplex;
+    opts.timeLimitS = 0.0;
+    auto res = solveLP(makeMinWithGEQ(), opts);
     REQUIRE(res.status == LPStatus::TimeLimit);
 }
 
@@ -246,7 +274,8 @@ TEST_CASE("LP relaxation infeasible from B&B test", "[dual_simplex]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    LPResult lpResult = solveDual(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPResult lpResult = solveLP(m, dualOpts);
 
     REQUIRE(lpResult.status == LPStatus::Infeasible);
 }

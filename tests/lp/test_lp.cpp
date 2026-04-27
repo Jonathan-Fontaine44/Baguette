@@ -107,7 +107,7 @@ static Model makeLowerBound() {
 // ── Tests: LPResult (solve) ───────────────────────────────────────────────────
 
 TEST_CASE("LP solve - simple maximisation", "[lp]") {
-    auto res = solve(makeSimpleMax());
+    auto res = solveLP(makeSimpleMax());
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(4.0, kTol));
     REQUIRE(res.primalValues.size() == 2);
@@ -115,7 +115,7 @@ TEST_CASE("LP solve - simple maximisation", "[lp]") {
 }
 
 TEST_CASE("LP solve - minimisation with GEQ constraints", "[lp]") {
-    auto res = solve(makeMinWithGEQ());
+    auto res = solveLP(makeMinWithGEQ());
     REQUIRE(res.status == LPStatus::Optimal);
     // Optimal corner: (4, 0) with obj = 2*4 + 3*0 = 8
     CHECK_THAT(res.objectiveValue, WithinAbs(8.0, kTol));
@@ -125,7 +125,7 @@ TEST_CASE("LP solve - minimisation with GEQ constraints", "[lp]") {
 }
 
 TEST_CASE("LP solve - equality constraint", "[lp]") {
-    auto res = solve(makeEqualityConstraint());
+    auto res = solveLP(makeEqualityConstraint());
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
     REQUIRE(res.primalValues.size() == 2);
@@ -133,19 +133,19 @@ TEST_CASE("LP solve - equality constraint", "[lp]") {
 }
 
 TEST_CASE("LP solve - infeasible problem", "[lp]") {
-    auto res = solve(makeInfeasible());
+    auto res = solveLP(makeInfeasible());
     REQUIRE(res.status == LPStatus::Infeasible);
     CHECK(res.primalValues.empty());
 }
 
 TEST_CASE("LP solve - unbounded problem", "[lp]") {
-    auto res = solve(makeUnbounded());
+    auto res = solveLP(makeUnbounded());
     REQUIRE(res.status == LPStatus::Unbounded);
     CHECK(res.primalValues.empty());
 }
 
 TEST_CASE("LP solve - finite upper bound", "[lp]") {
-    auto res = solve(makeUpperBound());
+    auto res = solveLP(makeUpperBound());
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
     REQUIRE(res.primalValues.size() == 1);
@@ -153,7 +153,7 @@ TEST_CASE("LP solve - finite upper bound", "[lp]") {
 }
 
 TEST_CASE("LP solve - non-zero lower bound", "[lp]") {
-    auto res = solve(makeLowerBound());
+    auto res = solveLP(makeLowerBound());
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(3.0, kTol));
     REQUIRE(res.primalValues.size() == 1);
@@ -161,7 +161,7 @@ TEST_CASE("LP solve - non-zero lower bound", "[lp]") {
 }
 
 TEST_CASE("LP solve - maxIter limit stops early", "[lp]") {
-    auto res = solve(makeMinWithGEQ(), /*maxIter=*/1);
+    auto res = solveLP(makeMinWithGEQ(), LPOptions{.maxIter=1});
     CHECK((res.status == LPStatus::MaxIter || res.status == LPStatus::Optimal));
 }
 
@@ -186,7 +186,7 @@ TEST_CASE("LP solve - degenerate LP (multiple tie ratios) solves correctly", "[l
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq,    4.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto res = solve(m, /*maxIter=*/200);
+    auto res = solveLP(m, LPOptions{.maxIter=200});
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(4.0, kTol));
@@ -200,10 +200,10 @@ TEST_CASE("LP solve - reinversion every pivot yields identical solution", "[lp]"
     // default period (50). Uses makeSimpleMax() which requires several pivots.
     const uint32_t savedPeriod = baguette::reinversion_period;
     baguette::set_reinversion_period(1);
-    auto resFreq = solve(makeSimpleMax());
+    auto resFreq = solveLP(makeSimpleMax());
     baguette::set_reinversion_period(savedPeriod);
 
-    auto resRef = solve(makeSimpleMax());
+    auto resRef = solveLP(makeSimpleMax());
 
     REQUIRE(resFreq.status == LPStatus::Optimal);
     REQUIRE(resRef.status  == LPStatus::Optimal);
@@ -217,10 +217,10 @@ TEST_CASE("LP solve - reinversion every pivot yields identical solution", "[lp]"
 
 // ── Tests: LPDetailedResult (solveDetailed) ───────────────────────────────────
 
-TEST_CASE("LP solveDetailed - primal matches solve()", "[lp]") {
+TEST_CASE("LP solveDetailed - primal matches solveLP()", "[lp]") {
     Model m = makeSimpleMax();
-    auto simple   = solve(m);
-    auto detailed = solveDetailed(m);
+    auto simple   = solveLP(m);
+    auto detailed = solveLPDetailed(m);
 
     REQUIRE(detailed.result.status == LPStatus::Optimal);
     REQUIRE_THAT(detailed.result.objectiveValue,
@@ -232,7 +232,7 @@ TEST_CASE("LP solveDetailed - primal matches solve()", "[lp]") {
 }
 
 TEST_CASE("LP solveDetailed - dual variables (simple max)", "[lp]") {
-    auto det = solveDetailed(makeSimpleMax());
+    auto det = solveLPDetailed(makeSimpleMax());
     REQUIRE(det.result.status == LPStatus::Optimal);
     // 3 LessEq constraints, max problem -> shadow prices >= 0
     REQUIRE(det.dualValues.size() == 3);
@@ -241,7 +241,7 @@ TEST_CASE("LP solveDetailed - dual variables (simple max)", "[lp]") {
 }
 
 TEST_CASE("LP solveDetailed - dual variables (GEQ, min)", "[lp]") {
-    auto det = solveDetailed(makeMinWithGEQ());
+    auto det = solveLPDetailed(makeMinWithGEQ());
     REQUIRE(det.result.status == LPStatus::Optimal);
     // 2 GEQ constraints, min problem -> shadow prices >= 0
     REQUIRE(det.dualValues.size() == 2);
@@ -250,7 +250,7 @@ TEST_CASE("LP solveDetailed - dual variables (GEQ, min)", "[lp]") {
 }
 
 TEST_CASE("LP solveDetailed - reduced costs at optimum", "[lp]") {
-    auto det = solveDetailed(makeSimpleMax());
+    auto det = solveLPDetailed(makeSimpleMax());
     REQUIRE(det.result.status == LPStatus::Optimal);
     REQUIRE(det.reducedCosts.size() == 2);
     // At optimum, reduced cost of a basic (non-zero) variable must be 0
@@ -260,7 +260,7 @@ TEST_CASE("LP solveDetailed - reduced costs at optimum", "[lp]") {
 }
 
 TEST_CASE("LP solveDetailed - basis record populated", "[lp]") {
-    auto det = solveDetailed(makeSimpleMax());
+    auto det = solveLPDetailed(makeSimpleMax());
     REQUIRE(det.result.status == LPStatus::Optimal);
     // 3 constraints, no UB rows (inf upper bounds) -> 3 basis entries
     CHECK(det.basis.basicCols.size() == 3);
@@ -269,14 +269,14 @@ TEST_CASE("LP solveDetailed - basis record populated", "[lp]") {
 }
 
 TEST_CASE("LP solveDetailed - result sub-object accessible", "[lp]") {
-    LPDetailedResult det = solveDetailed(makeSimpleMax());
+    LPDetailedResult det = solveLPDetailed(makeSimpleMax());
     const LPResult& res = det.result;
     CHECK(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(det.result.objectiveValue, kTol));
 }
 
 TEST_CASE("LP solveDetailed - infeasible returns no dual/rc", "[lp]") {
-    auto det = solveDetailed(makeInfeasible());
+    auto det = solveLPDetailed(makeInfeasible());
     REQUIRE(det.result.status == LPStatus::Infeasible);
     CHECK(det.dualValues.empty());
     CHECK(det.reducedCosts.empty());
@@ -292,7 +292,7 @@ TEST_CASE("LP semi-infinite lb - min x with x in [3, inf]", "[lp]") {
     auto x = m.addVar(3.0, kInf, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,    WithinAbs(3.0, kTol));
@@ -307,7 +307,7 @@ TEST_CASE("LP fully free variable - max x in [-inf, +inf] with x <= 4", "[lp]") 
     m.addLPConstraint(1.0 * x, Sense::LessEq, 4.0);
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,  WithinAbs(4.0, kTol));
@@ -322,7 +322,7 @@ TEST_CASE("LP fully free variable - unbounded (min x, no constraint)", "[lp]") {
     auto x = m.addVar(-kInf, kInf, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Unbounded);
     CHECK(res.primalValues.empty());
@@ -336,7 +336,7 @@ TEST_CASE("LP fully free variable - min x with x >= -3 (GEQ constraint)", "[lp]"
     m.addLPConstraint(1.0 * x, Sense::GreaterEq, -3.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,  WithinAbs(-3.0, kTol));
@@ -353,7 +353,7 @@ TEST_CASE("LP two free variables - min x+y with x+y >= 5", "[lp]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
@@ -371,7 +371,7 @@ TEST_CASE("LP fully free variable - Equal constraint", "[lp]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 3.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(3.0, kTol));
@@ -386,7 +386,7 @@ TEST_CASE("LP semi-infinite ub - max x with x in [-inf, 10]", "[lp]") {
     auto x = m.addVar(-kInf, 10.0, "x");
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,    WithinAbs(10.0, kTol));
@@ -406,7 +406,7 @@ TEST_CASE("LP redundant Equal constraint - does not crash", "[lp]") {
     m.addLPConstraint(2.0 * x + 2.0 * y, Sense::Equal, 10.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue, WithinAbs(5.0, kTol));
@@ -424,7 +424,7 @@ TEST_CASE("LP redundant GEQ constraint - does not crash", "[lp]") {
     m.addLPConstraint(2.0 * x, Sense::GreaterEq, 6.0);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,  WithinAbs(3.0, kTol));
@@ -443,7 +443,7 @@ TEST_CASE("LP objective constant - Minimize", "[lp]") {
     obj.constant   = 100.0;
     m.setObjective(obj, ObjSense::Minimize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,  WithinAbs(103.0, kTol));
@@ -460,7 +460,7 @@ TEST_CASE("LP objective constant - Maximize", "[lp]") {
     obj.constant   = -50.0;
     m.setObjective(obj, ObjSense::Maximize);
 
-    auto res = solve(m);
+    auto res = solveLP(m);
 
     REQUIRE(res.status == LPStatus::Optimal);
     CHECK_THAT(res.objectiveValue,  WithinAbs(-43.0, kTol));
@@ -480,8 +480,8 @@ TEST_CASE("LP objective constant - does not affect optimal solution", "[lp]") {
         return m;
     };
 
-    auto r0 = solve(makeModel(0.0));
-    auto r1 = solve(makeModel(99.0));
+    auto r0 = solveLP(makeModel(0.0));
+    auto r1 = solveLP(makeModel(99.0));
 
     REQUIRE(r0.status == LPStatus::Optimal);
     REQUIRE(r1.status == LPStatus::Optimal);
@@ -520,7 +520,7 @@ TEST_CASE("Redundant Equal constraint: correct primal and objective", "[redundan
     m.addLPConstraint(2.0 * x1 + 2.0 * x2, Sense::Equal, 8.0);
     m.setObjective(1.0 * x1 + -2.0 * x2, ObjSense::Minimize);
 
-    auto det = solveDetailed(m);
+    auto det = solveLPDetailed(m);
     REQUIRE(det.result.status == LPStatus::Optimal);
     REQUIRE_THAT(det.result.objectiveValue,    WithinAbs(-8.0, kTol));
     REQUIRE_THAT(det.result.primalValues[x1.id], WithinAbs(0.0,  kTol));
@@ -553,7 +553,7 @@ TEST_CASE("Two redundant Equal constraints: correct primal and objective", "[red
     m.addLPConstraint(4.0 * x1 + 4.0 * x2,             Sense::Equal, 16.0);
     m.setObjective(1.0 * x1 + -2.0 * x2 + 1.0 * x3, ObjSense::Minimize);
 
-    auto det = solveDetailed(m);
+    auto det = solveLPDetailed(m);
     REQUIRE(det.result.status == LPStatus::Optimal);
     REQUIRE_THAT(det.result.objectiveValue,      WithinAbs(-8.0, kTol));
     REQUIRE_THAT(det.result.primalValues[x1.id], WithinAbs(0.0,  kTol));
@@ -585,7 +585,7 @@ TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]
     m.addLPConstraint(4.0 * x + 4.0 * y, Sense::GreaterEq, 8.0);
     m.setObjective(3.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    auto det = solveDetailed(m);
+    auto det = solveLPDetailed(m);
     REQUIRE(det.result.status == LPStatus::Optimal);
     REQUIRE_THAT(det.result.objectiveValue,     WithinAbs(2.0,  kTol));
     REQUIRE_THAT(det.result.primalValues[x.id], WithinAbs(0.0,  kTol));
@@ -596,7 +596,7 @@ TEST_CASE("Redundant GEQ constraint: correct primal and objective", "[redundant]
 }
 
 TEST_CASE("solve - timeLimitS = 0 returns TimeLimit", "[lp][timelimit]") {
-    auto res = solve(makeSimpleMax(), 0, 0.0);
+    auto res = solveLP(makeSimpleMax(), LPOptions{.timeLimitS=0.0});
     REQUIRE(res.status == LPStatus::TimeLimit);
 }
 
@@ -607,7 +607,7 @@ TEST_CASE("LP relaxation infeasible from B&B test", "[lp]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    LPResult lpResult = solve(m);
+    LPResult lpResult = solveLP(m);
 
     REQUIRE(lpResult.status == LPStatus::Infeasible);
 }

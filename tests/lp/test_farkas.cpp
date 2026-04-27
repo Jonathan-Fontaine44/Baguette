@@ -89,23 +89,12 @@ static Model makeEqualConstraintInfeasible() {
     return m;
 }
 
-/// Feasible reference LP for warm-start tests.
-/// min -x1 - x2  s.t.  2x1+x2 <= 4, x1+2x2 <= 4,  x1 in [0,3], x2 in [0,3]
-static Model makeFeasibleLP() {
-    Model m;
-    auto x1 = m.addVar(0.0, 3.0, "x1");
-    auto x2 = m.addVar(0.0, 3.0, "x2");
-    m.addLPConstraint(2.0 * x1 + 1.0 * x2, Sense::LessEq, 4.0);
-    m.addLPConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
-    m.setObjective(-1.0 * x1 + -1.0 * x2, ObjSense::Minimize);
-    return m;
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 TEST_CASE("Farkas - dual simplex infeasible: y populated and property holds") {
     Model m = makeSimpleInfeasibleDual();
-    LPDetailedResult res = solveDualDetailed(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPDetailedResult res = solveLPDetailed(m, dualOpts);
 
     REQUIRE(res.result.status == LPStatus::Infeasible);
     // Tableau certificate: y non-empty, infeasVarId unset
@@ -125,7 +114,8 @@ TEST_CASE("Farkas - dual simplex infeasible: y populated and property holds") {
 
 TEST_CASE("Farkas - dual simplex infeasible multi-var: property holds") {
     Model m = makeMultiVarInfeasible();
-    LPDetailedResult res = solveDualDetailed(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPDetailedResult res = solveLPDetailed(m, dualOpts);
 
     REQUIRE(res.result.status == LPStatus::Infeasible);
     REQUIRE_FALSE(res.farkas.y.empty());
@@ -137,7 +127,8 @@ TEST_CASE("Farkas - dual simplex infeasible multi-var: property holds") {
 
 TEST_CASE("Farkas - primal phase-I infeasible (Equal constraint): property holds") {
     Model m = makeEqualConstraintInfeasible();
-    LPDetailedResult res = solveDetailed(m);
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+    LPDetailedResult res = solveLPDetailed(m, primalOpts);
 
     REQUIRE(res.result.status == LPStatus::Infeasible);
     REQUIRE_FALSE(res.farkas.y.empty());
@@ -157,7 +148,8 @@ TEST_CASE("Farkas - no ray when status is Optimal") {
     m.addLPConstraint(1.0 * y,            Sense::LessEq,    5.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    LPDetailedResult res = solveDualDetailed(m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPDetailedResult res = solveLPDetailed(m, dualOpts);
 
     REQUIRE(res.result.status == LPStatus::Optimal);
     CHECK(res.farkas.y.empty());
@@ -175,13 +167,15 @@ TEST_CASE("Farkas - early lb > ub: infeasVarId set, y empty") {
     Model m = root.withVarBounds(x, 5.0, 3.0); // lb=5 > ub=3
 
     {
-        LPDetailedResult res = solveDetailed(m);
+        LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+        LPDetailedResult res = solveLPDetailed(m, primalOpts);
         REQUIRE(res.result.status == LPStatus::Infeasible);
         CHECK(res.farkas.y.empty());
         CHECK(res.farkas.infeasVarId == static_cast<int32_t>(x.id));
     }
     {
-        LPDetailedResult res = solveDualDetailed(m);
+        LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+        LPDetailedResult res = solveLPDetailed(m, dualOpts);
         REQUIRE(res.result.status == LPStatus::Infeasible);
         CHECK(res.farkas.y.empty());
         CHECK(res.farkas.infeasVarId == static_cast<int32_t>(x.id));
@@ -199,15 +193,17 @@ TEST_CASE("Farkas - B&B warm-start infeasible child: tableau-based certificate")
     root_m.addLPConstraint(1.0 * x1 + 2.0 * x2, Sense::LessEq, 4.0);
     root_m.setObjective(-1.0 * x1 + -1.0 * x2, ObjSense::Minimize);
 
-    LPDetailedResult rootRes = solveDualDetailed(root_m);
+    LPOptions dualOpts; dualOpts.method = LPMethod::DualSimplex;
+    LPDetailedResult rootRes = solveLPDetailed(root_m, dualOpts);
     REQUIRE(rootRes.result.status == LPStatus::Optimal);
 
     // Child: force x1 >= 2 and x2 >= 2 (both have ub=3 already)
     Model child_m = root_m.withVarBounds(x1, 2.0, 3.0)
                           .withVarBounds(x2, 2.0, 3.0);
-    LPDetailedResult childRes = solveDualDetailed(child_m, 0, kInf,
-                                                   SolverClock::now(),
-                                                   rootRes.basis);
+    LPOptions childOpts;
+    childOpts.method    = LPMethod::DualSimplex;
+    childOpts.warmBasis = rootRes.basis;
+    LPDetailedResult childRes = solveLPDetailed(child_m, childOpts);
 
     REQUIRE(childRes.result.status == LPStatus::Infeasible);
     // Must be a tableau certificate (no lb > ub violation, bounds are compatible)
@@ -223,8 +219,11 @@ TEST_CASE("Farkas - solveDetailed and solveDualDetailed agree on dual-path probl
     // Infeasible with a valid Farkas certificate.
     Model m = makeMultiVarInfeasible();
 
-    LPDetailedResult resDual   = solveDualDetailed(m);
-    LPDetailedResult resPrimal = solveDetailed(m);
+    LPOptions dualOpts;   dualOpts.method   = LPMethod::DualSimplex;
+    LPOptions primalOpts; primalOpts.method = LPMethod::PrimalSimplex;
+
+    LPDetailedResult resDual   = solveLPDetailed(m, dualOpts);
+    LPDetailedResult resPrimal = solveLPDetailed(m, primalOpts);
 
     REQUIRE(resDual.result.status   == LPStatus::Infeasible);
     REQUIRE(resPrimal.result.status == LPStatus::Infeasible);

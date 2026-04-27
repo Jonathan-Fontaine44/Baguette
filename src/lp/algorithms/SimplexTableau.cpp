@@ -1,9 +1,8 @@
-#include "Tableau.hpp"
+#include "SimplexTableau.hpp"
 
 #include <cassert>
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 
 #include "baguette/core/Config.hpp"
 
@@ -11,8 +10,8 @@ namespace baguette::internal {
 
 // ── Construction ─────────────────────────────────────────────────────────────
 
-bool Tableau::init(const LPStandardForm& sf,
-                   std::vector<uint32_t> initialBasis) {
+bool SimplexTableau::init(const LPStandardForm& sf,
+                           std::vector<uint32_t> initialBasis) {
     assert(initialBasis.size() == sf.nRows);
 
     m = sf.nRows;
@@ -70,8 +69,7 @@ bool Tableau::init(const LPStandardForm& sf,
 
     // Price the objective row: rc_j = c_j − c_B * B^{-1} a_j.
     // sf.c encodes the right objective for both phases:
-    //   Phase I:  aug.sf.c has 1 for artificial columns, 0 for others
-    //             (set by buildPhaseOne in LPSolver.cpp).
+    //   Phase I:  aug.sf.c has 1 for artificial columns, 0 for others.
     //   Phase II: original sf.c with the actual objective costs.
     rc.assign(n + 1, 0.0);
     for (std::size_t j = 0; j < n; ++j)
@@ -88,7 +86,7 @@ bool Tableau::init(const LPStandardForm& sf,
 
 // ── Reinversion ──────────────────────────────────────────────────────────────
 
-bool Tableau::reinvert(const LPStandardForm& sf) {
+bool SimplexTableau::reinvert(const LPStandardForm& sf) {
     // Rebuild the tableau from scratch using the current basis.
     // std::move avoids a copy: init() receives the buffer and moves it back
     // into basicCols via the by-value parameter, reusing the same allocation.
@@ -97,7 +95,7 @@ bool Tableau::reinvert(const LPStandardForm& sf) {
 
 // ── Simplex operations ────────────────────────────────────────────────────────
 
-std::size_t Tableau::selectEntering() const {
+std::size_t SimplexTableau::selectEntering() const {
     // Bland's rule: smallest index with rc[j] < -lp_optimality_tol.
     // nActive restricts the search to the first nActive columns when set (phase II
     // with artificial columns kept for dual extraction); 0 means all n columns (phase I).
@@ -108,7 +106,7 @@ std::size_t Tableau::selectEntering() const {
     return n; // optimal (no improving column in active range)
 }
 
-std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
+std::size_t SimplexTableau::selectLeaving(std::size_t enteringCol) const {
     double minRatio = std::numeric_limits<double>::infinity();
     std::size_t leavingRow = m; // sentinel: unbounded
 
@@ -133,7 +131,7 @@ std::size_t Tableau::selectLeaving(std::size_t enteringCol) const {
     return leavingRow;
 }
 
-std::size_t Tableau::selectLeavingDual() const {
+std::size_t SimplexTableau::selectLeavingDual() const {
     std::size_t leavingRow = m; // sentinel: primal feasible (all bi >= -tol)
     double minB = std::numeric_limits<double>::infinity();
 
@@ -155,7 +153,7 @@ std::size_t Tableau::selectLeavingDual() const {
     return leavingRow;
 }
 
-std::size_t Tableau::selectEnteringDual(std::size_t leavingRow) const {
+std::size_t SimplexTableau::selectEnteringDual(std::size_t leavingRow) const {
     double      minRatio    = std::numeric_limits<double>::infinity();
     std::size_t enteringCol = n; // sentinel: primal infeasible
 
@@ -175,7 +173,7 @@ std::size_t Tableau::selectEnteringDual(std::size_t leavingRow) const {
     return enteringCol;
 }
 
-void Tableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
+void SimplexTableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
     const std::size_t w = n + 1;
 
     // Scale pivot row
@@ -211,12 +209,11 @@ void Tableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
 
 // ── Solution extraction ───────────────────────────────────────────────────────
 
-std::vector<double> Tableau::primalSolution() const {
+std::vector<double> SimplexTableau::primalSolution() const {
     std::vector<double> x(n, 0.0);
     for (std::size_t i = 0; i < m; ++i)
         x[basicCols[i]] = tab[i * (n + 1) + n];
     return x;
 }
-
 
 } // namespace baguette::internal

@@ -92,7 +92,7 @@ TEST_CASE("BB: LP relaxation infeasible -> MILP infeasible", "[bb]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    LPResult lpResult = solve(m);
+    LPResult lpResult = solveLP(m);
 
     REQUIRE(lpResult.status == LPStatus::Infeasible);
 
@@ -124,7 +124,7 @@ TEST_CASE("BB: integer infeasible (LP relaxation feasible)", "[bb]") {
     m.addLPConstraint(1.0 * x, Sense::LessEq,    0.7);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    LPResult lpResult = solve(m);
+    LPResult lpResult = solveLP(m);
 
     REQUIRE(lpResult.status == LPStatus::Optimal);
 

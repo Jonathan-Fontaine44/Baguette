@@ -4,8 +4,8 @@
 #include <limits>
 #include <vector>
 
-#include "lp/StandardForm.hpp"
-#include "lp/Tableau.hpp"
+#include "lp/algorithms/StandardForm.hpp"
+#include "lp/algorithms/SimplexTableau.hpp"
 #include "baguette/core/Config.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -51,7 +51,7 @@ static std::pair<LPStatus, double> solveRawSF(const LPStandardForm& sf) {
     for (std::size_t i = 0; i < m; ++i)
         basis[i] = static_cast<uint32_t>(nOld + i);
 
-    Tableau tab;
+    SimplexTableau tab;
     tab.init(aug, basis);
 
     // Phase-I loop

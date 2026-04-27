@@ -3,8 +3,8 @@
 
 #include <limits>
 
-#include "lp/StandardForm.hpp"
-#include "lp/Tableau.hpp"
+#include "lp/algorithms/StandardForm.hpp"
+#include "lp/algorithms/SimplexTableau.hpp"
 #include "baguette/model/Model.hpp"
 
 // Regression tests for Bug #1: Tableau::init() must handle any valid basis
@@ -68,7 +68,7 @@ TEST_CASE("Tableau::reinvert - permuted basis, zero at step 0", "[tableau]") {
     REQUIRE((*sf.A)[0*5 + 4] == 0.0);  // confirms A[row=0, col=4] = 0
 
     // Init with the natural slack basis (triangular, always safe).
-    Tableau tab;
+    SimplexTableau tab;
     assert(tab.init(sf, {2, 3, 4}));
 
     // Simulate the warm-start path: overwrite basicCols with the permuted
@@ -110,7 +110,7 @@ TEST_CASE("Tableau::reinvert - permuted basis, zero appears at step 1", "[tablea
     // col=4 entry: 0 - 0 = 0. Confirmed.
     REQUIRE((*sf.A)[1*5 + 4] == 0.0);  // A[row=1, col=4] = 0 in the original matrix
 
-    Tableau tab;
+    SimplexTableau tab;
     assert(tab.init(sf, {2, 3, 4}));
 
     tab.basicCols = {0, 4, 1};

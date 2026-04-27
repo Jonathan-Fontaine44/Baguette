@@ -3,7 +3,7 @@
 
 #include <limits>
 
-#include "lp/StandardForm.hpp"
+#include "lp/algorithms/StandardForm.hpp"
 #include "baguette/model/Model.hpp"
 
 using namespace baguette;

@@ -20,7 +20,7 @@ namespace baguette::internal {
 ///
 /// The tableau supports periodic reinversion: calling reinvert(sf) rebuilds
 /// B⁻¹ from scratch using the current basis to prevent floating-point drift.
-struct Tableau {
+struct SimplexTableau {
     std::size_t m = 0; ///< Number of constraint rows.
     std::size_t n = 0; ///< Number of columns (NOT counting the rhs column).
 
@@ -138,7 +138,6 @@ struct Tableau {
     /// Basic variables take their rhs value; non-basic variables are 0.
     /// @note Complexity: O(m).
     std::vector<double> primalSolution() const;
-
 };
 
 } // namespace baguette::internal
