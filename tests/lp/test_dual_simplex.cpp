@@ -5,50 +5,13 @@
 
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/model/Model.hpp"
+#include "lp_problems.hpp"
 
 using namespace baguette;
 using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-6;
 static const double     kInf = std::numeric_limits<double>::infinity();
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Reuse model builders from the primal test suite (redeclared locally).
-
-static Model makeSimpleMinLEQ() {
-    // min x + y  s.t. x+y>=4, x<=5, y<=5,  x,y>=0
-    // Optimal: x+y=4, obj=4.
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    auto y = m.addVar(0.0, kInf, "y");
-    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addLPConstraint(1.0 * x,            Sense::LessEq,    5.0);
-    m.addLPConstraint(1.0 * y,            Sense::LessEq,    5.0);
-    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
-    return m;
-}
-
-static Model makeMinWithGEQ() {
-    // min 2x + 3y  s.t. x+y>=4, 2x+y>=6,  x,y>=0
-    // Optimal: x=4, y=0, obj=8
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    auto y = m.addVar(0.0, kInf, "y");
-    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addLPConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
-    m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
-    return m;
-}
-
-static Model makeInfeasible() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
-    m.setObjective(1.0 * x, ObjSense::Minimize);
-    return m;
-}
 
 // ── Tests: dual simplex matches primal ───────────────────────────────────────
 

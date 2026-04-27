@@ -2,6 +2,7 @@
 
 #include "algorithms/DualSimplex.hpp"
 #include "algorithms/PrimalSimplex.hpp"
+#include "algorithms/RevisedSimplex.hpp"
 
 namespace baguette {
 
@@ -14,6 +15,11 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         return internal::solvePrimal(model, opts.maxIter, opts.timeLimitS,
                                      opts.startTime, opts.computeSensitivity,
                                      opts.computeCutData);
+    }
+    if (opts.method == LPMethod::RevisedSimplex) {
+        return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
+                                      opts.startTime, opts.computeSensitivity,
+                                      opts.computeCutData);
     }
     // Auto or DualSimplex: attempt dual simplex with primal fallback.
     return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

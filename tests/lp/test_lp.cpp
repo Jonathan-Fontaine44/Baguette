@@ -6,103 +6,13 @@
 #include "baguette/core/Config.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/model/Model.hpp"
+#include "lp_problems.hpp"
 
 using namespace baguette;
 using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-6;
 static const double kInf = std::numeric_limits<double>::infinity();
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Build a simple maximisation problem:
-///   max  x + y
-///   s.t. x + y <= 4
-///        x     <= 3
-///            y <= 3
-///        x, y >= 0
-/// Optimal: x=1, y=3 or x=3, y=1 - objective = 4.
-static Model makeSimpleMax() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    auto y = m.addVar(0.0, kInf, "y");
-    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, 4.0);
-    m.addLPConstraint(1.0 * x,            Sense::LessEq, 3.0);
-    m.addLPConstraint(1.0 * y,            Sense::LessEq, 3.0);
-    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Maximize);
-    return m;
-}
-
-/// Build a minimisation problem with GreaterEq constraints:
-///   min  2x + 3y
-///   s.t.  x +  y >= 4
-///        2x +  y >= 6
-///        x, y >= 0
-/// Optimal: corner (4, 0) satisfies both constraints, objective = 8.
-static Model makeMinWithGEQ() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    auto y = m.addVar(0.0, kInf, "y");
-    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 4.0);
-    m.addLPConstraint(2.0 * x + 1.0 * y, Sense::GreaterEq, 6.0);
-    m.setObjective(2.0 * x + 3.0 * y, ObjSense::Minimize);
-    return m;
-}
-
-/// Build a problem with an equality constraint:
-///   min  x + y
-///   s.t. x + y = 5
-///        x >= 0, y >= 0
-/// Optimal: any (x, y) with x+y=5, objective = 5.
-static Model makeEqualityConstraint() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    auto y = m.addVar(0.0, kInf, "y");
-    m.addLPConstraint(1.0 * x + 1.0 * y, Sense::Equal, 5.0);
-    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
-    return m;
-}
-
-/// Build an infeasible problem:
-///   x >= 3  AND  x <= 2
-static Model makeInfeasible() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 3.0);
-    m.addLPConstraint(1.0 * x, Sense::LessEq,    2.0);
-    m.setObjective(1.0 * x, ObjSense::Minimize);
-    return m;
-}
-
-/// Build an unbounded problem:
-///   min  -x,  x >= 0  (no upper bound)
-static Model makeUnbounded() {
-    Model m;
-    auto x = m.addVar(0.0, kInf, "x");
-    m.addLPConstraint(1.0 * x, Sense::GreaterEq, 0.0);
-    m.setObjective(-1.0 * x, ObjSense::Minimize);
-    return m;
-}
-
-/// Build a problem with a finite upper bound handled via extra row:
-///   max  x,  0 <= x <= 5
-/// Optimal: x=5, objective=5.
-static Model makeUpperBound() {
-    Model m;
-    auto x = m.addVar(0.0, 5.0, "x");
-    m.setObjective(1.0 * x, ObjSense::Maximize);
-    return m;
-}
-
-/// Build a problem with a non-zero lower bound:
-///   min  x,  3 <= x <= 10
-/// Optimal: x=3, objective=3.
-static Model makeLowerBound() {
-    Model m;
-    auto x = m.addVar(3.0, 10.0, "x");
-    m.setObjective(1.0 * x, ObjSense::Minimize);
-    return m;
-}
 
 // ── Tests: LPResult (solve) ───────────────────────────────────────────────────
 

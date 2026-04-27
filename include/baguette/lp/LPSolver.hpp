@@ -14,9 +14,13 @@ using SolverClock = std::chrono::steady_clock;
 
 /// LP solving algorithm.
 enum class LPMethod {
-    Auto,          ///< Try dual simplex first; fall back to primal when preconditions fail.
-    PrimalSimplex, ///< Two-phase primal simplex (phase I + II).
-    DualSimplex,   ///< Dual simplex with automatic primal fallback.
+    Auto,           ///< Try dual simplex first; fall back to primal when preconditions fail.
+    PrimalSimplex,  ///< Two-phase primal simplex (phase I + II).
+    DualSimplex,    ///< Dual simplex with automatic primal fallback.
+    RevisedSimplex, ///< Two-phase primal revised simplex: maintains B⁻¹ explicitly (m×m)
+                    ///< via LU factorisation instead of the full m×n tableau.
+                    ///< Same algorithmic path as PrimalSimplex, smaller memory footprint
+                    ///< when m ≪ n. Warm-start not supported on this path.
 };
 
 /// Options for LP solves — analogous to BBOptions for MILP.

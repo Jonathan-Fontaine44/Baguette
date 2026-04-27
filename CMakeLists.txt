@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.4.2 LANGUAGES CXX)
+project(Baguette VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,8 @@ add_library(Baguette
     src/lp/algorithms/Extractor.cpp
     src/lp/algorithms/PrimalSimplex.cpp
     src/lp/algorithms/DualSimplex.cpp
+    src/lp/algorithms/LUTableau.cpp
+    src/lp/algorithms/RevisedSimplex.cpp
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
     src/milp/CuttingPlanes.cpp
@@ -48,11 +50,13 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(BaguetteTests
     tests/core/test_core.cpp
     tests/model/test_model.cpp
+    tests/lp/test_lp_methods.cpp
     tests/lp/test_lp.cpp
     tests/lp/test_dual_simplex.cpp
     tests/lp/test_warm_start.cpp
     tests/lp/test_farkas.cpp
     tests/lp/test_sensitivity.cpp
+    tests/lp/test_revised_simplex.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
     tests/milp/test_stats.cpp
