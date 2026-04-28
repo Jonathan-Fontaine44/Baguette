@@ -1,6 +1,7 @@
 #include "baguette/lp/LPSolver.hpp"
 
 #include "algorithms/DualSimplex.hpp"
+#include "algorithms/IPMSolver.hpp"
 #include "algorithms/PrimalSimplex.hpp"
 #include "algorithms/RevisedSimplex.hpp"
 
@@ -20,6 +21,10 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
                                       opts.startTime, opts.computeSensitivity,
                                       opts.computeCutData);
+    }
+    if (opts.method == LPMethod::ShortStepIPM) {
+        return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,
+                                           opts.startTime);
     }
     // Auto or DualSimplex: attempt dual simplex with primal fallback.
     return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

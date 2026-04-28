@@ -21,6 +21,10 @@ enum class LPMethod {
                     ///< via LU factorisation instead of the full m×n tableau.
                     ///< Same algorithmic path as PrimalSimplex, smaller memory footprint
                     ///< when m ≪ n. Warm-start not supported on this path.
+    ShortStepIPM,   ///< Short-step feasible path-following interior-point method.
+                    ///< Fixed step α = 1/(1+√n) keeps the iterate in the N₂(θ)
+                    ///< neighbourhood; convergence in O(√n log(1/ε)) iterations.
+                    ///< Warm-start and sensitivity analysis not supported.
 };
 
 /// Options for LP solves — analogous to BBOptions for MILP.
