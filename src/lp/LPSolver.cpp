@@ -2,6 +2,7 @@
 
 #include "algorithms/DualSimplex.hpp"
 #include "algorithms/IPMSolver.hpp"
+#include "algorithms/MehrotraIPM.hpp"
 #include "algorithms/PrimalSimplex.hpp"
 #include "algorithms/RevisedSimplex.hpp"
 
@@ -25,6 +26,10 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
     if (opts.method == LPMethod::ShortStepIPM) {
         return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,
                                            opts.startTime);
+    }
+    if (opts.method == LPMethod::MehrotraIPM) {
+        return internal::solveMehrotraIPM(model, opts.maxIter, opts.timeLimitS,
+                                          opts.startTime);
     }
     // Auto or DualSimplex: attempt dual simplex with primal fallback.
     return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

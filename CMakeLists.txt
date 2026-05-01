@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Baguette VERSION 0.5.1 LANGUAGES CXX)
+project(Baguette VERSION 0.5.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,7 @@ add_library(Baguette
     src/lp/algorithms/LUTableau.cpp
     src/lp/algorithms/RevisedSimplex.cpp
     src/lp/algorithms/IPMSolver.cpp
+    src/lp/algorithms/MehrotraIPM.cpp
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
     src/milp/CuttingPlanes.cpp
@@ -59,6 +60,7 @@ add_executable(BaguetteTests
     tests/lp/test_sensitivity.cpp
     tests/lp/test_revised_simplex.cpp
     tests/lp/test_ipm.cpp
+    tests/lp/test_mehrotra_ipm.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
     tests/milp/test_stats.cpp

@@ -25,6 +25,10 @@ enum class LPMethod {
                     ///< Fixed step α = 1/(1+√n) keeps the iterate in the N₂(θ)
                     ///< neighbourhood; convergence in O(√n log(1/ε)) iterations.
                     ///< Warm-start and sensitivity analysis not supported.
+    MehrotraIPM,    ///< Primal-dual infeasible-start IPM with Mehrotra predictor-corrector.
+                    ///< Affine predictor (μ=0) + centering corrector with σ=(μ_aff/μ)³.
+                    ///< Detects infeasibility and unboundedness. Typically 15–50 iterations.
+                    ///< Warm-start and sensitivity analysis not supported.
 };
 
 /// Options for LP solves — analogous to BBOptions for MILP.

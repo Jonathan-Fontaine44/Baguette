@@ -204,3 +204,4 @@ inline baguette::Model makeSimpleMinLEQ() {
     m.setObjective(1.0*x + 1.0*y, ObjSense::Minimize);
     return m;
 }
+
