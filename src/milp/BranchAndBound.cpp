@@ -289,6 +289,7 @@ MILPResult solveMILP(const Model&            modelRef,
         // ── First LP solve ─────────────────────────────────────────────────────
         if (opts.collectStats) ++stats_acc.lpSolvesTotal;
         LPOptions lpOpts;
+        lpOpts.method          = opts.lpMethod;
         lpOpts.maxIter         = opts.maxIterLP;
         lpOpts.timeLimitS      = opts.timeLimitS;
         lpOpts.startTime       = startTime;
@@ -362,6 +363,7 @@ MILPResult solveMILP(const Model&            modelRef,
                 // cut addition degrades warm-start reuse for all queued siblings.
                 if (opts.collectStats) ++stats_acc.lpSolvesTotal;
                 LPOptions lpOptsCold;
+                lpOptsCold.method     = opts.lpMethod;
                 lpOptsCold.maxIter    = opts.maxIterLP;
                 lpOptsCold.timeLimitS = opts.timeLimitS;
                 lpOptsCold.startTime  = startTime;

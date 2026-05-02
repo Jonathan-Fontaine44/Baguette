@@ -64,9 +64,14 @@ add_executable(BaguetteTests
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
     tests/milp/test_stats.cpp
+    tests/milp/test_milp_classic.cpp
     tests/cp/test_cp.cpp
     tests/cp/constraints/test_allDiff.cpp
     tests/cp/constraints/test_cumulative.cpp
+)
+
+target_include_directories(BaguetteTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
 )
 
 target_link_libraries(BaguetteTests PRIVATE

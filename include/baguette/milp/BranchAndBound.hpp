@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -79,6 +80,10 @@ struct BBOptions {
     /// Maximum number of GMI cuts generated per node. 0 = unlimited.
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;
+
+    /// LP solving algorithm used at each B&B node. Default: Auto (dual simplex).
+    /// DualSimplex benefits from warm-starting; MehrotraIPM always cold-starts.
+    LPMethod lpMethod = LPMethod::Auto;
 
     /// If true, populate MILPResult::stats with granular diagnostics.
     /// When false (default), no counters are maintained — zero overhead on
