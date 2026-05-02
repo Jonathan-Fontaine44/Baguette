@@ -1,0 +1,71 @@
+#include <benchmark/benchmark.h>
+
+#include "baguette/lp/LPSolver.hpp"
+#include "lp/lp_problems.hpp"
+#include "lp/MILP_problems.hpp"
+
+using namespace baguette;
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+static void runLP(benchmark::State& state,
+                  LPMethod method,
+                  std::function<Model()> build)
+{
+    for (auto _ : state) {
+        LPOptions opts;
+        opts.method = method;
+        LPResult r  = solveLP(build(), opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+    }
+}
+
+// ── Small LP (2 variables, 3 constraints) ─────────────────────────────────────
+
+BENCHMARK_CAPTURE(runLP, SimpleMax/PrimalSimplex,  LPMethod::PrimalSimplex,  makeSimpleMax);
+BENCHMARK_CAPTURE(runLP, SimpleMax/DualSimplex,    LPMethod::DualSimplex,    makeSimpleMax);
+BENCHMARK_CAPTURE(runLP, SimpleMax/RevisedSimplex, LPMethod::RevisedSimplex, makeSimpleMax);
+BENCHMARK_CAPTURE(runLP, SimpleMax/MehrotraIPM,    LPMethod::MehrotraIPM,    makeSimpleMax);
+
+// ── Medium LP (2 variables, GEQ constraints) ──────────────────────────────────
+
+BENCHMARK_CAPTURE(runLP, MinGEQ/PrimalSimplex,  LPMethod::PrimalSimplex,  makeMinWithGEQ);
+BENCHMARK_CAPTURE(runLP, MinGEQ/DualSimplex,    LPMethod::DualSimplex,    makeMinWithGEQ);
+BENCHMARK_CAPTURE(runLP, MinGEQ/RevisedSimplex, LPMethod::RevisedSimplex, makeMinWithGEQ);
+BENCHMARK_CAPTURE(runLP, MinGEQ/MehrotraIPM,    LPMethod::MehrotraIPM,    makeMinWithGEQ);
+
+// ── Knapsack LP relaxation (10 variables, 1 constraint + bound rows) ──────────
+
+BENCHMARK_CAPTURE(runLP, Knapsack10/PrimalSimplex,  LPMethod::PrimalSimplex,
+    []() { return baguette_test::makeKnapsack10(); });
+BENCHMARK_CAPTURE(runLP, Knapsack10/DualSimplex,    LPMethod::DualSimplex,
+    []() { return baguette_test::makeKnapsack10(); });
+BENCHMARK_CAPTURE(runLP, Knapsack10/RevisedSimplex, LPMethod::RevisedSimplex,
+    []() { return baguette_test::makeKnapsack10(); });
+BENCHMARK_CAPTURE(runLP, Knapsack10/ShortStepIPM,   LPMethod::ShortStepIPM,
+    []() { return baguette_test::makeKnapsack10(); });
+BENCHMARK_CAPTURE(runLP, Knapsack10/MehrotraIPM,    LPMethod::MehrotraIPM,
+    []() { return baguette_test::makeKnapsack10(); });
+
+// ── TSP-10 LP relaxation (99 variables, 91 constraints) ───────────────────────
+// Largest problem in the suite; reveals per-iteration cost differences.
+
+BENCHMARK_CAPTURE(runLP, TSP10/PrimalSimplex,  LPMethod::PrimalSimplex,
+    []() { return baguette_test::makeTSP10(); });
+BENCHMARK_CAPTURE(runLP, TSP10/DualSimplex,    LPMethod::DualSimplex,
+    []() { return baguette_test::makeTSP10(); });
+BENCHMARK_CAPTURE(runLP, TSP10/RevisedSimplex, LPMethod::RevisedSimplex,
+    []() { return baguette_test::makeTSP10(); });
+BENCHMARK_CAPTURE(runLP, TSP10/MehrotraIPM,    LPMethod::MehrotraIPM,
+    []() { return baguette_test::makeTSP10(); });
+
+// ── Job shop LP relaxation (111 variables, ~200 constraints) ──────────────────
+
+BENCHMARK_CAPTURE(runLP, JobShop10x2/PrimalSimplex,  LPMethod::PrimalSimplex,
+    []() { return baguette_test::makeJobShop10(); });
+BENCHMARK_CAPTURE(runLP, JobShop10x2/DualSimplex,    LPMethod::DualSimplex,
+    []() { return baguette_test::makeJobShop10(); });
+BENCHMARK_CAPTURE(runLP, JobShop10x2/RevisedSimplex, LPMethod::RevisedSimplex,
+    []() { return baguette_test::makeJobShop10(); });
+BENCHMARK_CAPTURE(runLP, JobShop10x2/MehrotraIPM,    LPMethod::MehrotraIPM,
+    []() { return baguette_test::makeJobShop10(); });

@@ -1,0 +1,25 @@
+include(FetchContent)
+FetchContent_Declare(
+    googlebenchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG        v1.9.1
+)
+set(BENCHMARK_ENABLE_TESTING      OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS  OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_INSTALL_DOCS        OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googlebenchmark)
+
+add_executable(BaguetteBench
+    bench_lp_methods.cpp
+    bench_milp.cpp
+    bench_flow.cpp
+)
+
+target_link_libraries(BaguetteBench PRIVATE
+    Baguette
+    benchmark::benchmark_main
+)
+
+target_include_directories(BaguetteBench PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests
+)

@@ -102,3 +102,9 @@ target_include_directories(BaguetteInternalTests PRIVATE
 )
 
 catch_discover_tests(BaguetteInternalTests DISCOVERY_MODE PRE_TEST)
+
+# ── Benchmarks (opt-in, Release recommended) ───────────────────────────────────
+option(BAGUETTE_BENCHMARKS "Build Google Benchmark suite" OFF)
+if(BAGUETTE_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
