@@ -20,6 +20,7 @@ add_library(Baguette
     src/lp/algorithms/PrimalSimplex.cpp
     src/lp/algorithms/SimplexTableauBV.cpp
     src/lp/algorithms/PrimalSimplexBV.cpp
+    src/lp/algorithms/DualSimplexBV.cpp
     src/lp/algorithms/DualSimplex.cpp
     src/lp/algorithms/LUTableau.cpp
     src/lp/algorithms/RevisedSimplex.cpp

@@ -23,7 +23,8 @@ namespace baguette::internal {
 /// init(): O(m²n) Gauss-Jordan.
 /// complement(): O(m).
 /// selectEntering(): O(n).
-/// selectLeavingBV(): O(m).
+/// selectLeavingBV() / selectLeavingDualBV(): O(m).
+/// selectEnteringDualBV(): O(n).
 /// pivotBV(): O(mn) + O(m) for optional complement.
 struct SimplexTableauBV {
     std::size_t m = 0;
@@ -75,6 +76,22 @@ struct SimplexTableauBV {
 
     /// BV ratio test: checks LB and UB of each basic variable.
     RatioResult selectLeavingBV(std::size_t enteringCol) const;
+
+    // ── Dual pivot selection ──────────────────────────────────────────────────
+
+    struct DualLeavingResult {
+        std::size_t leavingRow; ///< m = primal feasible (stop).
+        bool        exitsToUB;  ///< True when the leaving basic exceeds its UB.
+    };
+
+    /// Most-infeasible leaving rule: picks row with largest |violation| of LB or UB.
+    /// Tiebreak: smallest basic column index (Bland anti-cycling).
+    DualLeavingResult selectLeavingDualBV() const;
+
+    /// Dual entering: minimum ratio rc[j]/|eta| to maintain dual feasibility.
+    /// exitsToUB=false → need eta < 0 (standard dual); =true → need eta > 0.
+    /// Returns n when infeasibility is certified (no valid entering column).
+    std::size_t selectEnteringDualBV(std::size_t leavingRow, bool exitsToUB) const;
 
     // ── Pivot ─────────────────────────────────────────────────────────────────
 

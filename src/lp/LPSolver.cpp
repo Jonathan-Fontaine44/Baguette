@@ -1,6 +1,7 @@
 #include "baguette/lp/LPSolver.hpp"
 
 #include "algorithms/DualSimplex.hpp"
+#include "algorithms/DualSimplexBV.hpp"
 #include "algorithms/IPMSolver.hpp"
 #include "algorithms/MehrotraIPM.hpp"
 #include "algorithms/PrimalSimplex.hpp"
@@ -32,9 +33,14 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         return internal::solveMehrotraIPM(model, opts.maxIter, opts.timeLimitS,
                                           opts.startTime);
     }
-    if (opts.method == LPMethod::BVPrimalSimplex) {
+    if (opts.method == LPMethod::PrimalSimplexBV) {
         return internal::solvePrimalBV(model, opts.maxIter, opts.timeLimitS,
                                        opts.startTime, opts.computeCutData);
+    }
+    if (opts.method == LPMethod::DualSimplexBV) {
+        return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
+                                     opts.startTime, opts.warmBasis,
+                                     opts.computeCutData);
     }
     // Auto or DualSimplex: attempt dual simplex with primal fallback.
     return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

@@ -80,6 +80,11 @@ struct BasisRecord {
     /// Populated only when result.status == Optimal.  Consumers must not modify
     /// or interpret this field; it is internal to the solver.
     std::shared_ptr<internal::LPStandardForm> sfCache;
+
+    /// Complement state for BV warm-start (atUB[j] = true means column j was
+    /// non-basic AT_UB when the solve ended).  Length == total BV columns.
+    /// Empty when the basis was produced by a non-BV solver.
+    std::vector<bool> atUBCache;
 };
 
 /// Farkas infeasibility certificate for the LP.

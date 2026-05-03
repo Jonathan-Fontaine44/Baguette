@@ -18,7 +18,7 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
     auto method = GENERATE(LPMethod::Auto, LPMethod::PrimalSimplex,
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
                            LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
-                           LPMethod::BVPrimalSimplex);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     static const auto suite = makeLPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
@@ -30,7 +30,8 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
         (method == LPMethod::DualSimplex)      ? "DualSimplex" :
         (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
         (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
-        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" : "BVPrimalSimplex";
+        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" :
+        (method == LPMethod::PrimalSimplexBV)  ? "PrimalSimplexBV" : "DualSimplexBV";
 
     DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
         // ShortStepIPM cannot prove infeasibility or unboundedness: returns MaxIter.
@@ -55,7 +56,7 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
     auto method = GENERATE(LPMethod::Auto, LPMethod::PrimalSimplex,
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
                            LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
-                           LPMethod::BVPrimalSimplex);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     static const auto suite = makeRelaxedMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
@@ -67,7 +68,8 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
         (method == LPMethod::DualSimplex)      ? "DualSimplex" :
         (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
         (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
-        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" : "BVPrimalSimplex";
+        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" :
+        (method == LPMethod::PrimalSimplexBV)  ? "PrimalSimplexBV" : "DualSimplexBV";
 
     DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
         LPOptions opts;

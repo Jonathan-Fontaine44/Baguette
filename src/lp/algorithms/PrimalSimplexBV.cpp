@@ -291,10 +291,10 @@ LPDetailedResult extractBV(const internal::SimplexTableauBV&  tab,
         det.reducedCosts[j] = sfbv.varColSign[j] * (maxObj ? -rcj : rcj);
     }
 
-    // Basis record (basicCols only; atUB not stored — warm-start not supported)
     det.basis.basicCols.assign(tab.basicCols.begin(), tab.basicCols.end());
     det.basis.colKind   = sfbv.colKind;
     det.basis.colOrigin = sfbv.colOrigin;
+    det.basis.atUBCache = tab.atUB;
 
     // GMI cut data
     if (computeCutData) {

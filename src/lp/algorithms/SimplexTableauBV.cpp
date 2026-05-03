@@ -98,6 +98,73 @@ void SimplexTableauBV::complement(std::size_t j) {
 
 // ── Simplex operations ────────────────────────────────────────────────────────
 
+SimplexTableauBV::DualLeavingResult SimplexTableauBV::selectLeavingDualBV() const {
+    const std::size_t w   = n + 1;
+    std::size_t bestRow   = m;
+    uint32_t    bestIdx   = std::numeric_limits<uint32_t>::max();
+    double      maxInfeas = 0.0;
+    bool        bestExitsToUB = false;
+
+    for (std::size_t i = 0; i < m; ++i) {
+        const double bi  = tab[i * w + n];
+        const double ubi = colUB[basicCols[i]];
+
+        const double infeasL = (bi < -baguette::lp_feasibility_tol)
+                               ? -bi : 0.0;
+        const double infeasU = (std::isfinite(ubi) && bi > ubi + baguette::lp_feasibility_tol)
+                               ? bi - ubi : 0.0;
+
+        if (infeasL == 0.0 && infeasU == 0.0) continue;
+
+        const double   thisInfeas    = (infeasL >= infeasU) ? infeasL : infeasU;
+        const bool     thisExitsToUB = (infeasU > infeasL);
+        const uint32_t idx           = basicCols[i];
+
+        if (thisInfeas > maxInfeas + baguette::lp_feasibility_tol ||
+            (thisInfeas > maxInfeas - baguette::lp_feasibility_tol && idx < bestIdx)) {
+            maxInfeas     = thisInfeas;
+            bestRow       = i;
+            bestIdx       = idx;
+            bestExitsToUB = thisExitsToUB;
+        }
+    }
+    return {bestRow, bestExitsToUB};
+}
+
+std::size_t SimplexTableauBV::selectEnteringDualBV(std::size_t leavingRow,
+                                                    bool        exitsToUB) const {
+    const std::size_t w     = n + 1;
+    const std::size_t limit = (nActive > 0) ? nActive : n;
+    double      minRatio = std::numeric_limits<double>::infinity();
+    std::size_t entering = n; // sentinel: infeasible
+
+    const uint32_t currentBasic = basicCols[leavingRow];
+
+    for (std::size_t j = 0; j < limit; ++j) {
+        if (j == currentBasic) continue; // never enter the variable that is already basic here
+
+        const double eta = tab[leavingRow * w + j];
+        double ratio;
+
+        if (!exitsToUB) {
+            // xBi < LB → wants to increase → need eta_ij < 0
+            if (eta >= -baguette::pivot_tol) continue;
+            ratio = rc[j] / (-eta);
+        } else {
+            // xBi > UB → wants to decrease → need eta_ij > 0
+            if (eta <= baguette::pivot_tol) continue;
+            ratio = rc[j] / eta;
+        }
+
+        if (ratio < minRatio - baguette::pivot_tol ||
+            (ratio < minRatio + baguette::pivot_tol && j < entering)) {
+            minRatio = ratio;
+            entering = j;
+        }
+    }
+    return entering;
+}
+
 std::size_t SimplexTableauBV::selectEntering() const {
     // Bland's rule — complement invariant makes this identical to the standard tableau.
     const std::size_t limit = (nActive > 0) ? nActive : n;
