@@ -55,9 +55,6 @@ struct BBOptions {
     /// Wall-clock time limit in seconds (shared with LP solves via startTime).
     double timeLimitS = 3600.0;
 
-    /// Maximum simplex pivots per LP node solve. 0 = unlimited.
-    uint32_t maxIterLP = 0;
-
     /// Absolute tolerance for declaring a variable value integer-feasible.
     /// A variable x_i is considered integer if |x_i − round(x_i)| ≤ intFeasTol.
     double intFeasTol = 1e-6;
@@ -81,9 +78,16 @@ struct BBOptions {
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;
 
-    /// LP solving algorithm used at each B&B node. Default: Auto (dual simplex).
-    /// DualSimplex benefits from warm-starting; MehrotraIPM always cold-starts.
-    LPMethod lpMethod = LPMethod::Auto;
+    /// LP solver options forwarded to every node's LP solve.
+    ///
+    /// Configure @p method (algorithm) and @p maxIter (pivot limit) here.
+    /// The following fields are managed internally by solveMILP() and any
+    /// user-supplied value is silently overridden:
+    ///   - @p timeLimitS  ← from BBOptions::timeLimitS
+    ///   - @p startTime   ← shared clock set at the B&B root
+    ///   - @p warmBasis   ← from the parent node's BasisRecord
+    ///   - @p computeCutData ← from BBOptions::enableCuts
+    LPOptions lpOpts;
 
     /// If true, populate MILPResult::stats with granular diagnostics.
     /// When false (default), no counters are maintained — zero overhead on

@@ -62,7 +62,7 @@ static void BM_FlowMILP(benchmark::State& state,
 {
     for (auto _ : state) {
         BBOptions opts;
-        opts.lpMethod   = lpMethod;
+        opts.lpOpts.method = lpMethod;
         opts.enableCuts = enableCuts;
         opts.maxNodes   = 200;   // borne le nombre de nœuds explorés
         MILPResult r    = solveMILP(build(), opts);

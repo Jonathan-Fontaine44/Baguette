@@ -288,9 +288,7 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── First LP solve ─────────────────────────────────────────────────────
         if (opts.collectStats) ++stats_acc.lpSolvesTotal;
-        LPOptions lpOpts;
-        lpOpts.method          = opts.lpMethod;
-        lpOpts.maxIter         = opts.maxIterLP;
+        LPOptions lpOpts       = opts.lpOpts;
         lpOpts.timeLimitS      = opts.timeLimitS;
         lpOpts.startTime       = startTime;
         lpOpts.warmBasis       = node.basis;
@@ -362,11 +360,9 @@ MILPResult solveMILP(const Model&            modelRef,
                 // This is correct — their basis is simply stale — but it means that
                 // cut addition degrades warm-start reuse for all queued siblings.
                 if (opts.collectStats) ++stats_acc.lpSolvesTotal;
-                LPOptions lpOptsCold;
-                lpOptsCold.method     = opts.lpMethod;
-                lpOptsCold.maxIter    = opts.maxIterLP;
-                lpOptsCold.timeLimitS = opts.timeLimitS;
-                lpOptsCold.startTime  = startTime;
+                LPOptions lpOptsCold   = opts.lpOpts;
+                lpOptsCold.timeLimitS  = opts.timeLimitS;
+                lpOptsCold.startTime   = startTime;
                 lp = solveLPDetailed(model, lpOptsCold);
 
                 switch (lp.result.status) {

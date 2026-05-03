@@ -15,7 +15,7 @@ static void runMILP(benchmark::State& state,
 {
     for (auto _ : state) {
         BBOptions opts;
-        opts.lpMethod   = lpMethod;
+        opts.lpOpts.method = lpMethod;
         opts.enableCuts = enableCuts;
         MILPResult r    = solveMILP(build(), opts);
         benchmark::DoNotOptimize(r.objectiveValue);

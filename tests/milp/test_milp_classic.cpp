@@ -66,11 +66,10 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
 
     DYNAMIC_SECTION(solver << " / " << mname << " / " << tc.name) {
         BBOptions opts;
-        opts.lpMethod   = lpMethod;
-        opts.enableCuts = enableCuts;
-        opts.timeLimitS = 60.0; // 1-minute limit for large instances with cuts
-        // Large instances get a 10-second budget; small ones keep the default.
-        if (tc.large) opts.timeLimitS = 10.0;
+        opts.lpOpts.method = lpMethod;
+        opts.enableCuts    = enableCuts;
+        opts.timeLimitS    = 10.0;
+        if (tc.large) opts.timeLimitS = 1.0;
 
         MILPResult r = solveMILP(tc.build(), opts);
 
