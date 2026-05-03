@@ -4,6 +4,7 @@
 #include "algorithms/IPMSolver.hpp"
 #include "algorithms/MehrotraIPM.hpp"
 #include "algorithms/PrimalSimplex.hpp"
+#include "algorithms/PrimalSimplexBV.hpp"
 #include "algorithms/RevisedSimplex.hpp"
 
 namespace baguette {
@@ -30,6 +31,10 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
     if (opts.method == LPMethod::MehrotraIPM) {
         return internal::solveMehrotraIPM(model, opts.maxIter, opts.timeLimitS,
                                           opts.startTime);
+    }
+    if (opts.method == LPMethod::BVPrimalSimplex) {
+        return internal::solvePrimalBV(model, opts.maxIter, opts.timeLimitS,
+                                       opts.startTime, opts.computeCutData);
     }
     // Auto or DualSimplex: attempt dual simplex with primal fallback.
     return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

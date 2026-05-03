@@ -29,6 +29,11 @@ enum class LPMethod {
                     ///< Affine predictor (μ=0) + centering corrector with σ=(μ_aff/μ)³.
                     ///< Detects infeasibility and unboundedness. Typically 15–50 iterations.
                     ///< Warm-start and sensitivity analysis not supported.
+    BVPrimalSimplex,///< Two-phase primal simplex with bounded-variable (BV) ratio test.
+                    ///< Variable upper bounds enforced via complement invariant — no
+                    ///< explicit UB rows added, keeping m = nOrigRows. This eliminates
+                    ///< the O(n) row inflation of PrimalSimplex on bounded problems.
+                    ///< Warm-start and sensitivity analysis not supported.
 };
 
 /// Options for LP solves — analogous to BBOptions for MILP.

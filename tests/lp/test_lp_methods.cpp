@@ -17,18 +17,20 @@ static constexpr double kTol = 1e-6;
 TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
     auto method = GENERATE(LPMethod::Auto, LPMethod::PrimalSimplex,
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
-                           LPMethod::ShortStepIPM, LPMethod::MehrotraIPM);
+                           LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
+                           LPMethod::BVPrimalSimplex);
 
     static const auto suite = makeLPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
     const char* mname =
-        (method == LPMethod::Auto)           ? "Auto" :
-        (method == LPMethod::PrimalSimplex)  ? "PrimalSimplex" :
-        (method == LPMethod::DualSimplex)    ? "DualSimplex" :
-        (method == LPMethod::RevisedSimplex) ? "RevisedSimplex" :
-        (method == LPMethod::ShortStepIPM)   ? "ShortStepIPM" : "MehrotraIPM";
+        (method == LPMethod::Auto)             ? "Auto" :
+        (method == LPMethod::PrimalSimplex)    ? "PrimalSimplex" :
+        (method == LPMethod::DualSimplex)      ? "DualSimplex" :
+        (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
+        (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
+        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" : "BVPrimalSimplex";
 
     DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
         // ShortStepIPM cannot prove infeasibility or unboundedness: returns MaxIter.
@@ -52,18 +54,20 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
 TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
     auto method = GENERATE(LPMethod::Auto, LPMethod::PrimalSimplex,
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
-                           LPMethod::ShortStepIPM, LPMethod::MehrotraIPM);
+                           LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
+                           LPMethod::BVPrimalSimplex);
 
     static const auto suite = makeRelaxedMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
     const char* mname =
-        (method == LPMethod::Auto)           ? "Auto" :
-        (method == LPMethod::PrimalSimplex)  ? "PrimalSimplex" :
-        (method == LPMethod::DualSimplex)    ? "DualSimplex" :
-        (method == LPMethod::RevisedSimplex) ? "RevisedSimplex" :
-        (method == LPMethod::ShortStepIPM)   ? "ShortStepIPM" : "MehrotraIPM";
+        (method == LPMethod::Auto)             ? "Auto" :
+        (method == LPMethod::PrimalSimplex)    ? "PrimalSimplex" :
+        (method == LPMethod::DualSimplex)      ? "DualSimplex" :
+        (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
+        (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
+        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" : "BVPrimalSimplex";
 
     DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
         LPOptions opts;

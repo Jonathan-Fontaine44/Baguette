@@ -86,6 +86,41 @@ struct LPStandardForm {
     std::vector<uint32_t> varFreeNegCol;
 };
 
+/// Compact standard form for the bounded-variable simplex (BV).
+///
+/// Identical to LPStandardForm but without explicit upper-bound rows.
+/// Variable upper bounds are stored in @p colUB and enforced by the BV ratio
+/// test (complement invariant), avoiding the O(n) row inflation of LPStandardForm.
+///
+/// Column layout: [orig (nOrig) | slack/surplus (nSlack) | free-neg (nFree)]
+/// Row layout:    [model constraints (nOrigRows)] — no UB rows.
+struct LPStandardFormBV {
+    std::size_t nRows;     ///< = nOrigRows (no UB rows)
+    std::size_t nOrigRows;
+    std::size_t nCols;
+    std::size_t nOrig;
+    std::size_t nSlack;
+
+    std::shared_ptr<std::vector<double>> A;
+    std::vector<double> b;
+    std::vector<double> c;
+    double objOffset = 0.0;
+
+    std::vector<ColumnKind> colKind;
+    std::vector<uint32_t>   colOrigin;
+    std::vector<uint32_t>   rowSlackCol;
+    std::vector<bool>       rowNegated;
+
+    std::vector<double>   varShiftVal;
+    std::vector<int8_t>   varColSign;
+    std::vector<uint32_t> varFreeNegCol;
+
+    /// Upper bound of each column in lb-shifted space. Length nCols.
+    /// colUB[j] = ub_j − lb_j for lb-shifted vars with finite ub.
+    /// colUB[j] = +∞ for ub-shifted, free-split, slack, and surplus columns.
+    std::vector<double> colUB;
+};
+
 /// Convert a Model into standard form.
 ///
 /// Variable bounds are handled as follows:
@@ -149,5 +184,13 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model);
 ///   matrix (A^T fill O(m_p · n_p) + per-row normalisation pass O(n_p · (2m_p + n_p))),
 ///   where m_p = primal.nRows and n_p = primal.nCols.
 LPStandardForm dualStandardForm(const LPStandardForm& primal);
+
+/// Convert a Model into the BV compact standard form.
+///
+/// Like toStandardForm() but finite upper bounds are stored in LPStandardFormBV::colUB
+/// instead of being appended as explicit rows. The resulting matrix has nRows = nOrigRows
+/// only — no UB row inflation. The BV simplex enforces bounds via its ratio test.
+/// @note Complexity: O(m·n), same as toStandardForm() but without the UB row fill.
+LPStandardFormBV toStandardFormBV(const Model& model);
 
 } // namespace baguette::internal

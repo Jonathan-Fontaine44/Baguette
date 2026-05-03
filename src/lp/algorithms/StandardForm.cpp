@@ -342,4 +342,131 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
     return true;
 }
 
+LPStandardFormBV toStandardFormBV(const Model& model) {
+    const auto& hot         = model.getHot();
+    const auto& constraints = model.getLPConstraints();
+    const std::size_t nOrig     = model.numVars();
+    const std::size_t nOrigRows = model.numConstraints();
+
+    // ── Shift type ────────────────────────────────────────────────────────────
+    std::vector<double> varShiftVal(nOrig);
+    std::vector<int8_t> varColSign(nOrig);
+    std::size_t nFree = 0;
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (std::isfinite(hot.lb[j])) {
+            varShiftVal[j] = hot.lb[j];
+            varColSign[j]  = +1;
+        } else if (std::isfinite(hot.ub[j])) {
+            varShiftVal[j] = hot.ub[j];
+            varColSign[j]  = -1;
+        } else {
+            varShiftVal[j] = 0.0;
+            varColSign[j]  = +1;
+            ++nFree;
+        }
+    }
+
+    // ── No UB rows: nRows = nOrigRows ─────────────────────────────────────────
+    std::size_t nSlack = 0;
+    for (std::size_t i = 0; i < nOrigRows; ++i)
+        if (constraints[i].sense != Sense::Equal)
+            ++nSlack;
+    const std::size_t nCols = nOrig + nSlack + nFree;
+
+    LPStandardFormBV sfbv;
+    sfbv.nRows     = nOrigRows;
+    sfbv.nOrigRows = nOrigRows;
+    sfbv.nCols     = nCols;
+    sfbv.nOrig     = nOrig;
+    sfbv.nSlack    = nSlack;
+    sfbv.varShiftVal    = std::move(varShiftVal);
+    sfbv.varColSign     = std::move(varColSign);
+    sfbv.varFreeNegCol.assign(nOrig, static_cast<uint32_t>(nCols));
+
+    sfbv.A = std::make_shared<std::vector<double>>(nOrigRows * nCols, 0.0);
+    sfbv.b.resize(nOrigRows, 0.0);
+    sfbv.c.resize(nCols, 0.0);
+    sfbv.colKind.resize(nCols);
+    sfbv.colOrigin.resize(nCols);
+    sfbv.rowSlackCol.resize(nOrigRows);
+    sfbv.rowNegated.resize(nOrigRows, false);
+    sfbv.colUB.assign(nCols, std::numeric_limits<double>::infinity());
+
+    // ── Column metadata ───────────────────────────────────────────────────────
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        sfbv.colKind[j]   = ColumnKind::Original;
+        sfbv.colOrigin[j] = static_cast<uint32_t>(j);
+        if (sfbv.varColSign[j] == +1 && std::isfinite(hot.ub[j]))
+            sfbv.colUB[j] = hot.ub[j] - sfbv.varShiftVal[j];
+    }
+    {
+        std::size_t slackIdx = 0;
+        for (std::size_t i = 0; i < nOrigRows; ++i) {
+            if (constraints[i].sense == Sense::Equal) continue;
+            std::size_t col = nOrig + slackIdx++;
+            sfbv.colKind[col]   = ColumnKind::Slack;
+            sfbv.colOrigin[col] = static_cast<uint32_t>(i);
+        }
+    }
+
+    // ── Objective ─────────────────────────────────────────────────────────────
+    const bool   maximize = (model.getObjSense() == ObjSense::Maximize);
+    const double objSign  = maximize ? -1.0 : 1.0;
+    sfbv.objOffset = objSign * model.getObjConstant();
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        double cj     = objSign * hot.obj[j];
+        sfbv.c[j]       = sfbv.varColSign[j] * cj;
+        sfbv.objOffset += cj * sfbv.varShiftVal[j];
+    }
+
+    // ── Model constraint rows ─────────────────────────────────────────────────
+    std::size_t slackColIdx = 0;
+    for (std::size_t i = 0; i < nOrigRows; ++i) {
+        const auto& con = constraints[i];
+        const std::size_t slackCol =
+            (con.sense != Sense::Equal) ? nOrig + slackColIdx : sfbv.nCols;
+        sfbv.rowSlackCol[i] = static_cast<uint32_t>(slackCol);
+
+        double rhs = con.rhs;
+        for (std::size_t k = 0; k < con.lhs.size(); ++k) {
+            uint32_t varId = con.lhs.varIds[k];
+            if (varId >= nOrig)
+                throw std::invalid_argument(
+                    "toStandardFormBV: variable ID out of range in constraint");
+            double aij = con.lhs.coeffs[k];
+            (*sfbv.A)[i * nCols + varId] += sfbv.varColSign[varId] * aij;
+            rhs -= aij * sfbv.varShiftVal[varId];
+        }
+
+        switch (con.sense) {
+            case Sense::LessEq:   (*sfbv.A)[i * nCols + slackCol] = +1.0; ++slackColIdx; break;
+            case Sense::GreaterEq:(*sfbv.A)[i * nCols + slackCol] = -1.0; ++slackColIdx; break;
+            case Sense::Equal:    break;
+        }
+
+        if (rhs < 0.0) {
+            for (std::size_t j = 0; j < nCols; ++j)
+                (*sfbv.A)[i * nCols + j] = -(*sfbv.A)[i * nCols + j];
+            rhs = -rhs;
+            sfbv.rowNegated[i] = true;
+        }
+        sfbv.b[i] = rhs;
+    }
+
+    // ── Free-split negative columns ───────────────────────────────────────────
+    std::size_t negCol = nOrig + nSlack;
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (std::isfinite(hot.lb[j]) || std::isfinite(hot.ub[j])) continue;
+        sfbv.varFreeNegCol[j] = static_cast<uint32_t>(negCol);
+        sfbv.colKind[negCol]   = ColumnKind::FreeNeg;
+        sfbv.colOrigin[negCol] = static_cast<uint32_t>(j);
+        sfbv.c[negCol] = -sfbv.c[j];
+        for (std::size_t i = 0; i < nOrigRows; ++i)
+            (*sfbv.A)[i * nCols + negCol] = -(*sfbv.A)[i * nCols + j];
+        ++negCol;
+    }
+
+    return sfbv;
+}
+
 } // namespace baguette::internal
