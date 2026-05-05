@@ -16,7 +16,7 @@ namespace baguette::internal {
 /// the Mehrotra heuristic (least-norm primal/dual solutions + positivity shift
 /// + centering correction).
 ///
-/// @par Complexity
+/// @node Complexity
 ///   O(K · m² · n) total, where K = number of iterations ≤ O(√n log(1/ε)),
 ///   m = number of constraints, n = number of standard-form variables.
 ///   Each iteration: O(m²n) to build the normal-equations matrix ADAᵀ,

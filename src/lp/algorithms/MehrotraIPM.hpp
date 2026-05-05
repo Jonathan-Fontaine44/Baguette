@@ -18,7 +18,7 @@ namespace baguette::internal {
 ///   5. Detect infeasibility (μ → 0, ‖rp‖ stays large) and
 ///      unboundedness (x diverges).
 ///
-/// @par Complexity
+/// @node Complexity
 ///   O(K · m²n) total, K ≤ maxIter. Each iteration: one O(m²n) matrix build,
 ///   one O(m³) LU factorisation (reused for predictor and corrector), O(mn)
 ///   back-substitutions. Typically K = 15–50 in practice.
