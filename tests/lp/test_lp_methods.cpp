@@ -24,16 +24,7 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    const char* mname =
-        (method == LPMethod::Auto)             ? "Auto" :
-        (method == LPMethod::PrimalSimplex)    ? "PrimalSimplex" :
-        (method == LPMethod::DualSimplex)      ? "DualSimplex" :
-        (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
-        (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
-        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" :
-        (method == LPMethod::PrimalSimplexBV)  ? "PrimalSimplexBV" : "DualSimplexBV";
-
-    DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
+    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name) {
         // ShortStepIPM cannot prove infeasibility or unboundedness: returns MaxIter.
         // MehrotraIPM detects both, so uses the expected status as-is.
         const LPStatus expected =
@@ -62,16 +53,7 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    const char* mname =
-        (method == LPMethod::Auto)             ? "Auto" :
-        (method == LPMethod::PrimalSimplex)    ? "PrimalSimplex" :
-        (method == LPMethod::DualSimplex)      ? "DualSimplex" :
-        (method == LPMethod::RevisedSimplex)   ? "RevisedSimplex" :
-        (method == LPMethod::ShortStepIPM)     ? "ShortStepIPM" :
-        (method == LPMethod::MehrotraIPM)      ? "MehrotraIPM" :
-        (method == LPMethod::PrimalSimplexBV)  ? "PrimalSimplexBV" : "DualSimplexBV";
-
-    DYNAMIC_SECTION("Method=" << mname << ", case=" << tc.name) {
+    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name) {
         LPOptions opts;
         opts.method = method;
         // ShortStepIPM ne converge pas sur les relaxations MILP : son pas fixe

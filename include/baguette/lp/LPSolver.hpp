@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <ostream>
+#include <string_view>
 
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
@@ -41,6 +43,24 @@ enum class LPMethod {
                     ///< PrimalSimplexBV when dual feasibility cannot be established.
                     ///< Sensitivity analysis not supported.
 };
+
+inline std::string_view to_string(LPMethod m) {
+    switch (m) {
+        case LPMethod::Auto:             return "Auto";
+        case LPMethod::PrimalSimplex:    return "PrimalSimplex";
+        case LPMethod::DualSimplex:      return "DualSimplex";
+        case LPMethod::RevisedSimplex:   return "RevisedSimplex";
+        case LPMethod::ShortStepIPM:     return "ShortStepIPM";
+        case LPMethod::MehrotraIPM:      return "MehrotraIPM";
+        case LPMethod::PrimalSimplexBV:  return "PrimalSimplexBV";
+        case LPMethod::DualSimplexBV:    return "DualSimplexBV";
+    }
+    return "Unknown";
+}
+
+inline std::ostream& operator<<(std::ostream& os, LPMethod m) {
+    return os << to_string(m);
+}
 
 /// Options for LP solves — analogous to BBOptions for MILP.
 ///

@@ -62,13 +62,9 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     // B&B (no cuts) and B&C (GMI cuts enabled).
     auto enableCuts = GENERATE(false, true);
 
-    const char* mname  =
-        (lpMethod == LPMethod::RevisedSimplex) ? "RevisedSimplex" :
-        (lpMethod == LPMethod::MehrotraIPM)    ? "MehrotraIPM"    :
-        (lpMethod == LPMethod::PrimalSimplexBV)? "PrimalSimplexBV": "DualSimplexBV";
     const char* solver = enableCuts ? "BnC" : "BB";
 
-    DYNAMIC_SECTION(solver << " / " << mname << " / " << tc.name) {
+    DYNAMIC_SECTION(solver << " / " << to_string(lpMethod) << " / " << tc.name) {
         BBOptions opts;
         opts.lpOpts.method = lpMethod;
         opts.enableCuts    = enableCuts;

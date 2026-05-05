@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_adapters.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "baguette/lp/LPSolver.hpp"
@@ -40,7 +42,10 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
 // IP optimal: x=1, y=2, obj=13.
 // With cuts enabled the result must be identical.
 
-TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc]") {
+TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -48,11 +53,13 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions noCuts;
-    noCuts.enableCuts = false;
+    noCuts.enableCuts        = false;
+    noCuts.lpOpts.method     = method;
 
     BBOptions withCuts;
-    withCuts.enableCuts     = true;
-    withCuts.maxCutsPerNode = 10;
+    withCuts.enableCuts      = true;
+    withCuts.maxCutsPerNode  = 10;
+    withCuts.lpOpts.method   = method;
 
     MILPResult r1 = solveMILP(m, noCuts);
     MILPResult r2 = solveMILP(m, withCuts);
@@ -74,7 +81,10 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc]") {
 //
 // IP optimal: x+y=4, obj=4 (e.g. x=4, y=0 or x=0, y=4).
 
-TEST_CASE("BnC: GMI cut closes gap at root", "[bnc]") {
+TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -82,13 +92,15 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc]") {
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions noCuts;
-    noCuts.enableCuts   = false;
-    noCuts.collectStats = true;
+    noCuts.enableCuts        = false;
+    noCuts.collectStats      = true;
+    noCuts.lpOpts.method     = method;
 
     BBOptions withCuts;
-    withCuts.enableCuts     = true;
-    withCuts.maxCutsPerNode = 10;
-    withCuts.collectStats   = true;
+    withCuts.enableCuts      = true;
+    withCuts.maxCutsPerNode  = 10;
+    withCuts.collectStats    = true;
+    withCuts.lpOpts.method   = method;
 
     MILPResult r1 = solveMILP(m, noCuts);
     MILPResult r2 = solveMILP(m, withCuts);
@@ -140,7 +152,10 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
 // Combine PseudoCost branching with GMI cut generation.
 // The result must equal the known IP optimum.
 
-TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc]") {
+TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -148,9 +163,10 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc]") {
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.branchStrat    = BranchStrategy::PseudoCost;
-    opts.enableCuts     = true;
-    opts.maxCutsPerNode = 5;
+    opts.branchStrat      = BranchStrategy::PseudoCost;
+    opts.enableCuts       = true;
+    opts.maxCutsPerNode   = 5;
+    opts.lpOpts.method    = method;
 
     MILPResult r = solveMILP(m, opts);
 
@@ -162,7 +178,10 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc]") {
 //
 // LP-infeasible problem → MILP infeasible even with cuts enabled.
 
-TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc]") {
+TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 10.0, VarType::Integer, "y");
@@ -170,8 +189,9 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc]") {
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enableCuts   = true;
-    opts.collectStats = true;
+    opts.enableCuts      = true;
+    opts.collectStats    = true;
+    opts.lpOpts.method   = method;
 
     MILPResult r = solveMILP(m, opts);
 
@@ -187,16 +207,12 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc]") {
 //      x + 2y + z ≤ 6
 //      x, y, z ∈ Z, 0 ≤ x,y,z ≤ 5
 //
-// LP optimal: by symmetry around (2, 2, 0) or nearby fractional points.
-// IP optimal (by inspection): (2, 2, 0) → 10+8+0=18. Or (3,0,0)→15. Or (2,2,0)=18. Or (1,2,2)→5+8+6=19. Check: 2+2+2=6≤6✓, 1+4+2=7>6✗. Or (2,2,0)→4+2+0=6≤6✓,2+4+0=6≤6✓, obj=18. Or (3,0,2)→6+0+2=8>6✗. Or (0,3,0)→3≤6✓,6≤6✓,obj=12. Hmm...
-// Let me try (2,0,2): 4+0+2=6≤6✓, 2+0+2=4≤6✓, obj=10+0+6=16.
-// (2,2,0): obj=10+8=18. (3,0,0):15. (0,3,0):12. (0,0,5):15.
-// (1,2,2): 2+2+2=6✓, 1+4+2=7>6✗.
-// (2,2,0)=18 seems best. Let's use this.
-//
-// With or without cuts, the IP optimal must be ≥ 18 (achieved at (2,2,0)).
+// IP optimal: (2,2,0) → obj=18.
 
-TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc]") {
+TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -206,12 +222,14 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc]") {
     m.setObjective(5.0*x + 4.0*y + 3.0*z, ObjSense::Maximize);
 
     BBOptions noCuts;
-    noCuts.enableCuts = false;
+    noCuts.enableCuts      = false;
+    noCuts.lpOpts.method   = method;
 
     BBOptions withCuts;
-    withCuts.enableCuts     = true;
-    withCuts.maxCutsPerNode = 10;
-    withCuts.branchStrat    = BranchStrategy::PseudoCost;
+    withCuts.enableCuts      = true;
+    withCuts.maxCutsPerNode  = 10;
+    withCuts.branchStrat     = BranchStrategy::PseudoCost;
+    withCuts.lpOpts.method   = method;
 
     MILPResult r1 = solveMILP(m, noCuts);
     MILPResult r2 = solveMILP(m, withCuts);
@@ -226,32 +244,40 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc]") {
 //
 // min 0x + y  s.t. x + y ≥ 3.5,  x ∈ Z[0,3.2],  y ∈ C[0,5].
 //
-// LP optimal: x=3.2 (fractional integer), y=0.3 (continuous).
+// LP optimal: x=3.2 (fractional integer at its UB), y=0.3 (continuous).
 // fractionalRows must contain exactly x; y must not appear.
 // generateGMICuts must produce exactly one cut from the x row.
 
 TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 3.2, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Continuous, "y");
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.5);
-    m.setObjective(0.0 * x + 1.0 * y, ObjSense::Minimize); // LP: x=3.5 (fractional int), y=0
+    m.setObjective(0.0 * x + 1.0 * y, ObjSense::Minimize);
 
     // Solve relaxation LP
-    LPOptions lpOpts; lpOpts.computeCutData = true;
+    LPOptions lpOpts;
+    lpOpts.computeCutData = true;
+    lpOpts.method         = method;
     LPDetailedResult lp = solveLPDetailed(m, lpOpts);
 
-    REQUIRE(lp.result.status == LPStatus::Optimal);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        REQUIRE(lp.result.status == LPStatus::Optimal);
 
-    for (FractionalRow fr : lp.fractionalRows) {
-        REQUIRE(fr.origVarId == x.id);
-        REQUIRE(fr.origVarId != y.id);
+        for (FractionalRow fr : lp.fractionalRows) {
+            REQUIRE(fr.origVarId == x.id);
+            REQUIRE(fr.origVarId != y.id);
+        }
+
+        REQUIRE(lp.fractionalRows.size() >= 1);
+
+        std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 50, kTol);
+
+        REQUIRE(cuts.size() == 1);
     }
-
-    // x = 3.5, y = 0
-    std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 50, kTol);
-
-    REQUIRE(cuts.size() == 1);
 }
 
 // ── Test 9: B&C cuts bind on integer variables in a mixed MILP ──────────────
@@ -264,6 +290,9 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
 // IP solution must satisfy integrality for x and y.
 
 TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
 
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
@@ -274,9 +303,10 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     m.setObjective(1*x + 1*y + 0.1*z + 0.1*w, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enableCuts     = true;
-    opts.maxCutsPerNode = 5;
-    opts.collectStats   = true;
+    opts.enableCuts      = true;
+    opts.maxCutsPerNode  = 5;
+    opts.collectStats    = true;
+    opts.lpOpts.method   = method;
 
     MILPResult r = solveMILP(m, opts);
 
@@ -295,7 +325,10 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
 // LP optimal: x=0.5 (feasible). Branching: x≤0 violates x=0.5; x≥1 violates x=0.5.
 // Both children are LP-infeasible → MILP Infeasible.
 
-TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge]") {
+TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
 
     Variable x = m.addVar(0.0, 1.0, VarType::Integer, "x");
@@ -304,9 +337,12 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge]") {
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enableCuts = true;
+    opts.enableCuts      = true;
+    opts.lpOpts.method   = method;
 
-    LPDetailedResult lp = solveLPDetailed(m);
+    LPOptions lpOpts;
+    lpOpts.method = method;
+    LPDetailedResult lp = solveLPDetailed(m, lpOpts);
 
     REQUIRE(lp.result.status == LPStatus::Optimal);
 
