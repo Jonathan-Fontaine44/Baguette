@@ -232,14 +232,15 @@ TEST_CASE("sfCache: populated on Optimal, null on non-Optimal", "[warm_start]") 
     Model    m  = makeFractionalLP();
     Variable x1{0};
 
-    // Cold dual solve → Optimal → sfCache set
-    auto res = solveLPDetailed(m);
+    // Cold DualSimplex solve → Optimal → sfCache set (DualSimplexBV uses atUBCache instead)
+    LPOptions coldOpts; coldOpts.method = LPMethod::DualSimplex;
+    auto res = solveLPDetailed(m, coldOpts);
     REQUIRE(res.result.status == LPStatus::Optimal);
     REQUIRE(res.basis.sfCache != nullptr);
 
     // Infeasible node: lb > ub → sfCache not set
     Model inf_m = m.withVarBounds(x1, 2.0, 1.0);
-    LPOptions infOpts; infOpts.warmBasis = res.basis;
+    LPOptions infOpts; infOpts.method = LPMethod::DualSimplex; infOpts.warmBasis = res.basis;
     auto  inf   = solveLPDetailed(inf_m, infOpts);
     REQUIRE(inf.result.status == LPStatus::Infeasible);
     REQUIRE(inf.basis.sfCache == nullptr);
@@ -249,17 +250,20 @@ TEST_CASE("sfCache: three-level chain produces correct results and propagates ca
     // Simulate a B&B path: root → child (x1<=1) → grandchild (x2<=1).
     // Each level uses the sfCache from the previous level's BasisRecord so
     // that toStandardFormBoundsOnly is exercised at every step.
+    // Uses DualSimplex explicitly: sfCache is a DualSimplex warm-start mechanism
+    // (DualSimplexBV uses atUBCache instead and does not populate sfCache).
     Model    root_m = makeFractionalLP();
     Variable x1{0}, x2{1};
 
-    // Level 0: cold dual solve populates sfCache
-    auto root = solveLPDetailed(root_m);
+    // Level 0: cold DualSimplex solve populates sfCache
+    LPOptions coldOpts; coldOpts.method = LPMethod::DualSimplex;
+    auto root = solveLPDetailed(root_m, coldOpts);
     REQUIRE(root.result.status == LPStatus::Optimal);
     REQUIRE(root.basis.sfCache != nullptr);
 
     // Level 1: warm start using root.basis (which carries sfCache)
     Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
-    LPOptions childOpts; childOpts.warmBasis = root.basis;
+    LPOptions childOpts; childOpts.method = LPMethod::DualSimplex; childOpts.warmBasis = root.basis;
     auto  child   = solveLPDetailed(child_m, childOpts);
     REQUIRE(child.result.status == LPStatus::Optimal);
     REQUIRE_THAT(child.result.objectiveValue, WithinAbs(-2.5, kTol));
@@ -267,7 +271,7 @@ TEST_CASE("sfCache: three-level chain produces correct results and propagates ca
 
     // Level 2: warm start using child.basis (which also carries sfCache)
     Model grand_m = child_m.withVarBounds(x2, 0.0, 1.0);
-    LPOptions grandOpts; grandOpts.warmBasis = child.basis;
+    LPOptions grandOpts; grandOpts.method = LPMethod::DualSimplex; grandOpts.warmBasis = child.basis;
     auto  grand   = solveLPDetailed(grand_m, grandOpts);
     REQUIRE(grand.result.status == LPStatus::Optimal);
     REQUIRE_THAT(grand.result.objectiveValue, WithinAbs(-2.0, kTol));

@@ -52,7 +52,8 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
 }
 
 TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
-    auto lpMethod = GENERATE(LPMethod::RevisedSimplex, LPMethod::MehrotraIPM);
+    auto lpMethod = GENERATE(LPMethod::RevisedSimplex, LPMethod::MehrotraIPM,
+                             LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     static const auto suite = makeMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
@@ -61,7 +62,10 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     // B&B (no cuts) and B&C (GMI cuts enabled).
     auto enableCuts = GENERATE(false, true);
 
-    const char* mname  = (lpMethod == LPMethod::RevisedSimplex) ? "RevisedSimplex" : "MehrotraIPM";
+    const char* mname  =
+        (lpMethod == LPMethod::RevisedSimplex) ? "RevisedSimplex" :
+        (lpMethod == LPMethod::MehrotraIPM)    ? "MehrotraIPM"    :
+        (lpMethod == LPMethod::PrimalSimplexBV)? "PrimalSimplexBV": "DualSimplexBV";
     const char* solver = enableCuts ? "BnC" : "BB";
 
     DYNAMIC_SECTION(solver << " / " << mname << " / " << tc.name) {
