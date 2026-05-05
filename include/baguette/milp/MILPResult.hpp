@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <ostream>
+#include <string_view>
 #include <vector>
 
 namespace baguette {
@@ -15,6 +17,21 @@ enum class MILPStatus {
     TimeLimit,  ///< Time limit reached; best solution found so far (may be empty).
     MaxNodes    ///< Node limit reached; best solution found so far (may be empty).
 };
+
+inline std::string_view to_string(MILPStatus s) {
+    switch (s) {
+        case MILPStatus::Optimal:     return "Optimal";
+        case MILPStatus::Infeasible:  return "Infeasible";
+        case MILPStatus::Unbounded:   return "Unbounded";
+        case MILPStatus::TimeLimit:   return "TimeLimit";
+        case MILPStatus::MaxNodes:    return "MaxNodes";
+    }
+    return "Unknown";
+}
+
+inline std::ostream& operator<<(std::ostream& os, MILPStatus s) {
+    return os << to_string(s);
+}
 
 /// Granular diagnostics collected during solveMILP() when BBOptions::collectStats
 /// is true.  All counters are zero-initialised.  Nodes that hit NumericalFailure

@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <ostream>
+#include <string_view>
 #include <vector>
 
 namespace baguette { namespace internal { struct LPStandardForm; } }
@@ -19,6 +21,22 @@ enum class LPStatus {
     NumericalFailure  ///< Basis reinversion failed; tableau state is undefined.
                       ///  Feasibility of the problem is unknown. primalValues is empty.
 };
+
+inline std::string_view to_string(LPStatus s) {
+    switch (s) {
+        case LPStatus::Optimal:          return "Optimal";
+        case LPStatus::Infeasible:       return "Infeasible";
+        case LPStatus::Unbounded:        return "Unbounded";
+        case LPStatus::MaxIter:          return "MaxIter";
+        case LPStatus::TimeLimit:        return "TimeLimit";
+        case LPStatus::NumericalFailure: return "NumericalFailure";
+    }
+    return "Unknown";
+}
+
+inline std::ostream& operator<<(std::ostream& os, LPStatus s) {
+    return os << to_string(s);
+}
 
 /// Result returned by solve().
 ///
