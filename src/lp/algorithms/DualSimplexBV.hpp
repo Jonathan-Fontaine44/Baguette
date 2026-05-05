@@ -17,9 +17,7 @@ namespace baguette::internal {
 /// Warm-start path: reads BasisRecord::basicCols + BasisRecord::atUBCache from a
 /// previous BV solve. On success, populates those fields in the returned result.
 ///
-/// @note Warm-start and sensitivity analysis: sensitivity not supported.
-///
-/// @par Complexity
+/// @node Complexity
 /// Standard-form setup O(m·n), then O(K·m·n) for K dual pivots.
 /// Falls back to solvePrimalBV() complexity when dual feasibility fails.
 LPDetailedResult solveDualBV(const Model&                          model,
@@ -27,6 +25,7 @@ LPDetailedResult solveDualBV(const Model&                          model,
                               double                                timeLimitS,
                               std::chrono::steady_clock::time_point startTime,
                               const BasisRecord&                    warmBasis,
-                              bool                                  computeCutData);
+                              bool                                  computeCutData,
+                              bool                                  computeSensitivity = false);
 
 } // namespace baguette::internal

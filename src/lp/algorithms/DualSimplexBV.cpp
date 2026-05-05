@@ -103,7 +103,8 @@ LPDetailedResult extractDualBV(const internal::SimplexTableauBV& tab,
                                 const internal::LPStandardFormBV& sfbv,
                                 const Model&                       model,
                                 LPStatus                           status,
-                                bool                               computeCutData) {
+                                bool                               computeCutData,
+                                bool                               computeSensitivity = false) {
     LPDetailedResult det;
     det.result.status = status;
 
@@ -146,6 +147,9 @@ LPDetailedResult extractDualBV(const internal::SimplexTableauBV& tab,
     det.basis.colOrigin = sfbv.colOrigin;
     det.basis.atUBCache = tab.atUB;
 
+    if (computeSensitivity)
+        det.sensitivity = internal::extractSensitivityBV(tab, sfbv, model);
+
     if (computeCutData) {
         const auto& types = model.getCold().types;
         const std::size_t nSFBV = sfbv.nCols;
@@ -182,7 +186,15 @@ LPDetailedResult solveDualBV(const Model&                          model,
                               double                                timeLimitS,
                               std::chrono::steady_clock::time_point startTime,
                               const BasisRecord&                    warmBasis,
-                              bool                                  computeCutData) {
+                              bool                                  computeCutData,
+                              bool                                  computeSensitivity) {
+    if (std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - startTime).count() >= timeLimitS) {
+        LPDetailedResult det;
+        det.result.status = LPStatus::TimeLimit;
+        return det;
+    }
+
     // Early infeasibility: empty domain.
     {
         const auto& hot = model.getHot();
@@ -200,7 +212,8 @@ LPDetailedResult solveDualBV(const Model&                          model,
     SimplexTableauBV tab;
 
     auto fallback = [&]() -> LPDetailedResult {
-        return solvePrimalBV(model, maxIter, timeLimitS, startTime, computeCutData);
+        return solvePrimalBV(model, maxIter, timeLimitS, startTime,
+                             computeCutData, computeSensitivity);
     };
 
     const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
@@ -242,7 +255,8 @@ LPDetailedResult solveDualBV(const Model&                          model,
         return det;
     }
 
-    LPDetailedResult det = extractDualBV(tab, sfbv, model, status, computeCutData);
+    LPDetailedResult det = extractDualBV(tab, sfbv, model, status,
+                                          computeCutData, computeSensitivity);
 
     if (status != LPStatus::Optimal) {
         det.result.primalValues.clear();

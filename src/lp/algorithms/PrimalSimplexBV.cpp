@@ -242,7 +242,8 @@ LPDetailedResult extractBV(const internal::SimplexTableauBV&  tab,
                              const Model&                        model,
                              LPStatus                            status,
                              const std::vector<uint32_t>&        equalArtCol,
-                             bool                                computeCutData) {
+                             bool                                computeCutData,
+                             bool                                computeSensitivity = false) {
     LPDetailedResult det;
     det.result.status = status;
 
@@ -296,6 +297,9 @@ LPDetailedResult extractBV(const internal::SimplexTableauBV&  tab,
     det.basis.colOrigin = sfbv.colOrigin;
     det.basis.atUBCache = tab.atUB;
 
+    if (computeSensitivity)
+        det.sensitivity = internal::extractSensitivityBV(tab, sfbv, model, equalArtCol);
+
     // GMI cut data
     if (computeCutData) {
         const auto& types = model.getCold().types;
@@ -333,7 +337,8 @@ LPDetailedResult solvePrimalBV(const Model&                          model,
                                 uint32_t                              maxIter,
                                 double                                timeLimitS,
                                 std::chrono::steady_clock::time_point startTime,
-                                bool                                  computeCutData) {
+                                bool                                  computeCutData,
+                                bool                                  computeSensitivity) {
     // Early infeasibility: empty domain
     {
         const auto& hot = model.getHot();
@@ -387,7 +392,8 @@ LPDetailedResult solvePrimalBV(const Model&                          model,
         return det;
     }
 
-    LPDetailedResult det = extractBV(tab, sfbv, model, p2, aug.equalArtCol, computeCutData);
+    LPDetailedResult det = extractBV(tab, sfbv, model, p2, aug.equalArtCol,
+                                      computeCutData, computeSensitivity);
     if (p2 == LPStatus::Unbounded) det.result.primalValues.clear();
     return det;
 }

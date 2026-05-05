@@ -5,6 +5,8 @@
 #include <limits>
 
 #include "baguette/core/Config.hpp"
+#include "baguette/core/Sense.hpp"
+#include "baguette/model/ModelEnums.hpp"
 
 namespace baguette::internal {
 
@@ -231,6 +233,11 @@ void SimplexTableauBV::pivotBV(std::size_t leavingRow, std::size_t enteringCol,
                                 bool leavingAtUB) {
     const std::size_t w = n + 1;
 
+    // If the entering column is AT_UB (complemented), restore it to AT_LB form
+    // before the GJ update so the RHS stores the actual value, not the complement.
+    if (atUB[enteringCol])
+        complement(enteringCol);
+
     double inv = 1.0 / tab[leavingRow * w + enteringCol];
     for (std::size_t j = 0; j <= n; ++j)
         tab[leavingRow * w + j] *= inv;
@@ -275,6 +282,119 @@ std::vector<double> SimplexTableauBV::primalSolution() const {
     for (std::size_t j = 0; j < n; ++j)
         if (atUB[j]) x[j] = colUB[j];
     return x;
+}
+
+// ── Sensitivity analysis ──────────────────────────────────────────────────────
+
+SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
+                                        const LPStandardFormBV&      sfbv,
+                                        const Model&                 model,
+                                        const std::vector<uint32_t>& equalArtCol) {
+    using Lim = std::numeric_limits<double>;
+    const bool   maximize    = (model.getObjSense() == ObjSense::Maximize);
+    const auto&  constraints = model.getLPConstraints();
+    const auto&  objCoeffs   = model.getHot().obj;
+    const double inf         = Lim::infinity();
+
+    const std::size_t m   = tab.m;
+    const std::size_t n   = tab.n;
+    const std::size_t np  = n + 1;
+    const std::size_t nEff = (tab.nActive > 0) ? tab.nActive : n;
+
+    std::vector<bool> isBasic(nEff, false);
+    for (std::size_t r = 0; r < m; ++r)
+        if (tab.basicCols[r] < nEff)
+            isBasic[tab.basicCols[r]] = true;
+
+    SensitivityResult sens;
+
+    // ── RHS ranging ──────────────────────────────────────────────────────────
+    // For each constraint i, find [Δlo, Δhi] such that all basic variables
+    // remain within [0, colUB] after the perturbation Δ in b[i].
+    sens.rhsRange.resize(sfbv.nOrigRows);
+    for (std::size_t i = 0; i < sfbv.nOrigRows; ++i) {
+        uint32_t colI    = sfbv.rowSlackCol[i];
+        double   dirSign = 1.0;
+
+        if (colI >= static_cast<uint32_t>(sfbv.nCols)) {
+            // Equal row: use the artificial column kept after Phase I.
+            if (equalArtCol.empty() || equalArtCol[i] >= static_cast<uint32_t>(n)) {
+                sens.rhsRange[i] = {-inf, +inf};
+                continue;
+            }
+            colI    = equalArtCol[i];
+            dirSign = 1.0;
+        } else {
+            dirSign = (constraints[i].sense == Sense::LessEq)
+                          ? (sfbv.rowNegated[i] ? -1.0 : +1.0)
+                          : (sfbv.rowNegated[i] ? +1.0 : -1.0);
+        }
+
+        double deltaLo = -inf, deltaHi = +inf;
+        for (std::size_t r = 0; r < m; ++r) {
+            const double xBr = tab.tab[r * np + n];
+            const double dr  = dirSign * tab.tab[r * np + colI];
+            const double ubr = tab.colUB[tab.basicCols[r]];
+            if (dr > baguette::pivot_tol) {
+                deltaLo = std::max(deltaLo, -xBr / dr);
+                if (std::isfinite(ubr))
+                    deltaHi = std::min(deltaHi, (ubr - xBr) / dr);
+            } else if (dr < -baguette::pivot_tol) {
+                deltaHi = std::min(deltaHi, -xBr / dr);
+                if (std::isfinite(ubr))
+                    deltaLo = std::max(deltaLo, (ubr - xBr) / dr);
+            }
+        }
+
+        const double modelRHS = constraints[i].rhs;
+        if (!sfbv.rowNegated[i])
+            sens.rhsRange[i] = {modelRHS + deltaLo, modelRHS + deltaHi};
+        else
+            sens.rhsRange[i] = {modelRHS - deltaHi, modelRHS - deltaLo};
+    }
+
+    // ── Objective ranging ─────────────────────────────────────────────────────
+    // For each original variable j, find [Δlo, Δhi] in c[j] such that all
+    // non-basic reduced costs remain non-negative.
+    sens.objRange.resize(sfbv.nOrig);
+    for (std::size_t j = 0; j < sfbv.nOrig; ++j) {
+        if (sfbv.varFreeNegCol[j] < static_cast<uint32_t>(sfbv.nCols)) {
+            sens.objRange[j] = {-inf, +inf}; // free variable: not implemented
+            continue;
+        }
+
+        const double factor = static_cast<double>(sfbv.varColSign[j]) * (maximize ? -1.0 : 1.0);
+        const double cModel = objCoeffs[j];
+        double deltaLoSF = -inf, deltaHiSF = +inf;
+
+        if (!isBasic[j]) {
+            // Non-basic AT_LB: rc[j] + δ ≥ 0  →  δ ≥ -rc[j]
+            // Non-basic AT_UB: rc[j] - δ ≥ 0  →  δ ≤  rc[j]
+            if (!tab.atUB[j]) deltaLoSF = -tab.rc[j];
+            else               deltaHiSF =  tab.rc[j];
+        } else {
+            std::size_t r = 0;
+            while (r < m && tab.basicCols[r] != static_cast<uint32_t>(j)) ++r;
+            // Changing c'_j by δ shifts rc[k] by -δ * tab[r][k] for all non-basics k.
+            // (Holds for both AT_LB and AT_UB non-basics — see comment in header.)
+            for (std::size_t k = 0; k < nEff; ++k) {
+                if (isBasic[k]) continue;
+                const double t   = tab.tab[r * np + k];
+                const double rck = tab.rc[k];
+                if (t > baguette::pivot_tol)
+                    deltaHiSF = std::min(deltaHiSF, rck / t);
+                else if (t < -baguette::pivot_tol)
+                    deltaLoSF = std::max(deltaLoSF, rck / t);
+            }
+        }
+
+        double lo, hi;
+        if (factor > 0.0) { lo = cModel + deltaLoSF; hi = cModel + deltaHiSF; }
+        else               { lo = cModel - deltaHiSF; hi = cModel - deltaLoSF; }
+        sens.objRange[j] = {lo, hi};
+    }
+
+    return sens;
 }
 
 } // namespace baguette::internal

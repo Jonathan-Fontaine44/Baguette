@@ -19,7 +19,7 @@ namespace baguette::internal {
 /// The RHS column tab[i*(n+1)+n] stores the actual BFS value for basic
 /// variable i, already accounting for non-basic AT_UB contributions.
 ///
-/// @par Complexity
+/// @node Complexity
 /// init(): O(m²n) Gauss-Jordan.
 /// complement(): O(m).
 /// selectEntering(): O(n).
@@ -105,5 +105,16 @@ struct SimplexTableauBV {
     /// Returns actual shifted values: basic vars from RHS, AT_UB non-basics at colUB[j].
     std::vector<double> primalSolution() const;
 };
+
+/// Compute RHS and objective sensitivity ranges from an optimal BV tableau.
+///
+/// Analogous to extractSensitivity (Extractor.cpp) but for the bounded-variable
+/// form: upper bounds enforced via colUB + atUB instead of explicit UB rows.
+/// RHS ranging checks both LB=0 and UB constraints on basic variables.
+/// Equal constraints are not supported (BV path falls back to primal for those).
+SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
+                                        const LPStandardFormBV&      sfbv,
+                                        const Model&                 model,
+                                        const std::vector<uint32_t>& equalArtCol = {});
 
 } // namespace baguette::internal

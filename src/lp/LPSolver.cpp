@@ -35,17 +35,23 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
     }
     if (opts.method == LPMethod::PrimalSimplexBV) {
         return internal::solvePrimalBV(model, opts.maxIter, opts.timeLimitS,
-                                       opts.startTime, opts.computeCutData);
+                                       opts.startTime, opts.computeCutData,
+                                       opts.computeSensitivity);
     }
     if (opts.method == LPMethod::DualSimplexBV) {
         return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
                                      opts.startTime, opts.warmBasis,
-                                     opts.computeCutData);
+                                     opts.computeCutData, opts.computeSensitivity);
     }
-    // Auto or DualSimplex: attempt dual simplex with primal fallback.
-    return internal::solveDual(model, opts.maxIter, opts.timeLimitS,
-                               opts.startTime, opts.warmBasis,
-                               opts.computeSensitivity, opts.computeCutData);
+    if (opts.method == LPMethod::DualSimplex) {
+        return internal::solveDual(model, opts.maxIter, opts.timeLimitS,
+                                   opts.startTime, opts.warmBasis,
+                                   opts.computeSensitivity, opts.computeCutData);
+    }
+    // Auto: DualSimplexBV with fallback to PrimalSimplexBV.
+    return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
+                                 opts.startTime, opts.warmBasis,
+                                 opts.computeCutData, opts.computeSensitivity);
 }
 
 } // namespace baguette
