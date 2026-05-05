@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <limits>
@@ -49,11 +50,13 @@ static Model makeFractionalLP() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 TEST_CASE("Warm-start: identity returns same result", "[warm_start]") {
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions coldOpts; coldOpts.method = method;
     Model m      = makeFractionalLP();
-    auto  parent = solveLPDetailed(m);
+    auto  parent = solveLPDetailed(m, coldOpts);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
-    LPOptions opts; opts.warmBasis = parent.basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = parent.basis;
     auto warm = solveLPDetailed(m, opts);
     REQUIRE(warm.result.status == LPStatus::Optimal);
     REQUIRE_THAT(warm.result.objectiveValue,
@@ -67,14 +70,16 @@ TEST_CASE("Warm-start: identity returns same result", "[warm_start]") {
 TEST_CASE("Warm-start: left branch x1 <= 1", "[warm_start]") {
     // Branch: x1 <= floor(4/3) = 1.
     // Child optimum: x1=1, x2=1.5, obj=-2.5.
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions coldOpts; coldOpts.method = method;
     Model    parent_m = makeFractionalLP();
     Variable x1{0};
-    auto     parent   = solveLPDetailed(parent_m);
+    auto     parent   = solveLPDetailed(parent_m, coldOpts);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
     Model child_m = parent_m.withVarBounds(x1, 0.0, 1.0);
 
-    LPOptions opts; opts.warmBasis = parent.basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = parent.basis;
     auto warm = solveLPDetailed(child_m, opts);
     auto cold = solveLPDetailed(child_m);
 
@@ -88,14 +93,16 @@ TEST_CASE("Warm-start: left branch x1 <= 1", "[warm_start]") {
 TEST_CASE("Warm-start: right branch x1 >= 2", "[warm_start]") {
     // Branch: x1 >= ceil(4/3) = 2.
     // Child optimum: x1=2, x2=0, obj=-2.0.
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions coldOpts; coldOpts.method = method;
     Model    parent_m = makeFractionalLP();
     Variable x1{0};
-    auto     parent   = solveLPDetailed(parent_m);
+    auto     parent   = solveLPDetailed(parent_m, coldOpts);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
     Model child_m = parent_m.withVarBounds(x1, 2.0, 3.0);
 
-    LPOptions opts; opts.warmBasis = parent.basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = parent.basis;
     auto warm = solveLPDetailed(child_m, opts);
     auto cold = solveLPDetailed(child_m);
 
@@ -107,48 +114,52 @@ TEST_CASE("Warm-start: right branch x1 >= 2", "[warm_start]") {
 }
 
 TEST_CASE("Warm-start: infeasible branch (empty domain lb > ub)", "[warm_start]") {
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions coldOpts; coldOpts.method = method;
     Model    parent_m = makeFractionalLP();
     Variable x1{0};
-    auto     parent   = solveLPDetailed(parent_m);
+    auto     parent   = solveLPDetailed(parent_m, coldOpts);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
     // Explicitly contradictory bounds: lb > ub.
     Model child_m = parent_m.withVarBounds(x1, 2.0, 1.0);
 
-    LPOptions opts; opts.warmBasis = parent.basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = parent.basis;
     auto warm = solveLPDetailed(child_m, opts);
     REQUIRE(warm.result.status == LPStatus::Infeasible);
 }
 
 TEST_CASE("Warm-start: infeasible by constraints after tight bounds", "[warm_start]") {
     // x1 >= 3 and x2 >= 3 violates  2*x1 + x2 <= 4  (gives 9 <= 4).
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions coldOpts; coldOpts.method = method;
     Model    parent_m = makeFractionalLP();
     Variable x1{0};
     Variable x2{1};
-    auto     parent   = solveLPDetailed(parent_m);
+    auto     parent   = solveLPDetailed(parent_m, coldOpts);
     REQUIRE(parent.result.status == LPStatus::Optimal);
 
     Model child_m = parent_m.withVarBounds(x1, 3.0, 3.0)
                              .withVarBounds(x2, 3.0, 3.0);
 
-    LPOptions opts; opts.warmBasis = parent.basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = parent.basis;
     auto warm = solveLPDetailed(child_m, opts);
     REQUIRE(warm.result.status == LPStatus::Infeasible);
 }
 
 TEST_CASE("Warm-start: incompatible basis falls back to cold solve", "[warm_start]") {
-    // nRows = 4 for the reference LP (2 model rows + 2 upper-bound rows).
-    // A basis with the wrong number of entries triggers the size mismatch check
-    // and falls back transparently to a cold primal solve.
+    // An incomplete BasisRecord (no atUBCache for DualSimplexBV, wrong size for
+    // DualSimplex) is rejected and falls back transparently to a cold solve.
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
     Model m = makeFractionalLP();
 
     BasisRecord bad_basis;
-    bad_basis.basicCols = {0, 1, 2}; // 3 entries ≠ nRows (4)
+    bad_basis.basicCols = {0, 1, 2}; // 3 entries — wrong for both methods
     bad_basis.colKind   = {ColumnKind::Original,
                            ColumnKind::Original,
                            ColumnKind::Original};
 
-    LPOptions opts; opts.warmBasis = bad_basis;
+    LPOptions opts; opts.method = method; opts.warmBasis = bad_basis;
     auto result = solveLPDetailed(m, opts);
     REQUIRE(result.result.status == LPStatus::Optimal);
     REQUIRE_THAT(result.result.objectiveValue, WithinAbs(-8.0 / 3.0, kTol));
@@ -163,10 +174,12 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
     //
     // After each branch the bounds are restored with setVarBounds() and the
     // root solution is re-verified to confirm the backtrack was complete.
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions baseOpts; baseOpts.method = method;
     Model    m  = makeFractionalLP();
     Variable x1{0};
 
-    auto root = solveLPDetailed(m);
+    auto root = solveLPDetailed(m, baseOpts);
     REQUIRE(root.result.status == LPStatus::Optimal);
 
     const double savedLb = m.getHot().lb[x1.id]; // 0.0
@@ -174,7 +187,7 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
 
     // ── Left branch ──────────────────────────────────────────────────────────
     m.setVarBounds(x1, 0.0, 1.0);
-    LPOptions leftOpts; leftOpts.warmBasis = root.basis;
+    LPOptions leftOpts; leftOpts.method = method; leftOpts.warmBasis = root.basis;
     auto left = solveLPDetailed(m, leftOpts);
     REQUIRE(left.result.status == LPStatus::Optimal);
     REQUIRE_THAT(left.result.objectiveValue, WithinAbs(-2.5, kTol));
@@ -187,7 +200,7 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
 
     // ── Right branch (same model instance, same root basis) ──────────────────
     m.setVarBounds(x1, 2.0, 3.0);
-    LPOptions rightOpts; rightOpts.warmBasis = root.basis;
+    LPOptions rightOpts; rightOpts.method = method; rightOpts.warmBasis = root.basis;
     auto right = solveLPDetailed(m, rightOpts);
     REQUIRE(right.result.status == LPStatus::Optimal);
     REQUIRE_THAT(right.result.objectiveValue, WithinAbs(-2.0, kTol));
@@ -197,7 +210,7 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
     m.setVarBounds(x1, savedLb, savedUb);
 
     // Root model is fully restored: re-solving gives the original optimum.
-    auto restored = solveLPDetailed(m);
+    auto restored = solveLPDetailed(m, baseOpts);
     REQUIRE(restored.result.status == LPStatus::Optimal);
     REQUIRE_THAT(restored.result.objectiveValue, WithinAbs(-8.0 / 3.0, kTol));
 }
@@ -205,20 +218,22 @@ TEST_CASE("Warm-start: backtrack left then right via setVarBounds", "[warm_start
 TEST_CASE("Warm-start: two-level B&B tree gives consistent results", "[warm_start]") {
     // Root → left (x1<=1) → left again (x2<=1).
     // Final optimum: x1=1, x2=1, obj=-2.
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    LPOptions baseOpts; baseOpts.method = method;
     Model    root_m = makeFractionalLP();
     Variable x1{0};
     Variable x2{1};
 
-    auto root = solveLPDetailed(root_m);
+    auto root = solveLPDetailed(root_m, baseOpts);
     REQUIRE(root.result.status == LPStatus::Optimal);
 
     Model child_m = root_m.withVarBounds(x1, 0.0, 1.0);
-    LPOptions childOpts; childOpts.warmBasis = root.basis;
+    LPOptions childOpts; childOpts.method = method; childOpts.warmBasis = root.basis;
     auto  child   = solveLPDetailed(child_m, childOpts);
     REQUIRE(child.result.status == LPStatus::Optimal);
 
     Model grand_m = child_m.withVarBounds(x2, 0.0, 1.0);
-    LPOptions grandOpts; grandOpts.warmBasis = child.basis;
+    LPOptions grandOpts; grandOpts.method = method; grandOpts.warmBasis = child.basis;
     auto  grand   = solveLPDetailed(grand_m, grandOpts);
     REQUIRE(grand.result.status == LPStatus::Optimal);
     REQUIRE_THAT(grand.result.objectiveValue, WithinAbs(-2.0, kTol));
