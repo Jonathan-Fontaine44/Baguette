@@ -14,7 +14,7 @@ using SolverClock = std::chrono::steady_clock;
 
 /// LP solving algorithm.
 enum class LPMethod {
-    Auto,           ///< Try dual simplex first; fall back to primal when preconditions fail.
+    Auto,           ///< DualSimplexBV with automatic fallback to PrimalSimplexBV.
     PrimalSimplex,  ///< Two-phase primal simplex (phase I + II).
     DualSimplex,    ///< Dual simplex with automatic primal fallback.
     RevisedSimplex, ///< Two-phase primal revised simplex: maintains B⁻¹ explicitly (m×m)
@@ -47,7 +47,7 @@ enum class LPMethod {
 /// Default-constructed LPOptions{} produces a cold-start Auto solve with no
 /// iteration or time limit, and no warm basis.
 struct LPOptions {
-    /// Solving algorithm. Auto tries dual simplex and falls back to primal.
+    /// Solving algorithm. Auto uses DualSimplexBV with fallback to PrimalSimplexBV.
     LPMethod method = LPMethod::Auto;
 
     /// Maximum number of simplex pivots. 0 = unlimited.
@@ -61,7 +61,7 @@ struct LPOptions {
     SolverClock::time_point startTime = SolverClock::now();
 
     /// Warm-start basis from a previous solve (e.g. parent B&B node).
-    /// Empty = cold start. Only honoured by DualSimplex / Auto.
+    /// Empty = cold start. Honoured by DualSimplex, DualSimplexBV, and Auto.
     BasisRecord warmBasis;
 
     /// If true, populate LPDetailedResult::sensitivity (RHS and objective ranging).
