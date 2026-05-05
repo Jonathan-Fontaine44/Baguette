@@ -150,28 +150,20 @@ void preparePhaseTwoBV(internal::SimplexTableauBV&        tab,
     tab.nActive = nOld;
     repairRedundantRowsBV(tab, nOld);
 
-    // Re-price: use original objective (artificials get cost 0)
+    // Re-price: use original objective (artificials get cost 0).
+    // For AT_UB columns the complement invariant stores rc[j] = -c_j - c_B*B^{-1}*a_j
+    // (note the sign flip on c_j vs. the LB formula). The tableau column for an AT_UB
+    // variable j already stores B^{-1}*(-a_j), so the subtraction loop is the same for
+    // both LB and AT_UB; only the initial cost term differs.
     tab.rc.assign(w, 0.0);
     for (std::size_t j = 0; j < nOld; ++j)
-        tab.rc[j] = sfbvOrig.c[j];
+        tab.rc[j] = tab.atUB[j] ? -sfbvOrig.c[j] : sfbvOrig.c[j];
     for (std::size_t i = 0; i < tab.m; ++i) {
         double cb = (tab.basicCols[i] < nOld) ? sfbvOrig.c[tab.basicCols[i]] : 0.0;
         if (cb == 0.0) continue;
         for (std::size_t j = 0; j < w; ++j)
             tab.rc[j] -= cb * tab.tab[i * w + j];
     }
-
-    // Restore complement invariant for any non-basic AT_UB columns
-    // (complement was maintained through Phase I; rc repricing must respect it)
-    // Re-apply complement for each AT_UB non-basic to negate rc[j] correctly.
-    // Note: the rc repricing above assumed all non-basics at LB (cost = sfbvOrig.c[j]).
-    // For AT_UB cols we need rc[j] = -(c_j - c_B^T B^-1 a_j) = -standard_rc.
-    // Since complement() also negates rc[j], just call complement for each atUB col
-    // using the stored colUB (already set).  But complement also updates the RHS —
-    // we do NOT want that here (RHS is already correct from Phase I).
-    // Instead, just negate rc[j] directly for AT_UB non-basics.
-    for (std::size_t j = 0; j < nOld; ++j)
-        if (tab.atUB[j]) tab.rc[j] = -tab.rc[j];
 }
 
 // ── BV simplex loop ───────────────────────────────────────────────────────────
@@ -323,6 +315,26 @@ LPDetailedResult extractBV(const internal::SimplexTableauBV&  tab,
             fr.tabRow.assign(tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np),
                              tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np + nSFBV));
             det.fractionalRows.push_back(std::move(fr));
+        }
+        // AT_UB non-basic integer variables with fractional UB: synthesize a virtual UB row.
+        // The UB row's Gauss-Jordan leaves only one non-zero entry: 1.0 at column j itself
+        // (the complement x'' = ub - x acts as an UpperSlack). generateGMICuts uses
+        // atUBCache[j] to apply the correct UpperSlack substitution.
+        for (std::size_t j = 0; j < nSFBV; ++j) {
+            if (!tab.atUB[j]) continue;
+            if (sfbv.colKind[j] != ColumnKind::Original) continue;
+            if (sfbv.varFreeNegCol[j] < static_cast<uint32_t>(nSFBV)) continue;
+            uint32_t varId = sfbv.colOrigin[j];
+            if (types[varId] != VarType::Integer && types[varId] != VarType::Binary) continue;
+            double ubSF = tab.colUB[j];
+            double fr   = ubSF - std::floor(ubSF);
+            if (fr <= kIntFeasTol || fr >= 1.0 - kIntFeasTol) continue;
+            FractionalRow frow;
+            frow.origVarId = varId;
+            frow.fracVal   = fr;
+            frow.tabRow.assign(nSFBV, 0.0);
+            frow.tabRow[j] = 1.0;
+            det.fractionalRows.push_back(std::move(frow));
         }
     }
 

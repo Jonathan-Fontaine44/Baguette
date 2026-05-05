@@ -172,6 +172,26 @@ LPDetailedResult extractDualBV(const internal::SimplexTableauBV& tab,
                              tab.tab.begin() + static_cast<std::ptrdiff_t>(r * np + nSFBV));
             det.fractionalRows.push_back(std::move(fr));
         }
+        // AT_UB non-basic integer variables with fractional UB: synthesize a virtual UB row.
+        // The UB row's Gauss-Jordan leaves only one non-zero entry: 1.0 at column j itself
+        // (the complement x'' = ub - x acts as an UpperSlack). generateGMICuts uses
+        // atUBCache[j] to apply the correct UpperSlack substitution.
+        for (std::size_t j = 0; j < nSFBV; ++j) {
+            if (!tab.atUB[j]) continue;
+            if (sfbv.colKind[j] != ColumnKind::Original) continue;
+            if (sfbv.varFreeNegCol[j] < static_cast<uint32_t>(nSFBV)) continue;
+            uint32_t varId = sfbv.colOrigin[j];
+            if (types[varId] != VarType::Integer && types[varId] != VarType::Binary) continue;
+            double ubSF = tab.colUB[j];
+            double fr   = ubSF - std::floor(ubSF);
+            if (fr <= kIntFeasTol || fr >= 1.0 - kIntFeasTol) continue;
+            FractionalRow frow;
+            frow.origVarId = varId;
+            frow.fracVal   = fr;
+            frow.tabRow.assign(nSFBV, 0.0);
+            frow.tabRow[j] = 1.0;
+            det.fractionalRows.push_back(std::move(frow));
+        }
     }
 
     return det;

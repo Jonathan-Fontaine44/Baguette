@@ -59,6 +59,20 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
             const ColumnKind kind   = basis.colKind[j];
             const uint32_t   origin = basis.colOrigin[j];
 
+            // BV form: AT_UB non-basic columns are complemented in the tableau.
+            // The stored entry is already correct for x'' = ub - x (the complement
+            // variable at LB=0). Substitute as UpperSlack: gmi*x'' = gmi*(ub-x).
+            if (j < basis.atUBCache.size() && basis.atUBCache[j]) {
+                if (kind != ColumnKind::Original) continue;
+                const double ub = hot.ub[origin];
+                if (ub >= kInf) continue;
+                double gmi = gmiCoeff(aBar, fi, /*isInt=*/false);
+                if (std::abs(gmi) <= intFeasTol) continue;
+                cut.expr.addTerm(Variable{origin}, -gmi);
+                cut.rhs -= gmi * ub;
+                continue;
+            }
+
             double gmi = 0.0;
 
             // ── Compute GMI coefficient ──────────────────────────────────────
