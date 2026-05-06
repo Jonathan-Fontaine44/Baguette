@@ -30,10 +30,16 @@ AugmentedFormBV buildPhaseOneBV(const internal::LPStandardFormBV& sfbv,
     const std::size_t nOld = sfbv.nCols;
 
     std::vector<bool> needsArt(m, false);
-    for (std::size_t i = 0; i < m; ++i)
-        needsArt[i] = (constraints[i].sense == Sense::GreaterEq ||
-                       constraints[i].sense == Sense::Equal     ||
-                       sfbv.rowNegated[i]);
+    for (std::size_t i = 0; i < m; ++i) {
+        // After row negation the effective sense flips: GEQ→LEQ, LEQ→GEQ.
+        // An artificial is needed iff the effective sense is GEQ or Equal
+        // (natural slack coefficient is -1 or absent, giving an infeasible initial BFS).
+        const bool neg = sfbv.rowNegated[i];
+        const Sense s  = constraints[i].sense;
+        needsArt[i] = (s == Sense::Equal) ||
+                      (!neg && s == Sense::GreaterEq) ||
+                      (neg  && s == Sense::LessEq);
+    }
 
     std::size_t nArt = 0;
     for (bool b : needsArt) if (b) ++nArt;

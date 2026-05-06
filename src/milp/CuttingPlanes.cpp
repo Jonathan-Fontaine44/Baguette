@@ -66,7 +66,11 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                 if (kind != ColumnKind::Original) continue;
                 const double ub = hot.ub[origin];
                 if (ub >= kInf) continue;
-                double gmi = gmiCoeff(aBar, fi, /*isInt=*/false);
+                // x'' = ub - x is integer iff x is integer AND ub is integer.
+                bool isInt = (types[origin] == VarType::Integer ||
+                              types[origin] == VarType::Binary)
+                             && (ub == std::floor(ub));
+                double gmi = gmiCoeff(aBar, fi, isInt);
                 if (std::abs(gmi) <= intFeasTol) continue;
                 cut.expr.addTerm(Variable{origin}, -gmi);
                 cut.rhs -= gmi * ub;

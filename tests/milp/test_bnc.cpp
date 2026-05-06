@@ -372,7 +372,8 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
 // to the model, re-solve, and verify the LP objective after the cut.
 
 TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
-    auto method = GENERATE(LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
     DYNAMIC_SECTION("method=" << to_string(method)) {
         Model m = baguette_test::makeKnapsack10();
 
