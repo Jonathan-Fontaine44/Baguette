@@ -3,11 +3,14 @@
 #include <catch2/generators/catch_generators_range.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <cstdio>
+
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/BranchAndBound.hpp"
 #include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/model/Model.hpp"
 #include "baguette/model/ModelEnums.hpp"
+#include "lp/MILP_problems.hpp"
 
 using namespace baguette;
 using Catch::Matchers::WithinAbs;
@@ -19,6 +22,11 @@ static constexpr double kTol = 1e-6;
 // Verify that when cut generation is disabled, no cuts are recorded.
 
 TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -26,14 +34,17 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.enableCuts   = false;
-    opts.collectStats = true;
+    opts.enableCuts       = false;
+    opts.collectStats     = true;
+    opts.lpOpts.method    = method;
 
-    MILPResult r = solveMILP(m, opts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r = solveMILP(m, opts);
 
-    REQUIRE(r.status == MILPStatus::Optimal);
-    REQUIRE(r.stats->cutsAdded == 0);
-    REQUIRE_THAT(r.objectiveValue, WithinAbs(13.0, kTol));
+        REQUIRE(r.status == MILPStatus::Optimal);
+        REQUIRE(r.stats->cutsAdded == 0);
+        REQUIRE_THAT(r.objectiveValue, WithinAbs(13.0, kTol));
+    }
 }
 
 // ── Test 2: B&C gives same answer as B&B ────────────────────────────────────
@@ -43,7 +54,9 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
 // With cuts enabled the result must be identical.
 
 TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -61,14 +74,16 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
     withCuts.maxCutsPerNode  = 10;
     withCuts.lpOpts.method   = method;
 
-    MILPResult r1 = solveMILP(m, noCuts);
-    MILPResult r2 = solveMILP(m, withCuts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r1 = solveMILP(m, noCuts);
+        MILPResult r2 = solveMILP(m, withCuts);
 
-    REQUIRE(r1.status == MILPStatus::Optimal);
-    REQUIRE(r2.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
-    REQUIRE_THAT(r1.primalValues[x.id], WithinAbs(r2.primalValues[x.id], kTol));
-    REQUIRE_THAT(r1.primalValues[y.id], WithinAbs(r2.primalValues[y.id], kTol));
+        REQUIRE(r1.status == MILPStatus::Optimal);
+        REQUIRE(r2.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+        REQUIRE_THAT(r1.primalValues[x.id], WithinAbs(r2.primalValues[x.id], kTol));
+        REQUIRE_THAT(r1.primalValues[y.id], WithinAbs(r2.primalValues[y.id], kTol));
+    }
 }
 
 // ── Test 3: GMI cut closes LP-IP gap at root ─────────────────────────────────
@@ -82,7 +97,9 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
 // IP optimal: x+y=4, obj=4 (e.g. x=4, y=0 or x=0, y=4).
 
 TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -102,22 +119,25 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     withCuts.collectStats    = true;
     withCuts.lpOpts.method   = method;
 
-    MILPResult r1 = solveMILP(m, noCuts);
-    MILPResult r2 = solveMILP(m, withCuts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r1 = solveMILP(m, noCuts);
+        MILPResult r2 = solveMILP(m, withCuts);
 
-    // Both must find the same optimal.
-    REQUIRE(r1.status == MILPStatus::Optimal);
-    REQUIRE(r2.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r1.objectiveValue, WithinAbs(4.0, kTol));
-    REQUIRE_THAT(r2.objectiveValue, WithinAbs(4.0, kTol));
+        // Both must find the same optimal.
+        REQUIRE(r1.status == MILPStatus::Optimal);
+        REQUIRE(r2.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r1.objectiveValue, WithinAbs(4.0, kTol));
+        REQUIRE_THAT(r2.objectiveValue, WithinAbs(4.0, kTol));
 
-    // With cuts the gap is closed at the root: 1 node.
-    REQUIRE(r2.stats->nodesExplored == 1);
-    REQUIRE(r2.stats->cutsAdded >= 1);
+        REQUIRE(r1.stats->cutsAdded == 0);
 
-    // Without cuts branching is required.
-    REQUIRE(r1.stats->nodesExplored > 1);
-    REQUIRE(r1.stats->cutsAdded == 0);
+        // With cuts the gap is closed at the root: 1 node.
+        REQUIRE(r2.stats->nodesExplored == 1);
+        REQUIRE(r2.stats->cutsAdded >= 1);
+
+        // Without cuts branching is required.
+        REQUIRE(r1.stats->nodesExplored > 1);
+    }
 }
 
 // ── Test 4: PseudoCost branching gives correct answer ────────────────────────
@@ -125,6 +145,11 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
 // Use the knapsack from Test 2. PseudoCost must agree with MostFractional.
 
 TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bnc]") {
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
     Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
@@ -132,19 +157,23 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions mf;
-    mf.branchStrat = BranchStrategy::MostFractional;
-    mf.enableCuts  = false;
+    mf.branchStrat      = BranchStrategy::MostFractional;
+    mf.enableCuts       = false;
+    mf.lpOpts.method    = method;
 
     BBOptions pc;
-    pc.branchStrat = BranchStrategy::PseudoCost;
-    pc.enableCuts  = false;
+    pc.branchStrat      = BranchStrategy::PseudoCost;
+    pc.enableCuts       = false;
+    pc.lpOpts.method    = method;
 
-    MILPResult r1 = solveMILP(m, mf);
-    MILPResult r2 = solveMILP(m, pc);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r1 = solveMILP(m, mf);
+        MILPResult r2 = solveMILP(m, pc);
 
-    REQUIRE(r1.status == MILPStatus::Optimal);
-    REQUIRE(r2.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+        REQUIRE(r1.status == MILPStatus::Optimal);
+        REQUIRE(r2.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+    }
 }
 
 // ── Test 5: PseudoCost + cuts give correct answer ────────────────────────────
@@ -153,7 +182,9 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
 // The result must equal the known IP optimum.
 
 TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -168,10 +199,12 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
     opts.maxCutsPerNode   = 5;
     opts.lpOpts.method    = method;
 
-    MILPResult r = solveMILP(m, opts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r = solveMILP(m, opts);
 
-    REQUIRE(r.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r.objectiveValue, WithinAbs(4.0, kTol));
+        REQUIRE(r.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r.objectiveValue, WithinAbs(4.0, kTol));
+    }
 }
 
 // ── Test 6: B&C infeasible MILP ─────────────────────────────────────────────
@@ -179,7 +212,9 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
 // LP-infeasible problem → MILP infeasible even with cuts enabled.
 
 TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -193,11 +228,13 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     opts.collectStats    = true;
     opts.lpOpts.method   = method;
 
-    MILPResult r = solveMILP(m, opts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r = solveMILP(m, opts);
 
-    REQUIRE(r.status == MILPStatus::Infeasible);
-    REQUIRE(r.primalValues.empty());
-    REQUIRE(r.stats->cutsAdded == 0);
+        REQUIRE(r.status == MILPStatus::Infeasible);
+        REQUIRE(r.primalValues.empty());
+        REQUIRE(r.stats->cutsAdded == 0);
+    }
 }
 
 // ── Test 7: B&C 3-variable problem ──────────────────────────────────────────
@@ -210,7 +247,9 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
 // IP optimal: (2,2,0) → obj=18.
 
 TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -231,13 +270,15 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     withCuts.branchStrat     = BranchStrategy::PseudoCost;
     withCuts.lpOpts.method   = method;
 
-    MILPResult r1 = solveMILP(m, noCuts);
-    MILPResult r2 = solveMILP(m, withCuts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r1 = solveMILP(m, noCuts);
+        MILPResult r2 = solveMILP(m, withCuts);
 
-    REQUIRE(r1.status == MILPStatus::Optimal);
-    REQUIRE(r2.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
-    REQUIRE(r1.objectiveValue >= 18.0 - kTol);
+        REQUIRE(r1.status == MILPStatus::Optimal);
+        REQUIRE(r2.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+        REQUIRE(r1.objectiveValue >= 18.0 - kTol);
+    }
 }
 
 // ── Test 8: computeCutData reports fractional integers only ─────────────────
@@ -249,7 +290,9 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
 // generateGMICuts must produce exactly one cut from the x row.
 
 TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -290,7 +333,9 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
 // IP solution must satisfy integrality for x and y.
 
 TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -308,14 +353,75 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     opts.collectStats    = true;
     opts.lpOpts.method   = method;
 
-    MILPResult r = solveMILP(m, opts);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        MILPResult r = solveMILP(m, opts);
 
-    REQUIRE(r.status == MILPStatus::Optimal);
+        REQUIRE(r.status == MILPStatus::Optimal);
 
-    REQUIRE(r.stats->cutsAdded > 0);
+        REQUIRE(r.stats->cutsAdded > 0);
 
-    REQUIRE(std::abs(r.primalValues[x.id] - std::round(r.primalValues[x.id])) < kTol);
-    REQUIRE(std::abs(r.primalValues[y.id] - std::round(r.primalValues[y.id])) < kTol);
+        REQUIRE(std::abs(r.primalValues[x.id] - std::round(r.primalValues[x.id])) < kTol);
+        REQUIRE(std::abs(r.primalValues[y.id] - std::round(r.primalValues[y.id])) < kTol);
+    }
+}
+
+// ── Diagnostic: knapsack-10 GMI cut coefficients ────────────────────────────
+//
+// Solve the LP relaxation of the 10-item knapsack with PrimalSimplexBV,
+// generate GMI cuts, then check cut coefficients and RHS. Then add the cut
+// to the model, re-solve, and verify the LP objective after the cut.
+
+TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
+    auto method = GENERATE(LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        Model m = baguette_test::makeKnapsack10();
+
+        LPOptions lpOpts;
+        lpOpts.method         = method;
+        lpOpts.computeCutData = true;
+        LPDetailedResult lp   = solveLPDetailed(m, lpOpts);
+
+        REQUIRE(lp.result.status == LPStatus::Optimal);
+        REQUIRE_THAT(lp.result.objectiveValue, WithinAbs(110.0, kTol));
+
+        std::printf("\n=== knapsack-10 with %s ===\n", to_string(method).data());
+        std::printf("LP obj=%.4f, fracRows=%zu\n",
+                    lp.result.objectiveValue, lp.fractionalRows.size());
+        for (std::size_t i = 0; i < 10; ++i)
+            std::printf("  x[%zu]=%.4f\n", i, lp.result.primalValues[i]);
+
+        REQUIRE(!lp.fractionalRows.empty());
+
+        std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 10, kTol);
+        REQUIRE(cuts.size() == 1);
+
+        const Cut& cut = cuts[0];
+        std::printf("Cut RHS=%.6f, terms=%zu\n", cut.rhs, cut.expr.size());
+        for (std::size_t k = 0; k < cut.expr.size(); ++k)
+            std::printf("  x[%u] coeff=%.6f\n", cut.expr.varIds[k], cut.expr.coeffs[k]);
+
+        // Verify IP optimal satisfies the cut (x[0..7]=1, x[8]=0, x[9]=1).
+        double lhsIP = 0.0;
+        double ipVals[10] = {1,1,1,1,1,1,1,1,0,1};
+        for (std::size_t k = 0; k < cut.expr.size(); ++k)
+            lhsIP += cut.expr.coeffs[k] * ipVals[cut.expr.varIds[k]];
+        std::printf("Cut LHS at IP optimal=%.6f (rhs=%.6f, satisfied=%d)\n",
+                    lhsIP, cut.rhs, (lhsIP >= cut.rhs - kTol));
+        REQUIRE(lhsIP >= cut.rhs - kTol);
+
+        // Add the cut and re-solve.
+        m.addLPConstraint(cut.expr, Sense::GreaterEq, cut.rhs);
+        LPOptions lpOpts2;
+        lpOpts2.method = method;
+        LPDetailedResult lp2 = solveLPDetailed(m, lpOpts2);
+        std::printf("LP2 status=%s obj=%.4f\n",
+                    to_string(lp2.result.status).data(), lp2.result.objectiveValue);
+        for (std::size_t i = 0; i < 10; ++i)
+            std::printf("  x[%zu]=%.4f\n", i, lp2.result.primalValues[i]);
+
+        REQUIRE(lp2.result.status == LPStatus::Optimal);
+        REQUIRE(lp2.result.objectiveValue >= 106.0 - kTol);
+    }
 }
 
 // ── Test 10: MILP infeasible even though LP relaxation is feasible ──────────
@@ -326,7 +432,9 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
 // Both children are LP-infeasible → MILP Infeasible.
 
 TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
+    auto method = GENERATE(LPMethod::Auto,
+                           LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
+                           LPMethod::RevisedSimplex,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
 
     Model m;
@@ -344,9 +452,11 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
     lpOpts.method = method;
     LPDetailedResult lp = solveLPDetailed(m, lpOpts);
 
-    REQUIRE(lp.result.status == LPStatus::Optimal);
+    DYNAMIC_SECTION("method=" << to_string(method)) {
+        REQUIRE(lp.result.status == LPStatus::Optimal);
 
-    MILPResult r = solveMILP(m, opts);
+        MILPResult r = solveMILP(m, opts);
 
-    REQUIRE(r.status == MILPStatus::Infeasible);
+        REQUIRE(r.status == MILPStatus::Infeasible);
+    }
 }
