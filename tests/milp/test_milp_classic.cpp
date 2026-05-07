@@ -53,7 +53,8 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
 
 TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     auto lpMethod = GENERATE(LPMethod::RevisedSimplex, LPMethod::MehrotraIPM,
-                             LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                             LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                             LPMethod::RevisedSimplexBV);
 
     static const auto suite = makeMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));

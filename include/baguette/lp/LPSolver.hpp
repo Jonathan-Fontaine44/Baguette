@@ -42,6 +42,11 @@ enum class LPMethod {
                     ///< Warm-start via BasisRecord::atUBCache (BV→BV). Falls back to
                     ///< PrimalSimplexBV when dual feasibility cannot be established.
                     ///< Sensitivity analysis not supported.
+    RevisedSimplexBV, ///< Two-phase primal revised simplex with bounded-variable invariant.
+                    ///< Combines the O(m²) memory footprint of RevisedSimplex with the
+                    ///< UB-row elimination of BV methods: m = nOrigRows, no explicit UB
+                    ///< rows. Periodic LU reinversion every reinversion_period pivots.
+                    ///< Sensitivity analysis and warm-start not supported.
 };
 
 inline std::string_view to_string(LPMethod m) {
@@ -52,8 +57,9 @@ inline std::string_view to_string(LPMethod m) {
         case LPMethod::RevisedSimplex:   return "RevisedSimplex";
         case LPMethod::ShortStepIPM:     return "ShortStepIPM";
         case LPMethod::MehrotraIPM:      return "MehrotraIPM";
-        case LPMethod::PrimalSimplexBV:  return "PrimalSimplexBV";
-        case LPMethod::DualSimplexBV:    return "DualSimplexBV";
+        case LPMethod::PrimalSimplexBV:   return "PrimalSimplexBV";
+        case LPMethod::DualSimplexBV:     return "DualSimplexBV";
+        case LPMethod::RevisedSimplexBV:  return "RevisedSimplexBV";
     }
     return "Unknown";
 }

@@ -7,6 +7,7 @@
 #include "algorithms/PrimalSimplex.hpp"
 #include "algorithms/PrimalSimplexBV.hpp"
 #include "algorithms/RevisedSimplex.hpp"
+#include "algorithms/RevisedSimplexBV.hpp"
 
 namespace baguette {
 
@@ -24,6 +25,10 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
                                       opts.startTime, opts.computeSensitivity,
                                       opts.computeCutData);
+    }
+    if (opts.method == LPMethod::RevisedSimplexBV) {
+        return internal::solveRevisedBV(model, opts.maxIter, opts.timeLimitS,
+                                        opts.startTime, opts.computeCutData);
     }
     if (opts.method == LPMethod::ShortStepIPM) {
         return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,

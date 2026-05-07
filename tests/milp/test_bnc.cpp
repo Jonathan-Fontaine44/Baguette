@@ -25,7 +25,8 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -57,7 +58,8 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -100,7 +102,8 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -148,7 +151,8 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -185,7 +189,8 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -215,7 +220,8 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
@@ -250,7 +256,8 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
@@ -293,7 +300,8 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
     Variable x = m.addVar(0.0, 3.2, VarType::Integer, "x");
@@ -336,7 +344,8 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
 
@@ -373,7 +382,8 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
 
 TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
     auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
     DYNAMIC_SECTION("method=" << to_string(method)) {
         Model m = baguette_test::makeKnapsack10();
 
@@ -436,7 +446,8 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
                            LPMethod::PrimalSimplex,   LPMethod::DualSimplex,
                            LPMethod::RevisedSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV);
+                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplexBV);
 
     Model m;
 

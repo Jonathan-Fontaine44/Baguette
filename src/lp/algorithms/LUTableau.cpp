@@ -76,24 +76,7 @@ std::vector<double> luSolve(const std::vector<double>&      lu,
 
 // ── LUTableau implementation ──────────────────────────────────────────────────
 
-bool LUTableau::init(const LPStandardForm& sf, std::vector<uint32_t> initialBasis) {
-    assert(initialBasis.size() == sf.nRows);
-    m         = sf.nRows;
-    n         = sf.nCols;
-    basicCols = std::move(initialBasis);
-    Binv.assign(m * m, 0.0);
-    xB.resize(m, 0.0);
-    pi.resize(m, 0.0);
-    rc.resize(n + 1, 0.0);
-    return reinvert(sf);
-}
-
-bool LUTableau::reinvert(const LPStandardForm& sf) {
-    // Refresh stored data (handles bounds-only sf updates between B&B nodes)
-    A_ptr = sf.A;
-    c     = sf.c;
-    b     = sf.b;
-
+bool LUTableau::doReinvert() {
     const auto& Avec = *A_ptr;
 
     // Build basis matrix B (m×m): column k of B = column basicCols[k] of A
@@ -127,12 +110,173 @@ bool LUTableau::reinvert(const LPStandardForm& sf) {
     return true;
 }
 
+bool LUTableau::init(const LPStandardForm& sf, std::vector<uint32_t> initialBasis) {
+    assert(initialBasis.size() == sf.nRows);
+    m         = sf.nRows;
+    n         = sf.nCols;
+    basicCols = std::move(initialBasis);
+    Binv.assign(m * m, 0.0);
+    xB.resize(m, 0.0);
+    pi.resize(m, 0.0);
+    rc.resize(n + 1, 0.0);
+    A_ptr = sf.A; c = sf.c; b = sf.b;
+    return doReinvert();
+}
+
+bool LUTableau::reinvert(const LPStandardForm& sf) {
+    A_ptr = sf.A;
+    c     = sf.c;
+    b     = sf.b;
+    return doReinvert();
+}
+
+bool LUTableau::initBV(const LPStandardFormBV& sfbv, std::vector<uint32_t> initialBasis) {
+    assert(initialBasis.size() == sfbv.nRows);
+    m         = sfbv.nRows;
+    n         = sfbv.nCols;
+    basicCols = std::move(initialBasis);
+    Binv.assign(m * m, 0.0);
+    xB.resize(m, 0.0);
+    pi.resize(m, 0.0);
+    rc.resize(n + 1, 0.0);
+    nActive = 0;
+    colUB = sfbv.colUB;
+    atUB.assign(n, false);
+    A_ptr = sfbv.A; c = sfbv.c; b = sfbv.b;
+    return doReinvert();
+}
+
+bool LUTableau::reinvertBV(const LPStandardFormBV& sfbv) {
+    A_ptr = sfbv.A; c = sfbv.c; b = sfbv.b;
+    colUB = sfbv.colUB;
+    std::vector<bool> savedAtUB = atUB;
+    atUB.assign(n, false);
+    if (!doReinvert()) return false;
+    for (std::size_t j = 0; j < n; ++j)
+        if (savedAtUB[j]) complement(j);
+    return true;
+}
+
 void LUTableau::repriceObjective(const std::vector<double>& newC,
                                   std::size_t                newNActive) {
     c       = newC;
     nActive = newNActive;
     recomputePi();
     recomputeReducedCosts();
+}
+
+void LUTableau::applyAtUBToRc() {
+    for (std::size_t j = 0; j < n; ++j) {
+        if (!atUB[j]) continue;
+        const double rcj = rc[j];
+        rc[n] -= colUB[j] * rcj;
+        rc[j] = -rcj;
+    }
+}
+
+void LUTableau::repriceBV(const std::vector<double>& newC, std::size_t newNActive) {
+    c       = newC;
+    nActive = newNActive;
+    recomputePi();
+    recomputeReducedCosts();
+    applyAtUBToRc();
+}
+
+void LUTableau::complement(std::size_t j) {
+    const double uj  = colUB[j];
+    const auto   eta = enteringColumn(j);
+    // AT_LB → AT_UB: xB -= uj * eta; AT_UB → AT_LB: xB += uj * eta
+    const double sign = atUB[j] ? +1.0 : -1.0;
+    for (std::size_t i = 0; i < m; ++i)
+        xB[i] += sign * uj * eta[i];
+    const double old_rcj = rc[j];
+    rc[j]  = -old_rcj;
+    rc[n] -= uj * old_rcj; // equivalent to rc[n] += uj * rc[j]_new
+    atUB[j] = !atUB[j];
+}
+
+std::pair<LUTableau::RatioResultBV, std::vector<double>>
+LUTableau::selectLeavingBVWithEta(std::size_t e) const {
+    auto eta_orig = enteringColumn(e);
+    // Effective entering direction: negate for AT_UB (complemented) column
+    const double sign = atUB[e] ? -1.0 : 1.0;
+
+    // Initialise with the entering variable's own UB (bound flip candidate)
+    const bool     entUBFin = std::isfinite(colUB[e]);
+    double         best     = entUBFin ? colUB[e] : std::numeric_limits<double>::infinity();
+    std::size_t    bestRow  = m;
+    uint32_t       bestIdx  = entUBFin ? static_cast<uint32_t>(e)
+                                       : std::numeric_limits<uint32_t>::max();
+    bool           bflip    = entUBFin;
+    bool           bestAtUB = false;
+
+    for (std::size_t i = 0; i < m; ++i) {
+        const double eta = sign * eta_orig[i];
+        const double xBi = xB[i];
+        double       ratio;
+        bool         thisAtUB;
+
+        if (eta > baguette::pivot_tol) {
+            ratio    = xBi / eta;
+            thisAtUB = false;
+        } else if (eta < -baguette::pivot_tol) {
+            const double ubi = colUB[basicCols[i]];
+            if (!std::isfinite(ubi)) continue;
+            ratio    = (ubi - xBi) / (-eta);
+            thisAtUB = true;
+        } else {
+            continue;
+        }
+
+        const uint32_t idx = basicCols[i];
+        if (ratio < best - baguette::pivot_tol ||
+            (ratio < best + baguette::pivot_tol && idx < bestIdx)) {
+            best     = ratio;
+            bestRow  = i;
+            bestIdx  = idx;
+            bestAtUB = thisAtUB;
+            bflip    = false;
+        }
+    }
+
+    if (bflip)        return {{m, true,  false}, std::move(eta_orig)};
+    if (bestRow == m) return {{m, false, false}, std::move(eta_orig)};
+    return {{bestRow, false, bestAtUB}, std::move(eta_orig)};
+}
+
+void LUTableau::pivotBV(std::size_t r, std::size_t j, bool leavingAtUB,
+                         const std::vector<double>& eta_orig) {
+    const uint32_t leavingCol = basicCols[r];
+
+    // Un-complement entering column if AT_UB (uses precomputed eta_orig, O(m))
+    if (atUB[j]) {
+        const double uj = colUB[j];
+        for (std::size_t i = 0; i < m; ++i)
+            xB[i] += uj * eta_orig[i]; // AT_UB → AT_LB: xB += uj * eta
+        const double old_rcj = rc[j];
+        rc[j]  = -old_rcj;
+        rc[n] -= uj * old_rcj;
+        atUB[j] = false;
+    }
+
+    // Standard pivot with the un-complemented entering column
+    pivot(r, j, eta_orig);
+    atUB[j] = false; // entering var becomes basic (always AT_LB)
+
+    // Complement leaving variable if it exits to its UB
+    if (leavingAtUB)
+        complement(leavingCol); // uses NEW B⁻¹ after pivot, O(m²)
+    else
+        atUB[leavingCol] = false;
+}
+
+std::vector<double> LUTableau::primalSolutionBV() const {
+    std::vector<double> x(n, 0.0);
+    for (std::size_t i = 0; i < m; ++i)
+        x[basicCols[i]] = xB[i];
+    for (std::size_t j = 0; j < n; ++j)
+        if (atUB[j]) x[j] = colUB[j];
+    return x;
 }
 
 std::vector<double> LUTableau::enteringColumn(std::size_t j) const {
@@ -263,22 +407,28 @@ void LUTableau::pivot(std::size_t r, std::size_t j,
         pi[k] += ratio * y[k];
 
     // ── Incremental rc: rc_new[p] = rc_old[p] − (α/ρ) × (y · a_p) ───────────
-    // Row-major traversal over A for sequential (cache-friendly) access.
+    // For AT_UB (complemented) columns the stored rc[p] = −rc_orig[p], so the
+    // update sign flips: rc_comp[p] += (α/ρ) × (y · a_p).
     const auto& Avec = *A_ptr;
+    const bool hasBV = !atUB.empty();
     for (std::size_t k = 0; k < m; ++k) {
         double coeff = ratio * y[k];
         if (coeff == 0.0) continue;
         const double* rowA = &Avec[k * n];
-        for (std::size_t p = 0; p < n; ++p)
-            rc[p] -= coeff * rowA[p];
+        if (!hasBV) {
+            for (std::size_t p = 0; p < n; ++p)
+                rc[p] -= coeff * rowA[p];
+        } else {
+            for (std::size_t p = 0; p < n; ++p)
+                rc[p] += atUB[p] ? coeff * rowA[p] : -coeff * rowA[p];
+        }
     }
     rc[j] = 0.0;  // j is now basic — enforce numerically exact
 
-    // ── Incremental objective: rc[n] = rc[n] − (α/ρ) × (y · b)  — O(m) ──────
-    double yb = 0.0;
-    for (std::size_t k = 0; k < m; ++k)
-        yb += y[k] * b[k];
-    rc[n] -= ratio * yb;
+    // ── Incremental objective: rc[n] = rc[n] − (α/ρ) × xB_old[r]  — O(1) ──
+    // In BV mode xB[r] = B⁻¹ b_eff ≠ B⁻¹ b_orig, so using old_xBr is
+    // correct for both BV (b_eff) and non-BV (b_eff = b_orig).
+    rc[n] -= ratio * old_xBr;
 }
 
 void LUTableau::pivot(std::size_t r, std::size_t j) {
