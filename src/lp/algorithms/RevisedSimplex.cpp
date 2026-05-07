@@ -147,10 +147,10 @@ LPStatus runSimplexRev(internal::LUTableau&                       tab,
         std::size_t entering = tab.selectEntering();
         if (entering == tab.n) return LPStatus::Optimal;
 
-        std::size_t leaving = tab.selectLeaving(entering);
+        auto [leaving, eta] = tab.selectLeavingWithEta(entering);
         if (leaving == tab.m) return LPStatus::Unbounded;
 
-        tab.pivot(leaving, entering);
+        tab.pivot(leaving, entering, eta);
         ++iterConsumed;
 
         if (iterConsumed % timePeriod == 0) {

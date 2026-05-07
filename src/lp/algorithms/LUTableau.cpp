@@ -164,9 +164,9 @@ std::size_t LUTableau::selectEntering() const {
     return n;
 }
 
-std::size_t LUTableau::selectLeaving(std::size_t j) const {
-    auto eta = enteringColumn(j);
-
+std::pair<std::size_t, std::vector<double>>
+LUTableau::selectLeavingWithEta(std::size_t j) const {
+    auto        eta      = enteringColumn(j);
     std::size_t leaving  = m;
     double      minRatio = std::numeric_limits<double>::infinity();
 
@@ -181,7 +181,11 @@ std::size_t LUTableau::selectLeaving(std::size_t j) const {
             leaving = i;
         }
     }
-    return leaving;
+    return {leaving, std::move(eta)};
+}
+
+std::size_t LUTableau::selectLeaving(std::size_t j) const {
+    return selectLeavingWithEta(j).first;
 }
 
 std::size_t LUTableau::selectLeavingDual() const {
@@ -221,34 +225,64 @@ std::size_t LUTableau::selectEnteringDual(std::size_t leavingRow) const {
     return entering;
 }
 
-void LUTableau::pivot(std::size_t r, std::size_t j) {
-    auto   eta     = enteringColumn(j);
+void LUTableau::pivot(std::size_t r, std::size_t j,
+                       const std::vector<double>& eta) {
     double rho     = eta[r];
     double inv_rho = 1.0 / rho;
+    double alpha   = rc[j];  // reduced cost before pivot
 
-    // Eta-file update of B⁻¹:
-    //   New row r   = old row r / ρ
-    //   New row i≠r = old row i − (η[i]/ρ) × old row r
-    for (std::size_t k = 0; k < m; ++k) {
-        double old_rk = Binv[r * m + k];
-        for (std::size_t i = 0; i < m; ++i) {
-            if (i == r) continue;
-            Binv[i * m + k] -= eta[i] * inv_rho * old_rk;
-        }
-        Binv[r * m + k] = old_rk * inv_rho;
+    // Save old row r of B⁻¹ — needed for incremental π and rc updates.
+    std::vector<double> y(Binv.begin() + static_cast<std::ptrdiff_t>(r * m),
+                           Binv.begin() + static_cast<std::ptrdiff_t>(r * m + m));
+
+    // ── Update B⁻¹ — row-major loops (cache-friendly) ────────────────────────
+    // Row r ← old row r / ρ
+    for (std::size_t k = 0; k < m; ++k)
+        Binv[r * m + k] = y[k] * inv_rho;
+    // Row i (i≠r) ← row i − (η[i]/ρ) × old row r
+    for (std::size_t i = 0; i < m; ++i) {
+        if (i == r) continue;
+        double coeff = eta[i] * inv_rho;
+        if (coeff == 0.0) continue;
+        for (std::size_t k = 0; k < m; ++k)
+            Binv[i * m + k] -= coeff * y[k];
     }
 
-    // Update xB
+    // ── Update xB ─────────────────────────────────────────────────────────────
     double old_xBr = xB[r];
+    xB[r] = old_xBr * inv_rho;
     for (std::size_t i = 0; i < m; ++i) {
         if (i != r) xB[i] -= eta[i] * inv_rho * old_xBr;
     }
-    xB[r] = old_xBr * inv_rho;
 
     basicCols[r] = static_cast<uint32_t>(j);
 
-    recomputePi();
-    recomputeReducedCosts();
+    // ── Incremental π: π_new[k] = π_old[k] + (α/ρ) × y[k]  — O(m) ──────────
+    double ratio = alpha * inv_rho;
+    for (std::size_t k = 0; k < m; ++k)
+        pi[k] += ratio * y[k];
+
+    // ── Incremental rc: rc_new[p] = rc_old[p] − (α/ρ) × (y · a_p) ───────────
+    // Row-major traversal over A for sequential (cache-friendly) access.
+    const auto& Avec = *A_ptr;
+    for (std::size_t k = 0; k < m; ++k) {
+        double coeff = ratio * y[k];
+        if (coeff == 0.0) continue;
+        const double* rowA = &Avec[k * n];
+        for (std::size_t p = 0; p < n; ++p)
+            rc[p] -= coeff * rowA[p];
+    }
+    rc[j] = 0.0;  // j is now basic — enforce numerically exact
+
+    // ── Incremental objective: rc[n] = rc[n] − (α/ρ) × (y · b)  — O(m) ──────
+    double yb = 0.0;
+    for (std::size_t k = 0; k < m; ++k)
+        yb += y[k] * b[k];
+    rc[n] -= ratio * yb;
+}
+
+void LUTableau::pivot(std::size_t r, std::size_t j) {
+    pivot(r, j, enteringColumn(j));
 }
 
 std::vector<double> LUTableau::primalSolution() const {
@@ -272,13 +306,20 @@ void LUTableau::recomputePi() {
 
 void LUTableau::recomputeReducedCosts() {
     const auto& Avec = *A_ptr;
-    for (std::size_t j = 0; j < n; ++j) {
-        double piTaj = 0.0;
-        for (std::size_t k = 0; k < m; ++k)
-            piTaj += pi[k] * Avec[k * n + j];
-        rc[j] = (j < c.size() ? c[j] : 0.0) - piTaj;
+
+    // Initialise with objective coefficients
+    for (std::size_t j = 0; j < n; ++j)
+        rc[j] = (j < c.size() ? c[j] : 0.0);
+
+    // Subtract π^T A using row-major traversal over A (cache-friendly)
+    for (std::size_t k = 0; k < m; ++k) {
+        if (pi[k] == 0.0) continue;
+        const double* rowA = &Avec[k * n];
+        for (std::size_t j = 0; j < n; ++j)
+            rc[j] -= pi[k] * rowA[j];
     }
-    // rc[n] = −(π^T b) = −(cB^T xB)
+
+    // rc[n] = −(π^T b)
     double piTb = 0.0;
     for (std::size_t k = 0; k < m; ++k)
         piTb += pi[k] * b[k];

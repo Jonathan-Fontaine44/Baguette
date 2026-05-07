@@ -82,6 +82,13 @@ struct LUTableau {
     /// @note Complexity: O(m²+m).
     std::size_t selectLeaving(std::size_t enteringCol) const;
 
+    /// Same as selectLeaving but also returns the precomputed η = B⁻¹ a_j.
+    /// Pass the returned eta directly to pivot() to avoid recomputing it.
+    /// @return {leaving row (m = unbounded), η vector}.
+    /// @note Complexity: O(m²+m).
+    std::pair<std::size_t, std::vector<double>>
+    selectLeavingWithEta(std::size_t enteringCol) const;
+
     /// Most-negative xB row for dual simplex (Bland's tie-breaking).
     /// @return r < m (leaving row) or m (primal feasible → optimal).
     /// @note Complexity: O(m).
@@ -95,10 +102,18 @@ struct LUTableau {
 
     // ── Pivot ────────────────────────────────────────────────────────────────
 
-    /// Bring enteringCol into the basis at leavingRow (eta-file update).
-    /// Updates Binv, xB, basicCols, π, and rc.
-    /// @note Complexity: O(m²) Binv + O(m) xB + O(m²) π + O(m·n) rc.
+    /// Bring enteringCol into the basis at leavingRow.
+    /// Computes η = B⁻¹ a_j internally; prefer the eta overload when η is
+    /// already available (e.g. from selectLeavingWithEta) to avoid recomputing.
+    /// @note Complexity: O(m²) η + O(m²) Binv + O(m) π + O(m·n) rc.
     void pivot(std::size_t leavingRow, std::size_t enteringCol);
+
+    /// Bring enteringCol into the basis at leavingRow using a precomputed η.
+    /// Updates Binv (row-major, cache-friendly), xB, basicCols, π, and rc
+    /// using incremental formulas: π update O(m), rc update O(m·n) row-major.
+    /// @note Complexity: O(m²) Binv + O(m) π + O(m·n) rc.
+    void pivot(std::size_t leavingRow, std::size_t enteringCol,
+               const std::vector<double>& eta);
 
     // ── Reinversion ──────────────────────────────────────────────────────────
 
