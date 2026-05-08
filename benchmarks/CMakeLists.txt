@@ -13,6 +13,7 @@ add_executable(BaguetteBench
     bench_lp_methods.cpp
     bench_milp.cpp
     bench_flow.cpp
+    bench_network_simplex.cpp
 )
 
 target_link_libraries(BaguetteBench PRIVATE
