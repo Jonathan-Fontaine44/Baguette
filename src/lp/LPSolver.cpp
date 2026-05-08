@@ -7,6 +7,7 @@
 #include "algorithms/PrimalSimplex.hpp"
 #include "algorithms/PrimalSimplexBV.hpp"
 #include "algorithms/RevisedSimplex.hpp"
+#include "algorithms/NetworkSimplex.hpp"
 #include "algorithms/RevisedSimplexBV.hpp"
 
 namespace baguette {
@@ -47,6 +48,10 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
                                      opts.startTime, opts.warmBasis,
                                      opts.computeCutData, opts.computeSensitivity);
+    }
+    if (opts.method == LPMethod::NetworkSimplex) {
+        return internal::solveNetworkSimplex(model, opts.maxIter, opts.timeLimitS,
+                                             opts.startTime, opts.computeCutData);
     }
     if (opts.method == LPMethod::DualSimplex) {
         return internal::solveDual(model, opts.maxIter, opts.timeLimitS,

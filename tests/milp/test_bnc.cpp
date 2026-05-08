@@ -395,29 +395,19 @@ TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
         REQUIRE(lp.result.status == LPStatus::Optimal);
         REQUIRE_THAT(lp.result.objectiveValue, WithinAbs(110.0, kTol));
 
-        std::printf("\n=== knapsack-10 with %s ===\n", to_string(method).data());
-        std::printf("LP obj=%.4f, fracRows=%zu\n",
-                    lp.result.objectiveValue, lp.fractionalRows.size());
-        for (std::size_t i = 0; i < 10; ++i)
-            std::printf("  x[%zu]=%.4f\n", i, lp.result.primalValues[i]);
-
         REQUIRE(!lp.fractionalRows.empty());
 
         std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 10, kTol);
         REQUIRE(cuts.size() == 1);
 
         const Cut& cut = cuts[0];
-        std::printf("Cut RHS=%.6f, terms=%zu\n", cut.rhs, cut.expr.size());
-        for (std::size_t k = 0; k < cut.expr.size(); ++k)
-            std::printf("  x[%u] coeff=%.6f\n", cut.expr.varIds[k], cut.expr.coeffs[k]);
 
         // Verify IP optimal satisfies the cut (x[0..7]=1, x[8]=0, x[9]=1).
         double lhsIP = 0.0;
         double ipVals[10] = {1,1,1,1,1,1,1,1,0,1};
         for (std::size_t k = 0; k < cut.expr.size(); ++k)
             lhsIP += cut.expr.coeffs[k] * ipVals[cut.expr.varIds[k]];
-        std::printf("Cut LHS at IP optimal=%.6f (rhs=%.6f, satisfied=%d)\n",
-                    lhsIP, cut.rhs, (lhsIP >= cut.rhs - kTol));
+        
         REQUIRE(lhsIP >= cut.rhs - kTol);
 
         // Add the cut and re-solve.
@@ -425,10 +415,6 @@ TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
         LPOptions lpOpts2;
         lpOpts2.method = method;
         LPDetailedResult lp2 = solveLPDetailed(m, lpOpts2);
-        std::printf("LP2 status=%s obj=%.4f\n",
-                    to_string(lp2.result.status).data(), lp2.result.objectiveValue);
-        for (std::size_t i = 0; i < 10; ++i)
-            std::printf("  x[%zu]=%.4f\n", i, lp2.result.primalValues[i]);
 
         REQUIRE(lp2.result.status == LPStatus::Optimal);
         REQUIRE(lp2.result.objectiveValue >= 106.0 - kTol);

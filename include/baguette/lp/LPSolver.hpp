@@ -47,6 +47,13 @@ enum class LPMethod {
                     ///< UB-row elimination of BV methods: m = nOrigRows, no explicit UB
                     ///< rows. Periodic LU reinversion every reinversion_period pivots.
                     ///< Sensitivity analysis and warm-start not supported.
+    NetworkSimplex, ///< Primal network simplex for min-cost flow LPs.
+                    ///< Detects node-arc incidence structure (equality constraints,
+                    ///< ±1 coefficients, each variable in exactly 2 rows). If detected,
+                    ///< basis = rooted spanning tree; pivots in O(n) vs O(m²) for the
+                    ///< general simplex, giving 100–1000× speed-ups on network LPs.
+                    ///< Falls back to DualSimplexBV when the model is not a pure network.
+                    ///< Sensitivity analysis and warm-start not supported.
 };
 
 inline std::string_view to_string(LPMethod m) {
@@ -60,6 +67,7 @@ inline std::string_view to_string(LPMethod m) {
         case LPMethod::PrimalSimplexBV:   return "PrimalSimplexBV";
         case LPMethod::DualSimplexBV:     return "DualSimplexBV";
         case LPMethod::RevisedSimplexBV:  return "RevisedSimplexBV";
+        case LPMethod::NetworkSimplex:    return "NetworkSimplex";
     }
     return "Unknown";
 }

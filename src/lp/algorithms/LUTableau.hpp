@@ -132,14 +132,14 @@ struct LUTableau {
     /// Same as init() but stores colUB, initialises atUB = false, and accepts
     /// LPStandardFormBV (no explicit UB rows, m = nOrigRows).
     /// @return false if the basis matrix is numerically singular.
-    /// @par Complexity O(m³) LU + O(m³) back-sub + O(m·n) repricing.
+    /// @note Complexity O(m³) LU + O(m³) back-sub + O(m·n) repricing.
     bool initBV(const LPStandardFormBV& sfbv, std::vector<uint32_t> initialBasis);
 
     // ── BV complement ────────────────────────────────────────────────────────────
 
     /// Toggle column j between AT_LB (x_j = 0) and AT_UB (x_j = colUB[j]).
     /// Updates xB, rc[j], and rc[n] using B⁻¹ a_j computed on demand.
-    /// @par Complexity O(m²) due to enteringColumn().
+    /// @note Complexity O(m²) due to enteringColumn().
     void complement(std::size_t j);
 
     // ── BV pivot selection ───────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ struct LUTableau {
     /// BV ratio test: two-sided (basic vars may hit LB or UB), plus bound flip.
     /// Returns the result and η = B⁻¹ a_j (un-complemented entering column).
     /// Pass η to pivotBV() to avoid recomputing it.
-    /// @par Complexity O(m²) for enteringColumn() + O(m) ratio loop.
+    /// @note Complexity O(m²) for enteringColumn() + O(m) ratio loop.
     std::pair<RatioResultBV, std::vector<double>>
     selectLeavingBVWithEta(std::size_t enteringCol) const;
 
@@ -163,7 +163,7 @@ struct LUTableau {
     /// (O(m²) B⁻¹ + O(m) π + O(m·n) rc), then complement leaving if leavingAtUB
     /// (O(m²) due to enteringColumn on updated B⁻¹).
     /// @param eta_orig  B⁻¹ a_j from selectLeavingBVWithEta (avoids recomputation).
-    /// @par Complexity O(m·n) dominated by rc update.
+    /// @note Complexity O(m·n) dominated by rc update.
     void pivotBV(std::size_t leavingRow, std::size_t enteringCol, bool leavingAtUB,
                  const std::vector<double>& eta_orig);
 
@@ -171,7 +171,7 @@ struct LUTableau {
 
     /// Recompute π and rc for a new objective, then apply AT_UB sign adjustments.
     /// Used for the phase I → II transition in the BV revised simplex.
-    /// @par Complexity O(m²) for π + O(m·n) for rc + O(n) for AT_UB adjustment.
+    /// @note Complexity O(m²) for π + O(m·n) for rc + O(n) for AT_UB adjustment.
     void repriceBV(const std::vector<double>& newC, std::size_t newNActive);
 
     // ── Reinversion ──────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ struct LUTableau {
     /// Saves atUB, refreshes A_ptr/c/b/colUB from sfbv, runs LU, then re-applies
     /// complement(j) for every j that was AT_UB.
     /// @return false if the basis is numerically singular.
-    /// @par Complexity O(m³) LU + O(k·m²) complements, where k = |AT_UB|.
+    /// @note Complexity O(m³) LU + O(k·m²) complements, where k = |AT_UB|.
     [[nodiscard]] bool reinvertBV(const LPStandardFormBV& sfbv);
 
     /// Update the objective vector and recompute π and rc without reinversion.
@@ -204,7 +204,7 @@ struct LUTableau {
     std::vector<double> primalSolution() const;
 
     /// Primal solution for BV simplex: basic vars from xB, AT_UB non-basics at colUB.
-    /// @par Complexity O(m + n).
+    /// @note Complexity O(m + n).
     std::vector<double> primalSolutionBV() const;
 
 private:

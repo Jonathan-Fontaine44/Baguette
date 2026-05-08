@@ -16,7 +16,7 @@ namespace baguette::internal {
 /// O(m²) instead of O((m+n_UB)²) as in RevisedSimplex.
 ///
 /// @note Sensitivity analysis is not supported on this path.
-/// @par Complexity O(K·m·n) total pivots (K pivots), plus O(m³) per reinversion
+/// @note Complexity O(K·m·n) total pivots (K pivots), plus O(m³) per reinversion
 ///   every reinversion_period pivots.
 LPDetailedResult solveRevisedBV(const Model&                          model,
                                  uint32_t                              maxIter,

@@ -19,7 +19,7 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
                            LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
-                           LPMethod::RevisedSimplexBV);
+                           LPMethod::RevisedSimplexBV, LPMethod::NetworkSimplex);
 
     static const auto suite = makeLPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
@@ -49,7 +49,7 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
                            LPMethod::DualSimplex, LPMethod::RevisedSimplex,
                            LPMethod::ShortStepIPM, LPMethod::MehrotraIPM,
                            LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
-                           LPMethod::RevisedSimplexBV);
+                           LPMethod::RevisedSimplexBV, LPMethod::NetworkSimplex);
 
     static const auto suite = makeRelaxedMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
