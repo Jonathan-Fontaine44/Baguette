@@ -7,6 +7,8 @@
 #include <string_view>
 #include <vector>
 
+#include "baguette/lp/Presolve.hpp"
+
 namespace baguette {
 
 /// Status returned by the MILP Branch & Bound solver.
@@ -86,6 +88,9 @@ struct MILPResult {
 
     /// Optional diagnostics; populated only when BBOptions::collectStats is true.
     std::optional<BBStats> stats;
+
+    /// Presolve statistics. Populated only when BBOptions::enablePresolve is true.
+    std::optional<PresolveResult> presolveStat;
 };
 
 } // namespace baguette

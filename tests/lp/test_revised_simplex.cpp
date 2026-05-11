@@ -17,6 +17,7 @@ static const double     kInf = std::numeric_limits<double>::infinity();
 static LPOptions revisedOpts() {
     LPOptions o;
     o.method = LPMethod::RevisedSimplex;
+    o.enablePresolve = false;
     return o;
 }
 
@@ -96,6 +97,7 @@ TEST_CASE("RevisedSimplex: agrees with PrimalSimplex on all results", "[revised]
 
     LPOptions primalOpts;
     primalOpts.method = LPMethod::PrimalSimplex;
+    primalOpts.enablePresolve = false;
     LPDetailedResult rP = solveLPDetailed(m, primalOpts);
     LPDetailedResult rR = solveLPDetailed(m, revisedOpts());
 
@@ -183,6 +185,7 @@ TEST_CASE("RevisedSimplex: sensitivity agrees with PrimalSimplex", "[revised]") 
     LPOptions primalOpts;
     primalOpts.method             = LPMethod::PrimalSimplex;
     primalOpts.computeSensitivity = true;
+    primalOpts.enablePresolve     = false;
 
     LPOptions revOpts             = revisedOpts();
     revOpts.computeSensitivity    = true;

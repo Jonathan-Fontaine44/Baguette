@@ -21,7 +21,7 @@ TEST_CASE("BB: single binary variable, maximize", "[bb]") {
     Variable x = m.addVar(0.0, 1.0, VarType::Binary, "x");
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
-    MILPResult r = solveMILP(m);
+    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(1.0, kTol));
@@ -38,7 +38,7 @@ TEST_CASE("BB: single binary variable, minimize", "[bb]") {
     Variable x = m.addVar(0.0, 1.0, VarType::Binary, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    MILPResult r = solveMILP(m);
+    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(0.0, kTol));
@@ -68,7 +68,8 @@ TEST_CASE("BB: knapsack with branching, maximize", "[bb]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.collectStats = true;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -92,11 +93,11 @@ TEST_CASE("BB: LP relaxation infeasible -> MILP infeasible", "[bb]") {
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::LessEq, -1.0);
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    LPResult lpResult = solveLP(m);
+    LPResult lpResult = solveLP(m, LPOptions{.enablePresolve = false});
 
     REQUIRE(lpResult.status == LPStatus::Infeasible);
 
-    MILPResult r = solveMILP(m);
+    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.primalValues.empty());
@@ -124,11 +125,11 @@ TEST_CASE("BB: integer infeasible (LP relaxation feasible)", "[bb]") {
     m.addLPConstraint(1.0 * x, Sense::LessEq,    0.7);
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    LPResult lpResult = solveLP(m);
+    LPResult lpResult = solveLP(m, LPOptions{.enablePresolve = false});
 
     REQUIRE(lpResult.status == LPStatus::Optimal);
 
-    MILPResult r = solveMILP(m);
+    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.primalValues.empty());
@@ -146,7 +147,8 @@ TEST_CASE("BB: pure LP (no integer variables)", "[bb]") {
     m.setObjective(-1.0 * x, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.collectStats = true;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -165,10 +167,12 @@ TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions bestBoundOpts;
-    bestBoundOpts.nodeSelect = NodeSelection::BestBound;
+    bestBoundOpts.nodeSelect     = NodeSelection::BestBound;
+    bestBoundOpts.enablePresolve = false;
 
     BBOptions depthFirstOpts;
-    depthFirstOpts.nodeSelect = NodeSelection::DepthFirst;
+    depthFirstOpts.nodeSelect     = NodeSelection::DepthFirst;
+    depthFirstOpts.enablePresolve = false;
 
     MILPResult r1 = solveMILP(m, bestBoundOpts);
     MILPResult r2 = solveMILP(m, depthFirstOpts);
@@ -190,8 +194,9 @@ TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.maxNodes     = 1;
-    opts.collectStats = true;
+    opts.maxNodes       = 1;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
 
     MILPResult r = solveMILP(m, opts);
 
@@ -224,8 +229,10 @@ TEST_CASE("BB: delta-trail restore correct for deep tree (BestBound vs DepthFirs
     m.setObjective(3.0*x + 5.0*y + 2.0*z + 4.0*w, ObjSense::Maximize);
 
     BBOptions bb, df;
-    bb.nodeSelect = NodeSelection::BestBound;
-    df.nodeSelect = NodeSelection::DepthFirst;
+    bb.nodeSelect     = NodeSelection::BestBound;
+    bb.enablePresolve = false;
+    df.nodeSelect     = NodeSelection::DepthFirst;
+    df.enablePresolve = false;
 
     MILPResult r1 = solveMILP(m, bb);
     MILPResult r2 = solveMILP(m, df);
@@ -251,9 +258,12 @@ TEST_CASE("BB: HybridPlunge finds same optimal as BestBound and DepthFirst", "[b
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions bb, df, hp;
-    bb.nodeSelect = NodeSelection::BestBound;
-    df.nodeSelect = NodeSelection::DepthFirst;
-    hp.nodeSelect = NodeSelection::HybridPlunge;
+    bb.nodeSelect     = NodeSelection::BestBound;
+    bb.enablePresolve = false;
+    df.nodeSelect     = NodeSelection::DepthFirst;
+    df.enablePresolve = false;
+    hp.nodeSelect     = NodeSelection::HybridPlunge;
+    hp.enablePresolve = false;
 
     MILPResult r1 = solveMILP(m, bb);
     MILPResult r2 = solveMILP(m, df);

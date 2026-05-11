@@ -38,6 +38,7 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     opts.enableCuts       = false;
     opts.collectStats     = true;
     opts.lpOpts.method    = method;
+    opts.enablePresolve   = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r = solveMILP(m, opts);
@@ -70,11 +71,13 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
     BBOptions noCuts;
     noCuts.enableCuts        = false;
     noCuts.lpOpts.method     = method;
+    noCuts.enablePresolve    = false;
 
     BBOptions withCuts;
     withCuts.enableCuts      = true;
     withCuts.maxCutsPerNode  = 10;
     withCuts.lpOpts.method   = method;
+    withCuts.enablePresolve  = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r1 = solveMILP(m, noCuts);
@@ -115,12 +118,14 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     noCuts.enableCuts        = false;
     noCuts.collectStats      = true;
     noCuts.lpOpts.method     = method;
+    noCuts.enablePresolve    = false;
 
     BBOptions withCuts;
     withCuts.enableCuts      = true;
     withCuts.maxCutsPerNode  = 10;
     withCuts.collectStats    = true;
     withCuts.lpOpts.method   = method;
+    withCuts.enablePresolve  = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r1 = solveMILP(m, noCuts);
@@ -164,11 +169,13 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     mf.branchStrat      = BranchStrategy::MostFractional;
     mf.enableCuts       = false;
     mf.lpOpts.method    = method;
+    mf.enablePresolve   = false;
 
     BBOptions pc;
     pc.branchStrat      = BranchStrategy::PseudoCost;
     pc.enableCuts       = false;
     pc.lpOpts.method    = method;
+    pc.enablePresolve   = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r1 = solveMILP(m, mf);
@@ -203,6 +210,7 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
     opts.enableCuts       = true;
     opts.maxCutsPerNode   = 5;
     opts.lpOpts.method    = method;
+    opts.enablePresolve   = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r = solveMILP(m, opts);
@@ -233,6 +241,7 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     opts.enableCuts      = true;
     opts.collectStats    = true;
     opts.lpOpts.method   = method;
+    opts.enablePresolve  = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r = solveMILP(m, opts);
@@ -270,12 +279,14 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     BBOptions noCuts;
     noCuts.enableCuts      = false;
     noCuts.lpOpts.method   = method;
+    noCuts.enablePresolve  = false;
 
     BBOptions withCuts;
     withCuts.enableCuts      = true;
     withCuts.maxCutsPerNode  = 10;
     withCuts.branchStrat     = BranchStrategy::PseudoCost;
     withCuts.lpOpts.method   = method;
+    withCuts.enablePresolve  = false;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r1 = solveMILP(m, noCuts);
@@ -313,6 +324,7 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     LPOptions lpOpts;
     lpOpts.computeCutData = true;
     lpOpts.method         = method;
+    lpOpts.enablePresolve = false;
     LPDetailedResult lp = solveLPDetailed(m, lpOpts);
 
     DYNAMIC_SECTION("method=" << to_string(method)) {

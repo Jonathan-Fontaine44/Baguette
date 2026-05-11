@@ -93,6 +93,13 @@ struct BBOptions {
     /// When false (default), no counters are maintained — zero overhead on
     /// production runs.  Enable for cut-effectiveness and warm-start diagnosis.
     bool collectStats = false;
+
+    /// If true, apply bound-tightening presolve once before the B&B root node.
+    /// Propagates variable bounds through constraints to narrow [lb, ub]
+    /// intervals. Operates on the working model copy; the original model passed
+    /// to solveMILP() is unchanged. Populates MILPResult::presolveStat.
+    /// Default true.
+    bool enablePresolve = true;
 };
 
 /// Shared clock type (same as LPSolver).

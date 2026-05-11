@@ -3,9 +3,12 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string_view>
 #include <vector>
+
+#include "baguette/lp/Presolve.hpp"
 
 namespace baguette { namespace internal { struct LPStandardForm; } }
 
@@ -220,6 +223,9 @@ struct LPDetailedResult {
     /// reinversion failure, no dual-feasibility fallback to cold primal).
     /// False when no warm basis was provided or a fallback to cold primal occurred.
     bool usedWarmStart = false;
+
+    /// Presolve statistics. Populated only when LPOptions::enablePresolve is true.
+    std::optional<PresolveResult> presolveStat;
 };
 
 } // namespace baguette

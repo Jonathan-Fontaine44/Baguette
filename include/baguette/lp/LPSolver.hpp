@@ -105,6 +105,12 @@ struct LPOptions {
     /// If true, populate LPDetailedResult::fractionalRows for GMI cut generation.
     /// Default false.
     bool computeCutData = false;
+
+    /// If true, apply bound-tightening presolve before solving.
+    /// Presolve propagates variable bounds through constraints to narrow [lb, ub]
+    /// intervals. The solve operates on a presolved copy; the original model is
+    /// unchanged. Populates LPDetailedResult::presolveStat. Default true.
+    bool enablePresolve = true;
 };
 
 /// Solve the LP relaxation of @p model.

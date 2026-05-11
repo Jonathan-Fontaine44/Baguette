@@ -117,7 +117,8 @@ TEST_CASE("NetworkSimplex: pure network problems vs reference methods",
 
     DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name) {
         LPOptions opts;
-        opts.method = method;
+        opts.method         = method;
+        opts.enablePresolve = false;
         LPResult r = solveLP(tc.build(), opts);
 
         REQUIRE(r.status == tc.expectedStatus);
@@ -136,7 +137,8 @@ TEST_CASE("NetworkSimplex: fallback on non-network LP", "[network_simplex]") {
     mdl.setObjective(1.0 * x + 2.0 * y, ObjSense::Minimize);
 
     LPOptions opts;
-    opts.method = LPMethod::NetworkSimplex;
+    opts.method         = LPMethod::NetworkSimplex;
+    opts.enablePresolve = false;
     LPResult r = solveLP(mdl, opts);
 
     REQUIRE(r.status == LPStatus::Optimal);
@@ -156,7 +158,8 @@ TEST_CASE("NetworkSimplex: strong duality 3-node", "[network_simplex]") {
     mdl.setObjective(2.0*x01 + 7.0*x02 + 3.0*x12, ObjSense::Minimize);
 
     LPOptions opts;
-    opts.method = LPMethod::NetworkSimplex;
+    opts.method         = LPMethod::NetworkSimplex;
+    opts.enablePresolve = false;
     LPDetailedResult det = solveLPDetailed(mdl, opts);
 
     REQUIRE(det.result.status == LPStatus::Optimal);

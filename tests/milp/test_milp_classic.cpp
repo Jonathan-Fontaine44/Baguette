@@ -4,6 +4,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "baguette/lp/LPSolver.hpp"
+#include "baguette/lp/Presolve.hpp"
 #include "baguette/milp/BranchAndBound.hpp"
 #include "baguette/milp/MILPResult.hpp"
 
@@ -51,6 +52,22 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
     };
 }
 
+// ── Presolve coherence: presolve must not mark feasible problems as infeasible ──
+TEST_CASE("Classic MILP x presolve coherence", "[milp_classic][presolve]") {
+    static const auto suite = makeMILPTestSuite();
+    auto i = GENERATE(range(std::size_t{0}, suite.size()));
+    const auto& tc = suite[i];
+
+    DYNAMIC_SECTION("Presolve / " << tc.name) {
+        Model m = tc.build();
+        PresolveResult pr = presolveInPlace(m);
+
+        // Presolve is sound: if it claims infeasible, the problem must be.
+        if (pr.infeasible)
+            REQUIRE(tc.expectedStatus == MILPStatus::Infeasible);
+    }
+}
+
 TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     auto lpMethod = GENERATE(LPMethod::RevisedSimplex, LPMethod::MehrotraIPM,
                              LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
@@ -67,9 +84,10 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
 
     DYNAMIC_SECTION(solver << " / " << to_string(lpMethod) << " / " << tc.name) {
         BBOptions opts;
-        opts.lpOpts.method = lpMethod;
-        opts.enableCuts    = enableCuts;
-        opts.timeLimitS    = 10.0;
+        opts.lpOpts.method  = lpMethod;
+        opts.enableCuts     = enableCuts;
+        opts.enablePresolve = true;
+        opts.timeLimitS     = 10.0;
         if (tc.large) opts.timeLimitS = 1.0;
 
         MILPResult r = solveMILP(tc.build(), opts);

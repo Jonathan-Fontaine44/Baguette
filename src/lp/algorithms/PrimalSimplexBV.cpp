@@ -170,6 +170,10 @@ void preparePhaseTwoBV(internal::SimplexTableauBV&        tab,
         for (std::size_t j = 0; j < w; ++j)
             tab.rc[j] -= cb * tab.tab[i * w + j];
     }
+    // AT_UB non-basic variables contribute c_j*ub_j to the objective (rc[n] = -z).
+    for (std::size_t j = 0; j < nOld; ++j)
+        if (tab.atUB[j])
+            tab.rc[w - 1] -= sfbvOrig.c[j] * sfbvOrig.colUB[j];
 }
 
 // ── BV simplex loop ───────────────────────────────────────────────────────────

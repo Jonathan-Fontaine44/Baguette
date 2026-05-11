@@ -112,7 +112,7 @@ static Model makeLPE() {
 // ── LP-A: primal path, LessEq constraints, minimize ──────────────────────────
 
 TEST_CASE("Sensitivity LP-A primal: sizes and status") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPA();
     LPDetailedResult res = solveLPDetailed(m, opts);
 
@@ -122,7 +122,7 @@ TEST_CASE("Sensitivity LP-A primal: sizes and status") {
 }
 
 TEST_CASE("Sensitivity LP-A primal: RHS ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPA();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -139,7 +139,7 @@ TEST_CASE("Sensitivity LP-A primal: RHS ranging") {
 }
 
 TEST_CASE("Sensitivity LP-A primal: objective ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPA();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -158,7 +158,7 @@ TEST_CASE("Sensitivity LP-A primal: objective ranging") {
 // ── LP-B: maximize, same geometry as LP-A ────────────────────────────────────
 
 TEST_CASE("Sensitivity LP-B maximize: RHS ranging matches LP-A") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model ma = makeLPA();
     Model mb = makeLPB();
 
@@ -185,7 +185,7 @@ TEST_CASE("Sensitivity LP-B maximize: RHS ranging matches LP-A") {
 }
 
 TEST_CASE("Sensitivity LP-B maximize: objective ranging flipped") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPB();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -204,7 +204,7 @@ TEST_CASE("Sensitivity LP-B maximize: objective ranging flipped") {
 // ── LP-C: GreaterEq + LessEq constraints ─────────────────────────────────────
 
 TEST_CASE("Sensitivity LP-C GreaterEq: RHS ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPC();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -221,7 +221,7 @@ TEST_CASE("Sensitivity LP-C GreaterEq: RHS ranging") {
 }
 
 TEST_CASE("Sensitivity LP-C GreaterEq: objective ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPC();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -236,7 +236,7 @@ TEST_CASE("Sensitivity LP-C GreaterEq: objective ranging") {
 // ── LP-D: Equal constraint (primal phase-I path) ──────────────────────────────
 
 TEST_CASE("Sensitivity LP-D Equal: RHS ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPD();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -250,7 +250,7 @@ TEST_CASE("Sensitivity LP-D Equal: RHS ranging") {
 }
 
 TEST_CASE("Sensitivity LP-D Equal: objective ranging") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPD();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -272,6 +272,7 @@ TEST_CASE("Sensitivity LP-E dual path: RHS ranging") {
     LPOptions opts;
     opts.method             = LPMethod::DualSimplex;
     opts.computeSensitivity = true;
+    opts.enablePresolve     = false;
     Model m = makeLPE();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -296,6 +297,7 @@ TEST_CASE("Sensitivity LP-E dual path: objective ranging") {
     LPOptions opts;
     opts.method             = LPMethod::DualSimplex;
     opts.computeSensitivity = true;
+    opts.enablePresolve     = false;
     Model m = makeLPE();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -368,6 +370,7 @@ TEST_CASE("Sensitivity empty when status is Infeasible") {
     LPOptions opts;
     opts.method             = LPMethod::DualSimplex;
     opts.computeSensitivity = true;
+    opts.enablePresolve     = false;
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Infeasible);
     CHECK(res.sensitivity.rhsRange.empty());
@@ -380,7 +383,7 @@ TEST_CASE("Sensitivity empty when status is Unbounded") {
     auto x = m.addVar(0.0, kInf, "x");
     m.setObjective(-1.0 * x, ObjSense::Minimize);
 
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Unbounded);
     CHECK(res.sensitivity.rhsRange.empty());
@@ -390,7 +393,7 @@ TEST_CASE("Sensitivity empty when status is Unbounded") {
 // ── Range endpoints are consistent: lo ≤ current ≤ hi ───────────────────────
 
 TEST_CASE("Sensitivity LP-A: current parameter values are inside their ranges") {
-    LPOptions opts; opts.computeSensitivity = true;
+    LPOptions opts; opts.computeSensitivity = true; opts.enablePresolve = false;
     Model m = makeLPA();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);
@@ -416,6 +419,7 @@ TEST_CASE("Sensitivity LP-E dual: current parameter values are inside their rang
     LPOptions opts;
     opts.method             = LPMethod::DualSimplex;
     opts.computeSensitivity = true;
+    opts.enablePresolve     = false;
     Model m = makeLPE();
     LPDetailedResult res = solveLPDetailed(m, opts);
     REQUIRE(res.result.status == LPStatus::Optimal);

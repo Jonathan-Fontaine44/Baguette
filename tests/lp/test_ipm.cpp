@@ -12,6 +12,7 @@ static constexpr double kTol = 1e-5;
 static LPResult ipm(Model m) {
     LPOptions opts;
     opts.method = LPMethod::ShortStepIPM;
+    opts.enablePresolve = false;
     return solveLP(m, opts);
 }
 

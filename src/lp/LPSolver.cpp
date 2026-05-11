@@ -1,5 +1,7 @@
 #include "baguette/lp/LPSolver.hpp"
 
+#include "baguette/lp/Presolve.hpp"
+
 #include "algorithms/DualSimplex.hpp"
 #include "algorithms/DualSimplexBV.hpp"
 #include "algorithms/IPMSolver.hpp"
@@ -17,6 +19,21 @@ LPResult solveLP(const Model& model, const LPOptions& opts) {
 }
 
 LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
+    // ── Presolve (opt-in) ──────────────────────────────────────────────────────
+    if (opts.enablePresolve) {
+        auto [presolved, pr] = presolve(model, 10, opts.timeLimitS, opts.startTime);
+        if (pr.infeasible) {
+            LPDetailedResult r;
+            r.result.status = LPStatus::Infeasible;
+            r.presolveStat  = pr;
+            return r;
+        }
+        LPOptions inner      = opts;
+        inner.enablePresolve = false;
+        LPDetailedResult r   = solveLPDetailed(presolved, inner);
+        r.presolveStat       = pr;
+        return r;
+    }
     if (opts.method == LPMethod::PrimalSimplex) {
         return internal::solvePrimal(model, opts.maxIter, opts.timeLimitS,
                                      opts.startTime, opts.computeSensitivity,

@@ -18,7 +18,8 @@ TEST_CASE("Stats: collectStats=false yields nullopt", "[stats]") {
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.collectStats = false;
+    opts.collectStats   = false;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -35,7 +36,8 @@ TEST_CASE("Stats: single-node optimal - nodesExplored=1 lpSolvesTotal=1", "[stat
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.collectStats = true;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -58,7 +60,8 @@ TEST_CASE("Stats: LP-infeasible root counts nodesPrunedByInfeasibility", "[stats
     m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.collectStats = true;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Infeasible);
@@ -84,6 +87,7 @@ TEST_CASE("Stats: GMI cut at root populates cut stats", "[stats]") {
     opts.enableCuts     = true;
     opts.maxCutsPerNode = 10;
     opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -109,8 +113,9 @@ TEST_CASE("Stats: branching problem - lpSolvesTotal >= nodesExplored", "[stats]"
     m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.enableCuts   = false;
-    opts.collectStats = true;
+    opts.enableCuts     = false;
+    opts.collectStats   = true;
+    opts.enablePresolve = false;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);

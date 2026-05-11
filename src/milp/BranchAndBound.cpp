@@ -10,6 +10,7 @@
 #include "baguette/cp/CPConstraints.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
+#include "baguette/lp/Presolve.hpp"
 #include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -152,6 +153,20 @@ MILPResult solveMILP(const Model&            modelRef,
                      const BBOptions&        opts,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
+
+    // ── Presolve (opt-in, applied once before the root node) ──────────────────
+    std::optional<PresolveResult> presolveStat;
+    if (opts.enablePresolve) {
+        PresolveResult pr = presolveInPlace(model, 10, opts.timeLimitS, startTime);
+        presolveStat      = pr;
+        if (pr.infeasible) {
+            MILPResult result;
+            result.status       = MILPStatus::Infeasible;
+            result.presolveStat = presolveStat;
+            return result;
+        }
+    }
+
     const CPConstraints& cp = model.getCPConstraints();
 
     const bool   minimize = (model.getObjSense() == ObjSense::Minimize);
@@ -288,11 +303,12 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── First LP solve ─────────────────────────────────────────────────────
         if (opts.collectStats) ++stats_acc.lpSolvesTotal;
-        LPOptions lpOpts       = opts.lpOpts;
-        lpOpts.timeLimitS      = opts.timeLimitS;
-        lpOpts.startTime       = startTime;
-        lpOpts.warmBasis       = node.basis;
-        lpOpts.computeCutData  = opts.enableCuts;
+        LPOptions lpOpts           = opts.lpOpts;
+        lpOpts.timeLimitS          = opts.timeLimitS;
+        lpOpts.startTime           = startTime;
+        lpOpts.warmBasis           = node.basis;
+        lpOpts.computeCutData      = opts.enableCuts;
+        lpOpts.enablePresolve      = false; // root presolve was already applied
         LPDetailedResult lp = solveLPDetailed(model, lpOpts);
 
         // ── Handle LP outcome ──────────────────────────────────────────────────
@@ -360,9 +376,10 @@ MILPResult solveMILP(const Model&            modelRef,
                 // This is correct — their basis is simply stale — but it means that
                 // cut addition degrades warm-start reuse for all queued siblings.
                 if (opts.collectStats) ++stats_acc.lpSolvesTotal;
-                LPOptions lpOptsCold   = opts.lpOpts;
-                lpOptsCold.timeLimitS  = opts.timeLimitS;
-                lpOptsCold.startTime   = startTime;
+                LPOptions lpOptsCold       = opts.lpOpts;
+                lpOptsCold.timeLimitS      = opts.timeLimitS;
+                lpOptsCold.startTime       = startTime;
+                lpOptsCold.enablePresolve  = false;
                 lp = solveLPDetailed(model, lpOptsCold);
 
                 switch (lp.result.status) {
@@ -470,6 +487,8 @@ done:
         stats_acc.cutsAdded     = cutsAdded;
         result.stats = std::move(stats_acc);
     }
+
+    result.presolveStat = presolveStat;
 
     if (unboundedHit) {
         result.status         = MILPStatus::Unbounded;

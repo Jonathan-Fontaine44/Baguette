@@ -25,16 +25,25 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name) {
+    auto enablePresolve = GENERATE(false, true);
+
+    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name
+                               << ", presolve=" << enablePresolve) {
         // ShortStepIPM cannot prove infeasibility or unboundedness: returns MaxIter.
-        // MehrotraIPM detects both, so uses the expected status as-is.
+        // Exception: presolve can detect infeasibility (bound contradiction), so when
+        // presolve is enabled and the problem is infeasible, expect Infeasible.
+        const bool shortStepCantSolve =
+            method == LPMethod::ShortStepIPM && tc.expectedStatus != LPStatus::Optimal;
+        const bool presolveHandlesInfeasible =
+            enablePresolve && tc.expectedStatus == LPStatus::Infeasible;
         const LPStatus expected =
-            (method == LPMethod::ShortStepIPM && tc.expectedStatus != LPStatus::Optimal)
+            (shortStepCantSolve && !presolveHandlesInfeasible)
             ? LPStatus::MaxIter
             : tc.expectedStatus;
 
         LPOptions opts;
-        opts.method = method;
+        opts.method         = method;
+        opts.enablePresolve = enablePresolve;
         LPResult r = solveLP(tc.build(), opts);
 
         REQUIRE(r.status == expected);
@@ -55,9 +64,13 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name) {
+    auto enablePresolve = GENERATE(false, true);
+
+    DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name
+                               << ", presolve=" << enablePresolve) {
         LPOptions opts;
-        opts.method = method;
+        opts.method         = method;
+        opts.enablePresolve = enablePresolve;
         // ShortStepIPM ne converge pas sur les relaxations MILP : son pas fixe
         // α=1/(1+√n) stagne quand les variables approchent 0 à l'optimum.
         // On limite à 0.1 s pour ne pas bloquer la suite.

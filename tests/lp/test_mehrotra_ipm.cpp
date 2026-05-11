@@ -12,6 +12,7 @@ static constexpr double kTol = 1e-5;
 static LPResult mehrotra(Model m) {
     LPOptions opts;
     opts.method = LPMethod::MehrotraIPM;
+    opts.enablePresolve = false;
     return solveLP(m, opts);
 }
 

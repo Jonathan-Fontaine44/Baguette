@@ -14,6 +14,7 @@ add_executable(BaguetteBench
     bench_milp.cpp
     bench_flow.cpp
     bench_network_simplex.cpp
+    bench_presolve.cpp
 )
 
 target_link_libraries(BaguetteBench PRIVATE
