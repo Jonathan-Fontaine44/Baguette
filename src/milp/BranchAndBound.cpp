@@ -157,7 +157,7 @@ MILPResult solveMILP(const Model&            modelRef,
     // ── Presolve (opt-in, applied once before the root node) ──────────────────
     std::optional<PresolveResult> presolveStat;
     if (opts.enablePresolve) {
-        PresolveResult pr = presolveInPlace(model, 10, opts.timeLimitS, startTime);
+        PresolveResult pr = presolveInPlace(model, opts.lpOpts.presolveMaxPasses, opts.timeLimitS, startTime);
         presolveStat      = pr;
         if (pr.infeasible) {
             MILPResult result;

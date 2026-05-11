@@ -49,7 +49,7 @@ struct PresolveResult {
 ///
 /// @param model      Model to presolve; bounds are updated in place.
 /// @param maxPasses  Maximum number of full constraint passes. 0 = unlimited
-///                   (runs until fixpoint). Default: 10.
+///                   (runs until fixpoint). Default: 0.
 /// @param timeLimitS Wall-clock budget in seconds shared with the outer solve.
 ///                   The pass loop exits early (timeLimitReached = true) if the
 ///                   elapsed time since @p startTime exceeds this value.
@@ -61,7 +61,7 @@ struct PresolveResult {
 /// N = average number of variables per constraint.
 PresolveResult presolveInPlace(
     Model& model,
-    uint32_t maxPasses = 10,
+    uint32_t maxPasses = 0,
     double   timeLimitS = std::numeric_limits<double>::infinity(),
     std::chrono::steady_clock::time_point startTime =
         std::chrono::steady_clock::now());

@@ -111,6 +111,11 @@ struct LPOptions {
     /// intervals. The solve operates on a presolved copy; the original model is
     /// unchanged. Populates LPDetailedResult::presolveStat. Default true.
     bool enablePresolve = true;
+
+    /// Maximum number of bound-tightening passes. 0 = unlimited (run to fixpoint).
+    /// Convergence is guaranteed because each pass can only narrow bounds;
+    /// the time limit is the practical guard against slow convergence.
+    uint32_t presolveMaxPasses = 0;
 };
 
 /// Solve the LP relaxation of @p model.

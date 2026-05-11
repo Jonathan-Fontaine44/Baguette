@@ -21,7 +21,7 @@ LPResult solveLP(const Model& model, const LPOptions& opts) {
 LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
     // ── Presolve (opt-in) ──────────────────────────────────────────────────────
     if (opts.enablePresolve) {
-        auto [presolved, pr] = presolve(model, 10, opts.timeLimitS, opts.startTime);
+        auto [presolved, pr] = presolve(model, opts.presolveMaxPasses, opts.timeLimitS, opts.startTime);
         if (pr.infeasible) {
             LPDetailedResult r;
             r.result.status = LPStatus::Infeasible;
