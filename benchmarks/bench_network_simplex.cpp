@@ -83,6 +83,46 @@ static Model makeNet10Feasible() {
     return m;
 }
 
+// Pipeline network: (nStages+1) nodes, nStages × nPar arcs.
+// At each stage s, nPar parallel arcs connect node s → node s+1 with costs 1..nPar.
+// Supply 10 at node 0, demand 10 at node nStages.
+// Optimal: route all flow through cost-1 arc at each stage → obj = 10 * nStages.
+static Model makePipelineNet(int nStages, int nPar) {
+    const int nNodes = nStages + 1;
+    Model m;
+    std::vector<Variable> arc;
+    arc.reserve(nStages * nPar);
+    for (int s = 0; s < nStages; ++s)
+        for (int k = 0; k < nPar; ++k)
+            arc.push_back(m.addVar(0.0, 10.0));
+
+    {
+        LinearExpr e;
+        for (int k = 0; k < nPar; ++k) e += 1.0 * arc[k];
+        m.addLPConstraint(e, Sense::Equal, 10.0);
+    }
+    for (int i = 1; i < nNodes - 1; ++i) {
+        LinearExpr e;
+        for (int k = 0; k < nPar; ++k) e -= 1.0 * arc[(i-1)*nPar + k];
+        for (int k = 0; k < nPar; ++k) e += 1.0 * arc[i    *nPar + k];
+        m.addLPConstraint(e, Sense::Equal, 0.0);
+    }
+    {
+        LinearExpr e;
+        for (int k = 0; k < nPar; ++k) e -= 1.0 * arc[(nStages-1)*nPar + k];
+        m.addLPConstraint(e, Sense::Equal, -10.0);
+    }
+    LinearExpr obj;
+    for (int s = 0; s < nStages; ++s)
+        for (int k = 0; k < nPar; ++k)
+            obj += double(k + 1) * arc[s*nPar + k];
+    m.setObjective(obj, ObjSense::Minimize);
+    return m;
+}
+
+static Model makeNet50Feasible()  { return makePipelineNet(10,  5); }
+static Model makeNet500Feasible() { return makePipelineNet(100, 5); }
+
 // ── Benchmark helper ──────────────────────────────────────────────────────────
 
 static void runNet(benchmark::State& state,
@@ -91,8 +131,9 @@ static void runNet(benchmark::State& state,
 {
     for (auto _ : state) {
         LPOptions opts;
-        opts.method = method;
-        LPResult r  = solveLP(build(), opts);
+        opts.method      = method;
+        opts.timeLimitS  = 10.0;
+        LPResult r = solveLP(build(), opts);
         benchmark::DoNotOptimize(r.objectiveValue);
     }
 }
@@ -129,3 +170,25 @@ BENCHMARK_CAPTURE(runNet, Net10Feasible/DualSimplexBV,    LPMethod::DualSimplexB
 BENCHMARK_CAPTURE(runNet, Net10Feasible/RevisedSimplex,   LPMethod::RevisedSimplex,   makeNet10Feasible);
 BENCHMARK_CAPTURE(runNet, Net10Feasible/RevisedSimplexBV, LPMethod::RevisedSimplexBV, makeNet10Feasible);
 BENCHMARK_CAPTURE(runNet, Net10Feasible/MehrotraIPM,      LPMethod::MehrotraIPM,      makeNet10Feasible);
+
+// ── Net50Feasible: 50 arcs, 11 nodes ─────────────────────────────────────────
+
+BENCHMARK_CAPTURE(runNet, Net50Feasible/NetworkSimplex,   LPMethod::NetworkSimplex,   makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/PrimalSimplex,    LPMethod::PrimalSimplex,    makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/DualSimplex,      LPMethod::DualSimplex,      makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/PrimalSimplexBV,  LPMethod::PrimalSimplexBV,  makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/DualSimplexBV,    LPMethod::DualSimplexBV,    makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/RevisedSimplex,   LPMethod::RevisedSimplex,   makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/RevisedSimplexBV, LPMethod::RevisedSimplexBV, makeNet50Feasible);
+BENCHMARK_CAPTURE(runNet, Net50Feasible/MehrotraIPM,      LPMethod::MehrotraIPM,      makeNet50Feasible);
+
+// ── Net500Feasible: 500 arcs, 101 nodes ──────────────────────────────────────
+
+BENCHMARK_CAPTURE(runNet, Net500Feasible/NetworkSimplex,   LPMethod::NetworkSimplex,   makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/PrimalSimplex,    LPMethod::PrimalSimplex,    makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/DualSimplex,      LPMethod::DualSimplex,      makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/PrimalSimplexBV,  LPMethod::PrimalSimplexBV,  makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/DualSimplexBV,    LPMethod::DualSimplexBV,    makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/RevisedSimplex,   LPMethod::RevisedSimplex,   makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/RevisedSimplexBV, LPMethod::RevisedSimplexBV, makeNet500Feasible);
+BENCHMARK_CAPTURE(runNet, Net500Feasible/MehrotraIPM,      LPMethod::MehrotraIPM,      makeNet500Feasible);

@@ -264,3 +264,31 @@ static void BM_MILP_TSP10_Elim(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_MILP_TSP10_Elim);
+
+// ── TSP10: presolve-only timing + variable/row change stats ──────────────────
+
+static void BM_PresolveOnly_TB_TSP10(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = baguette_test::makeTSP10();
+        PresolveResult pr = presolveTBInPlace(m);
+        benchmark::DoNotOptimize(pr.boundsTightened);
+        state.counters["bounds_tightened"] = pr.boundsTightened;
+        state.counters["fixed_vars"]       = pr.fixedVars;
+        state.counters["passes"]           = pr.passesRun;
+    }
+}
+BENCHMARK(BM_PresolveOnly_TB_TSP10);
+
+static void BM_PresolveOnly_Elim_TSP10(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = baguette_test::makeTSP10();
+        presolveTBInPlace(m);
+        EliminationRecord rec;
+        Model reduced = presolveElim(m, rec);
+        benchmark::DoNotOptimize(rec.varsEliminated);
+        state.counters["vars_eliminated"] = rec.varsEliminated;
+        state.counters["rows_eliminated"] = rec.rowsEliminated;
+    }
+}
+BENCHMARK(BM_PresolveOnly_Elim_TSP10);
+
