@@ -14,6 +14,7 @@ endif()
 add_library(Baguette
     src/core/LinearExpr.cpp
     src/model/Model.cpp
+    src/model/Presolve.cpp
     src/lp/algorithms/StandardForm.cpp
     src/lp/algorithms/SimplexTableau.cpp
     src/lp/algorithms/Extractor.cpp
@@ -31,6 +32,7 @@ add_library(Baguette
     src/lp/Presolve.cpp
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
+    src/milp/Presolve.cpp
     src/milp/CuttingPlanes.cpp
     src/cp/CPConstraints.cpp
     src/cp/constraints/allDiff.cpp

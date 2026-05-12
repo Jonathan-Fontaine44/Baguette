@@ -10,7 +10,7 @@
 #include "baguette/cp/CPConstraints.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
-#include "baguette/lp/Presolve.hpp"
+#include "baguette/milp/Presolve.hpp"
 #include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -169,14 +169,18 @@ MILPResult solveMILP(const Model&            modelRef,
     }
 
     // ── Elimination presolve (opt-in; skipped when enablePresolve is false) ───
-    // By design, disabling presolve disables all presolve techniques.
-    // Also skipped when CP constraints are present: CP constraint objects store
-    // original variable IDs which are invalidated by the remapping in presolveElim.
     EliminationRecord elimRec;
-    const bool elimApplied = opts.enablePresolve && opts.enableElimination
-                             && model.getCPConstraints().empty();
-    if (elimApplied)
+    const bool elimApplied = opts.enablePresolve && opts.enableElimination;
+    if (elimApplied) {
+        const CPConstraints cpSaved = model.getCPConstraints();
         model = presolveElim(model, elimRec);
+        if (presolveElimCP(cpSaved, elimRec, model)) {
+            MILPResult result;
+            result.status       = MILPStatus::Infeasible;
+            result.presolveStat = presolveStat;
+            return result;
+        }
+    }
 
     const CPConstraints& cp = model.getCPConstraints();
 

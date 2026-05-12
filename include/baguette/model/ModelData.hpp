@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -18,10 +19,26 @@ struct ModelHot {
     std::vector<double> obj;  ///< Objective coefficients, indexed by VarID.
 };
 
+/// One entry in the variable→LP-constraint reverse index.
+struct VarLPEntry {
+    uint32_t conIdx;  ///< Index into Model::constraints.
+    uint32_t termIdx; ///< Position within Constraint::lhs.varIds/coeffs.
+};
+
 /// Cold data — accessed only during model construction and output.
 struct ModelCold {
     std::vector<std::string> labels; ///< Variable names, indexed by VarID.
     std::vector<VarType>     types;  ///< Variable types, indexed by VarID.
+
+    /// varToLP[j] = all LP constraints in which variable j appears,
+    /// with the index of its term within the constraint's LinearExpr.
+    /// Updated by Model::addLPConstraint(). O(1) coefficient lookup.
+    std::vector<std::vector<VarLPEntry>> varToLP;
+
+    /// varToCP[j] = indices of builtin CP constraints in which variable j appears.
+    /// Updated by Model::addCPConstraint(BuiltinConstraint).
+    /// Custom CPConstraint objects are not indexed (no varIds() virtual method).
+    std::vector<std::vector<uint32_t>> varToCP;
 };
 
 /// A linear constraint: `lhs sense rhs`.

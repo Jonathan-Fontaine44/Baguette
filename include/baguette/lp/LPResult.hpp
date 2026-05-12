@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "baguette/lp/Presolve.hpp"
+#include "baguette/model/Presolve.hpp"
 
 namespace baguette { namespace internal { struct LPStandardForm; } }
 

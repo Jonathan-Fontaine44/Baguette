@@ -27,6 +27,13 @@ public:
 
     virtual bool     cpFeasible(const std::vector<double>& sol, double tol) const = 0;
     virtual uint32_t cpViolatedVar(const std::vector<double>& sol, double tol) const = 0;
+
+    /// Return a remapped copy for the reduced model, or nullptr to drop this
+    /// constraint.  varMap[origId] == UINT32_MAX means the variable was fixed.
+    ///
+    /// @note Complexity  Defined by the subclass.
+    virtual std::shared_ptr<const CPConstraint> reduce(
+        const std::vector<uint32_t>& /*varMap*/) const { return nullptr; }
 };
 
 } // namespace baguette

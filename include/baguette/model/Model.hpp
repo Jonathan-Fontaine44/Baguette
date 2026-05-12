@@ -118,8 +118,8 @@ public:
     double                        getObjConstant()  const { return objConstant; }
 
     /// Add a single CP constraint (built-in or user-defined).
-    /// Delegates directly to cpConstraints.add().
-    void addCPConstraint(BuiltinConstraint c)                   { cpConstraints.add(std::move(c)); }
+    /// Updates cold.varToCP for built-in constraints.
+    void addCPConstraint(BuiltinConstraint c);
     void addCPConstraint(std::shared_ptr<const CPConstraint> c) { cpConstraints.add(std::move(c)); }
 
     /// @return The CP constraints attached to this model.
