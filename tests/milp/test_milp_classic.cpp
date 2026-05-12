@@ -60,7 +60,7 @@ TEST_CASE("Classic MILP x presolve coherence", "[milp_classic][presolve]") {
 
     DYNAMIC_SECTION("Presolve / " << tc.name) {
         Model m = tc.build();
-        PresolveResult pr = presolveInPlace(m);
+        PresolveResult pr = presolveTBInPlace(m);
 
         // Presolve is sound: if it claims infeasible, the problem must be.
         if (pr.infeasible)
@@ -87,6 +87,7 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
         opts.lpOpts.method  = lpMethod;
         opts.enableCuts     = enableCuts;
         opts.enablePresolve = true;
+        opts.enableElimination = true;
         opts.timeLimitS     = 10.0;
         if (tc.large) opts.timeLimitS = 1.0;
 

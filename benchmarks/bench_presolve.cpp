@@ -12,7 +12,7 @@ using namespace baguette;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Build a chain-of-constraints LP where presolveInPlace can tighten every bound.
+// Build a chain-of-constraints LP where presolveTBInPlace can tighten every bound.
 // N variables, N-1 constraints: x[i] + x[i+1] <= limit[i].
 static baguette::Model makeChainLP(int n) {
     Model m;
@@ -28,7 +28,7 @@ static baguette::Model makeChainLP(int n) {
     return m;
 }
 
-// Build a knapsack MILP that benefits from presolveInPlace bound tightening.
+// Build a knapsack MILP that benefits from presolveTBInPlace bound tightening.
 // N binary items, one weight constraint.
 static baguette::Model makeKnapsackMILP(int n) {
     Model m;
@@ -48,12 +48,12 @@ static baguette::Model makeKnapsackMILP(int n) {
     return m;
 }
 
-// ── presolveInPlace-only timing (not including the LP solve) ─────────────────────────
+// ── presolveTBInPlace-only timing (not including the LP solve) ─────────────────────────
 
 static void BM_PresolveOnly_Chain20(benchmark::State& state) {
     for (auto _ : state) {
         Model m = makeChainLP(20);
-        PresolveResult pr = presolveInPlace(m);
+        PresolveResult pr = presolveTBInPlace(m);
         benchmark::DoNotOptimize(pr.boundsTightened);
     }
 }
@@ -62,13 +62,13 @@ BENCHMARK(BM_PresolveOnly_Chain20);
 static void BM_PresolveOnly_Chain100(benchmark::State& state) {
     for (auto _ : state) {
         Model m = makeChainLP(100);
-        PresolveResult pr = presolveInPlace(m);
+        PresolveResult pr = presolveTBInPlace(m);
         benchmark::DoNotOptimize(pr.boundsTightened);
     }
 }
 BENCHMARK(BM_PresolveOnly_Chain100);
 
-// ── LP solve: with vs without presolveInPlace ────────────────────────────────────────
+// ── LP solve: with vs without presolveTBInPlace ────────────────────────────────────────
 
 static void BM_LP_Chain20_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -84,13 +84,14 @@ static void BM_LP_Chain20_Presolve(benchmark::State& state) {
     for (auto _ : state) {
         LPOptions opts;
         opts.enablePresolve = true;
+        opts.enableElimination = false;
         LPResult r = solveLP(makeChainLP(20), opts);
         benchmark::DoNotOptimize(r.objectiveValue);
     }
 }
 BENCHMARK(BM_LP_Chain20_Presolve);
 
-// ── MILP solve: with vs without presolveInPlace (knapsack) ───────────────────────────
+// ── MILP solve: with vs without presolveTBInPlace (knapsack) ───────────────────────────
 
 static void BM_MILP_Knapsack15_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -106,13 +107,14 @@ static void BM_MILP_Knapsack15_Presolve(benchmark::State& state) {
     for (auto _ : state) {
         BBOptions opts;
         opts.enablePresolve = true;
+        opts.enableElimination = false;
         MILPResult r = solveMILP(makeKnapsackMILP(15), opts);
         benchmark::DoNotOptimize(r.objectiveValue);
     }
 }
 BENCHMARK(BM_MILP_Knapsack15_Presolve);
 
-// ── MILP solve: with vs without presolveInPlace (TSP10) ──────────────────────────────
+// ── MILP solve: with vs without presolveTBInPlace (TSP10) ──────────────────────────────
 
 static void BM_MILP_TSP10_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -128,6 +130,7 @@ static void BM_MILP_TSP10_Presolve(benchmark::State& state) {
     for (auto _ : state) {
         BBOptions opts;
         opts.enablePresolve = true;
+        opts.enableElimination = false;
         MILPResult r = solveMILP(baguette_test::makeTSP10(), opts);
         benchmark::DoNotOptimize(r.objectiveValue);
     }

@@ -106,16 +106,22 @@ struct LPOptions {
     /// Default false.
     bool computeCutData = false;
 
-    /// If true, apply bound-tightening presolve before solving.
-    /// Presolve propagates variable bounds through constraints to narrow [lb, ub]
-    /// intervals. The solve operates on a presolved copy; the original model is
-    /// unchanged. Populates LPDetailedResult::presolveStat. Default true.
+    /// If true, apply bound-tightening presolve (presolveTB) before solving.
+    /// Tightens variable bounds through constraint propagation. The solve operates
+    /// on a presolved copy; the original model is unchanged.
+    /// Populates LPDetailedResult::presolveStat. Default true.
     bool enablePresolve = true;
 
     /// Maximum number of bound-tightening passes. 0 = unlimited (run to fixpoint).
     /// Convergence is guaranteed because each pass can only narrow bounds;
     /// the time limit is the practical guard against slow convergence.
     uint32_t presolveMaxPasses = 0;
+
+    /// If true, apply elimination presolve (presolveElim) after bound tightening.
+    /// Removes fixed variables (lb == ub) and always-satisfied constraints,
+    /// reducing the problem size before solving. postsolveElim() restores the
+    /// full solution after the solve. Default true.
+    bool enableElimination = true;
 };
 
 /// Solve the LP relaxation of @p model.

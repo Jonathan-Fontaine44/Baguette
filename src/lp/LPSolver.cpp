@@ -19,9 +19,10 @@ LPResult solveLP(const Model& model, const LPOptions& opts) {
 }
 
 LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
-    // ── Presolve (opt-in) ──────────────────────────────────────────────────────
+    // ── Bound-tightening presolve (TB) ─────────────────────────────────────────
     if (opts.enablePresolve) {
-        auto [presolved, pr] = presolve(model, opts.presolveMaxPasses, opts.timeLimitS, opts.startTime);
+        auto [presolved, pr] = presolveTB(model, opts.presolveMaxPasses,
+                                          opts.timeLimitS, opts.startTime);
         if (pr.infeasible) {
             LPDetailedResult r;
             r.result.status = LPStatus::Infeasible;
@@ -30,10 +31,23 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         }
         LPOptions inner      = opts;
         inner.enablePresolve = false;
-        LPDetailedResult r   = solveLPDetailed(presolved, inner);
-        r.presolveStat       = pr;
+
+        if (inner.enableElimination) {
+            inner.enableElimination = false;
+            EliminationRecord rec;
+            Model reduced      = presolveElim(presolved, rec);
+            LPDetailedResult r = solveLPDetailed(reduced, inner);
+            postsolveElim(r, rec);
+            r.presolveStat = pr;
+            return r;
+        }
+
+        LPDetailedResult r = solveLPDetailed(presolved, inner);
+        r.presolveStat = pr;
         return r;
     }
+
+    // ── Method dispatch ────────────────────────────────────────────────────────
     if (opts.method == LPMethod::PrimalSimplex) {
         return internal::solvePrimal(model, opts.maxIter, opts.timeLimitS,
                                      opts.startTime, opts.computeSensitivity,

@@ -25,10 +25,11 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    auto enablePresolve = GENERATE(false, true);
+    auto enablePresolve =    GENERATE(false, true);
+    auto enableElimination = GENERATE(false, true);
 
     DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name
-                               << ", presolve=" << enablePresolve) {
+                               << ", presolve=" << enablePresolve << ", elimination=" << enableElimination) {
         // ShortStepIPM cannot prove infeasibility or unboundedness: returns MaxIter.
         // Exception: presolve can detect infeasibility (bound contradiction), so when
         // presolve is enabled and the problem is infeasible, expect Infeasible.
@@ -44,6 +45,7 @@ TEST_CASE("LP methods x problems: status and objective", "[lp_methods]") {
         LPOptions opts;
         opts.method         = method;
         opts.enablePresolve = enablePresolve;
+        opts.enableElimination = enableElimination;
         LPResult r = solveLP(tc.build(), opts);
 
         REQUIRE(r.status == expected);
@@ -64,13 +66,15 @@ TEST_CASE("Relaxed MILP x methods: status and objective", "[lp_methods]") {
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
     const auto& tc = suite[i];
 
-    auto enablePresolve = GENERATE(false, true);
+    auto enablePresolve =    GENERATE(false, true);
+    auto enableElimination = GENERATE(false, true);
 
     DYNAMIC_SECTION("Method=" << to_string(method) << ", case=" << tc.name
-                               << ", presolve=" << enablePresolve) {
+                               << ", presolve=" << enablePresolve << ", elimination=" << enableElimination) {
         LPOptions opts;
         opts.method         = method;
         opts.enablePresolve = enablePresolve;
+        opts.enableElimination = enableElimination;
         // ShortStepIPM ne converge pas sur les relaxations MILP : son pas fixe
         // α=1/(1+√n) stagne quand les variables approchent 0 à l'optimum.
         // On limite à 0.1 s pour ne pas bloquer la suite.

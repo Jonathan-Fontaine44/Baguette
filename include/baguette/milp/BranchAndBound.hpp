@@ -94,12 +94,19 @@ struct BBOptions {
     /// production runs.  Enable for cut-effectiveness and warm-start diagnosis.
     bool collectStats = false;
 
-    /// If true, apply bound-tightening presolve once before the B&B root node.
-    /// Propagates variable bounds through constraints to narrow [lb, ub]
-    /// intervals. Operates on the working model copy; the original model passed
-    /// to solveMILP() is unchanged. Populates MILPResult::presolveStat.
-    /// Default true.
+    /// If true, apply bound-tightening presolve (presolveTB) once before the
+    /// B&B root node. Propagates variable bounds through constraints to narrow
+    /// [lb, ub] intervals. Operates on the working model copy; the original
+    /// model passed to solveMILP() is unchanged.
+    /// Populates MILPResult::presolveStat. Default true.
     bool enablePresolve = true;
+
+    /// If true, apply elimination presolve (presolveElim) after bound tightening.
+    /// Removes fixed variables (lb == ub) and always-satisfied constraints before
+    /// the B&B loop, reducing the size of every LP solve in the tree.
+    /// postsolveElim() restores the full solution after B&B terminates.
+    /// Default true.
+    bool enableElimination = true;
 };
 
 /// Shared clock type (same as LPSolver).

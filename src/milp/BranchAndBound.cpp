@@ -154,11 +154,12 @@ MILPResult solveMILP(const Model&            modelRef,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
 
-    // ── Presolve (opt-in, applied once before the root node) ──────────────────
+    // ── Bound-tightening presolve TB (opt-in, applied once at the root) ─────────
     std::optional<PresolveResult> presolveStat;
     if (opts.enablePresolve) {
-        PresolveResult pr = presolveInPlace(model, opts.lpOpts.presolveMaxPasses, opts.timeLimitS, startTime);
-        presolveStat      = pr;
+        PresolveResult pr = presolveTBInPlace(model, opts.lpOpts.presolveMaxPasses,
+                                              opts.timeLimitS, startTime);
+        presolveStat = pr;
         if (pr.infeasible) {
             MILPResult result;
             result.status       = MILPStatus::Infeasible;
@@ -166,6 +167,16 @@ MILPResult solveMILP(const Model&            modelRef,
             return result;
         }
     }
+
+    // ── Elimination presolve (opt-in; skipped when enablePresolve is false) ───
+    // By design, disabling presolve disables all presolve techniques.
+    // Also skipped when CP constraints are present: CP constraint objects store
+    // original variable IDs which are invalidated by the remapping in presolveElim.
+    EliminationRecord elimRec;
+    const bool elimApplied = opts.enablePresolve && opts.enableElimination
+                             && model.getCPConstraints().empty();
+    if (elimApplied)
+        model = presolveElim(model, elimRec);
 
     const CPConstraints& cp = model.getCPConstraints();
 
@@ -493,6 +504,8 @@ done:
     if (unboundedHit) {
         result.status         = MILPStatus::Unbounded;
         result.objectiveValue = minimize ? -inf : inf;
+        // primalValues is empty → postsolveElim is a no-op, but call for uniformity.
+        if (elimApplied) postsolveElim(result, elimRec);
         return result;
     }
 
@@ -515,6 +528,7 @@ done:
         result.objectiveValue = minimize ? inf : -inf;
     }
 
+    if (elimApplied) postsolveElim(result, elimRec);
     return result;
 }
 

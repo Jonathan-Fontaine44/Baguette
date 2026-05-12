@@ -5,8 +5,11 @@
 #include <limits>
 
 #include "baguette/core/Config.hpp"
+#include "baguette/core/LinearExpr.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/core/Variable.hpp"
+#include "baguette/lp/LPResult.hpp"
+#include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
 
 namespace baguette {
@@ -162,9 +165,11 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
 
 } // namespace
 
-PresolveResult presolveInPlace(Model& model, uint32_t maxPasses,
-                               double timeLimitS,
-                               std::chrono::steady_clock::time_point startTime) {
+// ── Bound-Tightening Presolve ──────────────────────────────────────────────────
+
+PresolveResult presolveTBInPlace(Model& model, uint32_t maxPasses,
+                                 double timeLimitS,
+                                 std::chrono::steady_clock::time_point startTime) {
     PresolveResult result;
     bool infeasible = false;
 
@@ -194,12 +199,195 @@ PresolveResult presolveInPlace(Model& model, uint32_t maxPasses,
     return result;
 }
 
-std::pair<Model, PresolveResult> presolve(const Model& model, uint32_t maxPasses,
-                                          double timeLimitS,
-                                          std::chrono::steady_clock::time_point startTime) {
+std::pair<Model, PresolveResult> presolveTB(const Model& model, uint32_t maxPasses,
+                                            double timeLimitS,
+                                            std::chrono::steady_clock::time_point startTime) {
     Model copy        = model;
-    PresolveResult pr = presolveInPlace(copy, maxPasses, timeLimitS, startTime);
+    PresolveResult pr = presolveTBInPlace(copy, maxPasses, timeLimitS, startTime);
     return {std::move(copy), pr};
+}
+
+// ── Elimination Presolve ───────────────────────────────────────────────────────
+
+Model presolveElim(const Model& orig, EliminationRecord& rec) {
+    const ModelHot&  hot  = orig.getHot();
+    const ModelCold& cold = orig.getCold();
+    const double     tol  = lp_feasibility_tol;
+
+    const auto nVars = static_cast<uint32_t>(orig.numVars());
+    const auto nCons = static_cast<uint32_t>(orig.numConstraints());
+
+    rec.origVarCount        = nVars;
+    rec.origConstraintCount = nCons;
+    rec.varMap.assign(nVars, UINT32_MAX);
+    rec.conMap.assign(nCons, UINT32_MAX);
+    rec.objAdjustment  = 0.0;
+    rec.varsEliminated = 0;
+    rec.rowsEliminated = 0;
+    rec.fixedVars.clear();
+    rec.reducedToOrig.clear();
+    rec.reducedToOrigCon.clear();
+
+    // ── Step 1: Identify fixed variables ──────────────────────────────────────
+    // fixedVal[j] stores the substitution value for fixed vars; NaN otherwise.
+    std::vector<double> fixedVal(nVars, std::numeric_limits<double>::quiet_NaN());
+
+    uint32_t nextReducedVar = 0;
+    for (uint32_t j = 0; j < nVars; ++j) {
+        if (hot.ub[j] - hot.lb[j] <= tol) {
+            double v    = hot.lb[j];
+            fixedVal[j] = v;
+            rec.fixedVars.push_back({j, v});
+            rec.objAdjustment += hot.obj[j] * v;
+            ++rec.varsEliminated;
+        } else {
+            rec.varMap[j] = nextReducedVar++;
+            rec.reducedToOrig.push_back(j);
+        }
+    }
+
+    // ── Step 2: Add non-fixed variables to the reduced model ──────────────────
+    Model reduced;
+    std::vector<Variable> newVars;
+    newVars.reserve(rec.reducedToOrig.size());
+    for (uint32_t origId : rec.reducedToOrig) {
+        Variable v = reduced.addVar(hot.lb[origId], hot.ub[origId],
+                                    cold.types[origId], cold.labels[origId]);
+        newVars.push_back(v);
+    }
+
+    // ── Step 3: Build reduced constraints, eliminate redundant rows ────────────
+    for (uint32_t i = 0; i < nCons; ++i) {
+        const Constraint& con = orig.getLPConstraints()[i];
+        double adjustedRHS = con.rhs;
+
+        // Compute the reduced LHS (remove fixed vars, adjust RHS).
+        // Simultaneously accumulate activity bounds for the redundancy check.
+        double minFin = 0.0, maxFin = 0.0;
+        int    minInf = 0,   maxInf = 0;
+        LinearExpr newLHS;
+
+        for (std::size_t k = 0; k < con.lhs.varIds.size(); ++k) {
+            const uint32_t origId = con.lhs.varIds[k];
+            const double   c      = con.lhs.coeffs[k];
+            const uint32_t rid    = rec.varMap[origId];
+
+            if (rid != UINT32_MAX) {
+                newLHS.addTerm(newVars[rid], c);
+                const double lb = hot.lb[origId];
+                const double ub = hot.ub[origId];
+                if (c > 0.0) {
+                    if (lb == -kInf) ++minInf; else minFin += c * lb;
+                    if (ub ==  kInf) ++maxInf; else maxFin += c * ub;
+                } else if (c < 0.0) {
+                    if (ub ==  kInf) ++minInf; else minFin += c * ub;
+                    if (lb == -kInf) ++maxInf; else maxFin += c * lb;
+                }
+            } else {
+                adjustedRHS -= c * fixedVal[origId];
+            }
+        }
+
+        // Redundancy check.
+        // LEQ: maxActivity <= adjustedRHS → constraint is never tight.
+        // GEQ: minActivity >= adjustedRHS → constraint is never tight.
+        // EQ:  both sides redundant simultaneously → trivially satisfied.
+        // This correctly handles the empty-LHS case (minFin=maxFin=0, no inf):
+        //   LEQ: 0 <= rhs → redundant when rhs >= -tol.
+        //   GEQ: 0 >= rhs → redundant when rhs <= +tol.
+        //   EQ:  both → redundant when |rhs| <= tol.
+        const bool leqRedundant =
+            (con.sense == Sense::LessEq || con.sense == Sense::Equal) &&
+            (maxInf == 0) && (maxFin <= adjustedRHS + tol);
+        const bool geqRedundant =
+            (con.sense == Sense::GreaterEq || con.sense == Sense::Equal) &&
+            (minInf == 0) && (minFin >= adjustedRHS - tol);
+
+        bool redundant = false;
+        switch (con.sense) {
+            case Sense::LessEq:    redundant = leqRedundant; break;
+            case Sense::GreaterEq: redundant = geqRedundant; break;
+            case Sense::Equal:     redundant = (leqRedundant && geqRedundant); break;
+        }
+
+        if (!redundant) {
+            rec.conMap[i] = static_cast<uint32_t>(rec.reducedToOrigCon.size());
+            rec.reducedToOrigCon.push_back(i);
+            reduced.addLPConstraint(std::move(newLHS), con.sense, adjustedRHS);
+        } else {
+            ++rec.rowsEliminated;
+        }
+    }
+
+    // ── Step 4: Set objective on the reduced model ────────────────────────────
+    // The fixed-var contributions (rec.objAdjustment) are added back at
+    // postsolveElim(); the reduced model carries only the original objConstant.
+    LinearExpr newObj;
+    for (uint32_t k = 0; k < static_cast<uint32_t>(newVars.size()); ++k) {
+        const double c = hot.obj[rec.reducedToOrig[k]];
+        if (c != 0.0) newObj.addTerm(newVars[k], c);
+    }
+    newObj.constant = orig.getObjConstant();
+    reduced.setObjective(std::move(newObj), orig.getObjSense());
+
+    return reduced;
+}
+
+// ── PostSolve ─────────────────────────────────────────────────────────────────
+
+void postsolveElim(LPDetailedResult& r, const EliminationRecord& rec) {
+    if (rec.varsEliminated == 0 && rec.rowsEliminated == 0) return;
+
+    const bool hasPrimal = r.result.status == LPStatus::Optimal ||
+                           r.result.status == LPStatus::MaxIter  ||
+                           r.result.status == LPStatus::TimeLimit;
+
+    if (hasPrimal) {
+        r.result.objectiveValue += rec.objAdjustment;
+
+        if (!r.result.primalValues.empty()) {
+            std::vector<double> full(rec.origVarCount, 0.0);
+            for (uint32_t k = 0; k < static_cast<uint32_t>(rec.reducedToOrig.size()); ++k)
+                if (k < r.result.primalValues.size())
+                    full[rec.reducedToOrig[k]] = r.result.primalValues[k];
+            for (const auto& [origId, val] : rec.fixedVars)
+                full[origId] = val;
+            r.result.primalValues = std::move(full);
+        }
+    }
+
+    if (r.result.status != LPStatus::Optimal) return;
+
+    if (!r.dualValues.empty()) {
+        std::vector<double> full(rec.origConstraintCount, 0.0);
+        for (uint32_t k = 0; k < static_cast<uint32_t>(rec.reducedToOrigCon.size()); ++k)
+            if (k < r.dualValues.size())
+                full[rec.reducedToOrigCon[k]] = r.dualValues[k];
+        r.dualValues = std::move(full);
+    }
+
+    if (!r.reducedCosts.empty()) {
+        std::vector<double> full(rec.origVarCount, 0.0);
+        for (uint32_t k = 0; k < static_cast<uint32_t>(rec.reducedToOrig.size()); ++k)
+            if (k < r.reducedCosts.size())
+                full[rec.reducedToOrig[k]] = r.reducedCosts[k];
+        r.reducedCosts = std::move(full);
+    }
+}
+
+void postsolveElim(MILPResult& r, const EliminationRecord& rec) {
+    if (rec.varsEliminated == 0 && rec.rowsEliminated == 0) return;
+    if (r.primalValues.empty()) return;
+
+    r.objectiveValue += rec.objAdjustment;
+
+    std::vector<double> full(rec.origVarCount, 0.0);
+    for (uint32_t k = 0; k < static_cast<uint32_t>(rec.reducedToOrig.size()); ++k)
+        if (k < r.primalValues.size())
+            full[rec.reducedToOrig[k]] = r.primalValues[k];
+    for (const auto& [origId, val] : rec.fixedVars)
+        full[origId] = val;
+    r.primalValues = std::move(full);
 }
 
 } // namespace baguette
