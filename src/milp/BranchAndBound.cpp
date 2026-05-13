@@ -44,9 +44,10 @@ struct Node {
 
 std::vector<uint32_t> collectIntVarIds(const Model& model) {
     const auto& types = model.getCold().types;
+    const uint32_t lpVarCount = static_cast<uint32_t>(model.numVars());
     std::vector<uint32_t> ids;
-    ids.reserve(types.size());
-    for (uint32_t i = 0; i < static_cast<uint32_t>(types.size()); ++i) {
+    ids.reserve(lpVarCount);
+    for (uint32_t i = 0; i < lpVarCount; ++i) {
         if (types[i] == VarType::Integer || types[i] == VarType::Binary)
             ids.push_back(i);
     }
@@ -174,12 +175,7 @@ MILPResult solveMILP(const Model&            modelRef,
     if (elimApplied) {
         const CPConstraints cpSaved = model.getCPConstraints();
         model = presolveElim(model, elimRec);
-        if (presolveElimCP(cpSaved, elimRec, model)) {
-            MILPResult result;
-            result.status       = MILPStatus::Infeasible;
-            result.presolveStat = presolveStat;
-            return result;
-        }
+        presolveElimCP(cpSaved, elimRec, model);
     }
 
     const CPConstraints& cp = model.getCPConstraints();

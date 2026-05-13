@@ -293,81 +293,65 @@ Model presolveElim(const Model& orig, EliminationRecord& rec) {
     newObj.constant = orig.getObjConstant();
     reduced.setObjective(std::move(newObj), orig.getObjSense());
 
+    // ── Step 5: Add ghost vars for fixed variables (CP-only, lb == ub) ────────
+    rec.lpVarCount = static_cast<uint32_t>(rec.reducedToOrig.size());
+    for (const auto& [j, val] : rec.fixedVars) {
+        rec.varMap[j] = static_cast<uint32_t>(reduced.numTotalVars());
+        reduced.addGhostVar(val, cold.types[j], cold.labels[j]);
+    }
+
     return reduced;
 }
 
 // ── CP-aware Elimination ───────────────────────────────────────────────────────
 
-static ReduceResult reduce(
+static std::optional<BuiltinConstraint> reduce(
     const AllDiffConstraint& con,
-    const std::vector<uint32_t>& varMap,
-    const std::vector<double>&   fixedVals)
+    const std::vector<uint32_t>& varMap)
 {
     std::vector<Variable> newVars;
-    std::vector<double>   usedFixed;
     newVars.reserve(con.vars.size());
-    for (const Variable& v : con.vars) {
-        const uint32_t rid = varMap[v.id];
-        if (rid == UINT32_MAX) {
-            const double val = fixedVals[v.id];
-            for (double u : usedFixed)
-                if (u == val) return {std::nullopt, true};
-            usedFixed.push_back(val);
-        } else {
-            newVars.push_back(Variable{rid});
-        }
-    }
-    if (newVars.size() < 2) return {std::nullopt, false};
-    return {AllDiffConstraint{std::move(newVars)}, false};
+    for (const Variable& v : con.vars)
+        newVars.push_back(Variable{varMap[v.id]});
+    if (newVars.size() < 2) return std::nullopt;
+    return AllDiffConstraint{std::move(newVars)};
 }
 
-static ReduceResult reduce(
+static std::optional<BuiltinConstraint> reduce(
     const CumulativeConstraint& con,
-    const std::vector<uint32_t>& varMap,
-    const std::vector<double>&   /*fixedVals*/)
+    const std::vector<uint32_t>& varMap)
 {
     std::vector<Task> newTasks;
     newTasks.reserve(con.tasks.size());
-    for (const Task& t : con.tasks) {
-        const uint32_t rid = varMap[t.varStart.id];
-        if (rid != UINT32_MAX)
-            newTasks.push_back({Variable{rid}, t.duration, t.consumption});
-    }
-    if (newTasks.empty()) return {std::nullopt, false};
-    return {CumulativeConstraint{std::move(newTasks), con.capacity}, false};
+    for (const Task& t : con.tasks)
+        newTasks.push_back({Variable{varMap[t.varStart.id]}, t.duration, t.consumption});
+    if (newTasks.empty()) return std::nullopt;
+    return CumulativeConstraint{std::move(newTasks), con.capacity};
 }
 
-static ReduceResult reduce(
+static std::optional<BuiltinConstraint> reduce(
     const BuiltinConstraint&     bc,
-    const std::vector<uint32_t>& varMap,
-    const std::vector<double>&   fixedVals)
+    const std::vector<uint32_t>& varMap)
 {
-    return std::visit([&](const auto& con) { return reduce(con, varMap, fixedVals); }, bc);
+    return std::visit([&](const auto& con) { return reduce(con, varMap); }, bc);
 }
 
-ReduceResult reduce(const BuiltinConstraint& bc, const EliminationRecord& rec) {
-    std::vector<double> fixedVals(rec.origVarCount, 0.0);
-    for (const auto& [id, val] : rec.fixedVars) fixedVals[id] = val;
-    return reduce(bc, rec.varMap, fixedVals);
+std::optional<BuiltinConstraint> reduce(const BuiltinConstraint& bc,
+                                        const EliminationRecord& rec) {
+    return reduce(bc, rec.varMap);
 }
 
-bool presolveElimCP(const CPConstraints& cpOrig,
+void presolveElimCP(const CPConstraints& cpOrig,
                     const EliminationRecord& rec,
                     Model& reduced) {
-    if (cpOrig.empty()) return false;
-
-    std::vector<double> fixedVals(rec.origVarCount, 0.0);
-    for (const auto& [id, val] : rec.fixedVars) fixedVals[id] = val;
-
+    if (cpOrig.empty()) return;
     for (const BuiltinConstraint& bc : cpOrig.builtins()) {
-        auto r = reduce(bc, rec.varMap, fixedVals);
-        if (r.infeasible) return true;
-        if (r.constraint)  reduced.addCPConstraint(std::move(*r.constraint));
+        auto r = reduce(bc, rec.varMap);
+        if (r) reduced.addCPConstraint(std::move(*r));
     }
     for (const auto& c : cpOrig.customs())
         if (auto r = c->reduce(rec.varMap))
             reduced.addCPConstraint(std::move(r));
-    return false;
 }
 
 } // namespace baguette

@@ -29,6 +29,12 @@ Variable Model::addVar(double lb, double ub, VarType type, std::string label) {
     return Variable{id};
 }
 
+Variable Model::addGhostVar(double fixedVal, VarType type, std::string label) {
+    Variable v = addVar(fixedVal, fixedVal, type, std::move(label));
+    ++ghostVarCount;
+    return v;
+}
+
 void Model::addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
     for (uint32_t id : lhs.varIds)
         if (id >= hot.lb.size())

@@ -51,11 +51,14 @@ struct EliminationRecord {
     uint32_t origVarCount        = 0;
     uint32_t origConstraintCount = 0;
 
-    /// varMap[orig_id] = reduced_id, or UINT32_MAX if the variable was fixed.
+    /// Ghost (CP-only) variables occupy indices [lpVarCount, total).
+    uint32_t lpVarCount = 0;
+
+    /// varMap[orig_id] = reduced_id (LP var or ghost — never UINT32_MAX).
     std::vector<uint32_t> varMap;
-    /// reducedToOrig[reduced_id] = orig_id.
+    /// reducedToOrig[reduced_LP_id] = orig_id  (LP vars only, size == lpVarCount).
     std::vector<uint32_t> reducedToOrig;
-    /// Fixed variables: {orig_id, fixed_value}.
+    /// Fixed variables: {orig_id, fixed_value} — kept for diagnostics / postsolve.
     std::vector<std::pair<uint32_t, double>> fixedVars;
 
     /// conMap[orig_idx] = reduced_idx, or UINT32_MAX if the row was eliminated.
@@ -80,30 +83,25 @@ Model presolveElim(const Model& model, EliminationRecord& rec);
 
 // ── CP reduction ──────────────────────────────────────────────────────────────
 
-/// Result of reducing a single built-in CP constraint against an elimination
-/// record.
-struct ReduceResult {
-    std::optional<BuiltinConstraint> constraint; ///< nullopt if trivially satisfied.
-    bool infeasible = false; ///< Fixed values already violate the constraint.
-};
-
 /// Reduce a single built-in CP constraint against @p rec.
 ///
-/// Fixed variables (rec.varMap[j] == UINT32_MAX) are removed; their values
-/// are checked for constraint violations (e.g. two AllDiff vars fixed equal).
-/// Do not act on ReduceResult::infeasible during LP relaxation — only in MILP.
+/// All variable IDs are remapped via rec.varMap.  Fixed variables become ghost
+/// variables in the reduced model (lb == ub == fixedValue); their presence in
+/// the reduced constraint lets CP propagation enforce their values naturally.
+/// Returns nullopt if the constraint becomes trivially satisfied (0 or 1 var).
 ///
 /// @note Complexity  O(|vars in constraint|)
-ReduceResult reduce(const BuiltinConstraint& bc, const EliminationRecord& rec);
+std::optional<BuiltinConstraint> reduce(const BuiltinConstraint& bc,
+                                        const EliminationRecord& rec);
 
 /// Transfer CP constraints from @p cpOrig to @p reduced, remapping variable
 /// IDs via @p rec.  Call immediately after presolveElim().
 ///
-/// Returns true if a constraint detected infeasibility from fixed values.
-/// Custom CPConstraint objects delegate to CPConstraint::reduce().
+/// Ghost variables (lb == ub) must already be present in @p reduced (added by
+/// presolveElim).  Custom CPConstraint objects delegate to CPConstraint::reduce().
 ///
 /// @note Complexity  O(Σ |constraint vars|) over all CP constraints.
-bool presolveElimCP(const CPConstraints& cpOrig,
+void presolveElimCP(const CPConstraints& cpOrig,
                     const EliminationRecord& rec,
                     Model& reduced);
 

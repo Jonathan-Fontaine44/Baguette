@@ -101,8 +101,18 @@ public:
     ///       behaviour.
     Model withVarBounds(Variable var, double newLb, double newUb) const;
 
-    /// @return Number of decision variables in the model.
-    std::size_t numVars()        const { return hot.lb.size(); }
+    /// Add a ghost variable: fixed at @p fixedVal, visible to CP only.
+    ///
+    /// Ghost variables occupy the tail of the internal arrays ([numVars(), numTotalVars())).
+    /// They must be added after all LP variables.  The LP solver sees only
+    /// [0, numVars()) and is unaffected; CP constraints reference them by their
+    /// full ID so propagation naturally enforces their fixed value.
+    Variable addGhostVar(double fixedVal, VarType type, std::string label = "");
+
+    /// @return Number of LP decision variables (ghost variables excluded).
+    std::size_t numVars()        const { return hot.lb.size() - ghostVarCount; }
+    /// @return Total variable count including ghost (CP-only) variables.
+    std::size_t numTotalVars()   const { return hot.lb.size(); }
     /// @return Number of constraints added via addLPConstraint().
     std::size_t numConstraints() const { return constraints.size(); }
 
@@ -130,8 +140,9 @@ private:
     ModelCold     cold;
     CPConstraints cpConstraints;
     std::vector<Constraint> constraints;
-    ObjSense objSense    = ObjSense::Minimize;
-    double   objConstant = 0.0;
+    ObjSense objSense      = ObjSense::Minimize;
+    double   objConstant   = 0.0;
+    uint32_t ghostVarCount = 0;
 };
 
 } // namespace baguette
