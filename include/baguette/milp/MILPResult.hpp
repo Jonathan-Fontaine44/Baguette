@@ -7,8 +7,6 @@
 #include <string_view>
 #include <vector>
 
-#include "baguette/model/Presolve.hpp"
-
 namespace baguette {
 
 /// Status returned by the MILP Branch & Bound solver.
@@ -69,6 +67,16 @@ struct BBStats {
     std::vector<uint32_t> cutsPerDepth;
 };
 
+/// Diagnostics produced by presolveMILPInPlace().
+struct MILPPresolveResult {
+    bool     infeasible       = false; ///< True if presolve proved infeasibility.
+    bool     timeLimitReached = false; ///< True if time limit was hit before fixpoint.
+    uint32_t boundsTightened  = 0;     ///< LP-based bound updates applied.
+    uint32_t boundsRounded    = 0;     ///< Integer variables whose bounds were snapped (ceil/floor).
+    uint32_t fixedVars        = 0;     ///< Variables with lb == ub at termination.
+    uint32_t passesRun        = 0;     ///< LP propagation passes executed.
+};
+
 /// Result returned by solveMILP().
 ///
 /// When status is Optimal, objectiveValue and primalValues hold the proven
@@ -90,7 +98,7 @@ struct MILPResult {
     std::optional<BBStats> stats;
 
     /// Presolve statistics. Populated only when BBOptions::enablePresolve is true.
-    std::optional<PresolveResult> presolveStat;
+    std::optional<MILPPresolveResult> presolveStat;
 };
 
 } // namespace baguette

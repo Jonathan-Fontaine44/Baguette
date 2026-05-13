@@ -155,11 +155,13 @@ MILPResult solveMILP(const Model&            modelRef,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
 
-    // ── Bound-tightening presolve TB (opt-in, applied once at the root) ─────────
-    std::optional<PresolveResult> presolveStat;
+    // ── MILP presolve (opt-in, applied once at the root) ──────────────────────
+    // Interleaves LP bound-tightening with integer bound rounding — not called
+    // for LP relaxation nodes; only at the B&B root on the integer model.
+    std::optional<MILPPresolveResult> presolveStat;
     if (opts.enablePresolve) {
-        PresolveResult pr = presolveTBInPlace(model, opts.lpOpts.presolveMaxPasses,
-                                              opts.timeLimitS, startTime);
+        MILPPresolveResult pr = presolveMILPInPlace(model, opts.lpOpts.presolveMaxPasses,
+                                                    opts.timeLimitS, startTime);
         presolveStat = pr;
         if (pr.infeasible) {
             MILPResult result;
