@@ -412,6 +412,16 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Check integer feasibility ──────────────────────────────────────────
+        // Extend LP solution with ghost var values (lb==ub) so CP functions can
+        // index any variable ID including those beyond the LP variable range.
+        std::vector<double> fullSol = lp.result.primalValues;
+        if (const std::size_t total = model.numTotalVars(); fullSol.size() < total) {
+            const auto& hot = model.getHot();
+            fullSol.resize(total);
+            for (std::size_t i = lp.result.primalValues.size(); i < total; ++i)
+                fullSol[i] = hot.lb[i]; // ghost: lb == ub
+        }
+
         int  branchId;
         bool cpBranch = false; // true: branching to resolve a CP violation, not LP fractionality
         if (opts.branchStrat == BranchStrategy::PseudoCost) {
@@ -426,7 +436,7 @@ MILPResult solveMILP(const Model&            modelRef,
         // An LP-optimal point may satisfy variable bounds and LP constraints yet
         // violate a CP constraint (e.g., AllDiff returning x = y = 1 at both lower bounds).
         if (branchId == -1 && !cp.empty()) {
-            const uint32_t vid = cpViolatedVar(cp, lp.result.primalValues, opts.intFeasTol);
+            const uint32_t vid = cpViolatedVar(cp, fullSol, opts.intFeasTol);
             if (vid != std::numeric_limits<uint32_t>::max()) {
                 branchId = static_cast<int>(vid);
                 cpBranch = true; // branch to exclude the conflicting integer value
@@ -449,7 +459,7 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Branch ────────────────────────────────────────────────────────────
-        const double xj = lp.result.primalValues[static_cast<uint32_t>(branchId)];
+        const double xj = fullSol[static_cast<uint32_t>(branchId)];
         // LP-fractional branch: split at floor/ceil of the fractional value.
         // CP-violated branch: xj is integer — exclude it by branching at xj±1.
         const double floorX = cpBranch ? (xj - 1.0) : std::floor(xj);

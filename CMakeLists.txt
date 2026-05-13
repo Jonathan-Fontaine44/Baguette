@@ -60,6 +60,7 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(BaguetteTests
     tests/core/test_core.cpp
     tests/model/test_model.cpp
+    tests/model/test_presolve_elim.cpp
     tests/lp/test_lp_methods.cpp
     tests/lp/test_lp.cpp
     tests/lp/test_dual_simplex.cpp
