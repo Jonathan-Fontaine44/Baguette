@@ -522,6 +522,88 @@ TEST_CASE("PresolveElim: non-trivial combined - fixed var + selective rows, post
                  WithinAbs(2.0, kTol));
 }
 
+// ── presolveElim: contrainte all-fixed infaisable détectée à la source ────────────
+//
+// x∈[3,3], z∈[2,2] tous deux fixés.  Contrainte x+z <= 4 : 3+2=5 > 4 → infaisable.
+// presolveTBInPlace détecterait ça, mais si presolveElim est appelé directement
+// (ex. après un TB sans fixpoint), la contrainte vide avec RHS=-1 doit être signalée
+// via EliminationRecord::infeasible plutôt que laissée silencieusement au solveur LP.
+
+TEST_CASE("presolveElim: all-fixed infeasible constraint sets rec.infeasible",
+          "[presolve][elim]") {
+    Model m;
+    Variable x = m.addVar(3.0, 3.0, "x");
+    Variable z = m.addVar(2.0, 2.0, "z");
+    m.addLPConstraint(1.0*x + 1.0*z, Sense::LessEq, 4.0); // 3+2=5 > 4 → violated
+    m.setObjective(1.0*x, ObjSense::Minimize);
+
+    EliminationRecord rec;
+    presolveElim(m, rec);
+
+    // Après élimination : LHS vide, adjustedRHS = 4-3-2 = -1 < 0 → infaisable.
+    REQUIRE(rec.infeasible); // échoue avant le fix (champ non peuplé)
+}
+
+// ── postsolveElim: sensitivityResult remappé sur le modèle original ──────────────
+//
+// Modèle : x∈[5,5] (fixé), y∈[0,5], z∈[0,5].
+// Contrainte 0 : y+z<=8  (survit : maxFin=10>8, TB ne peut pas la rendre redondante).
+// Contrainte 1 : x<=6    (éliminée : LHS vide après fixage, 0.0<=1.0 → redondante).
+// Après postsolveElim, sensitivity doit être re-dimensionnée au modèle original :
+//   rhsRange.size() == numConstraints() (2, non 1)
+//   objRange.size() == numVars()        (3, non 2)
+
+TEST_CASE("postsolveElim: sensitivity remapped to original model size", "[presolve][elim][sensitivity]") {
+    Model m;
+    Variable x = m.addVar(5.0, 5.0, "x");
+    Variable y = m.addVar(0.0, 5.0, "y");
+    Variable z = m.addVar(0.0, 5.0, "z");
+    m.addLPConstraint(1.0*y + 1.0*z, Sense::LessEq, 8.0); // con 0 — survit
+    m.addLPConstraint(1.0*x,         Sense::LessEq, 6.0); // con 1 — éliminée
+    m.setObjective(1.0*y + 1.0*z, ObjSense::Minimize);
+
+    LPOptions opts;
+    opts.computeSensitivity = true;
+    opts.enablePresolve     = true;
+    opts.enableElimination  = true;
+    opts.method             = LPMethod::PrimalSimplex;
+
+    LPDetailedResult r = solveLPDetailed(m, opts);
+    REQUIRE(r.result.status == LPStatus::Optimal);
+
+    // Les plages de sensibilité doivent être indexées sur le modèle original.
+    REQUIRE(r.sensitivity.rhsRange.size() == m.numConstraints()); // 2, pas 1
+    REQUIRE(r.sensitivity.objRange.size() == m.numVars());        // 3, pas 2
+}
+
+// ── presolveTBInPlace: ghost vars exclus du comptage fixedVars ───────────────────
+//
+// Modèle : x∈[3,3] (fixé), z∈[0,10], x+z<=12.
+// Après presolveElim : z reste LP var (ub resserré à 9), x devient ghost.
+// TB sur le modèle réduit : z non fixé → fixedVars doit être 0.
+// hot.lb.size() = 2 (z + ghost x) ; model.numVars() = 1 (z seulement).
+
+TEST_CASE("presolveTBInPlace: ghost vars excluded from fixedVars count", "[presolve][tb]") {
+    Model orig;
+    Variable x = orig.addVar(3.0,  3.0,  "x");
+    Variable z = orig.addVar(0.0, 10.0,  "z");
+    orig.addLPConstraint(1.0*x + 1.0*z, Sense::LessEq, 12.0);
+    orig.setObjective(1.0*z, ObjSense::Minimize);
+
+    EliminationRecord rec;
+    Model reduced = presolveElim(orig, rec);
+
+    REQUIRE(reduced.numVars()      == 1);
+    REQUIRE(reduced.numTotalVars() == 2); // z + ghost x
+
+    PresolveResult pr = presolveTBInPlace(reduced);
+    REQUIRE_FALSE(pr.infeasible);
+
+    // z ∈ [0,9] après tightening — pas fixé.
+    // ghost x ∈ [3,3] doit être ignoré.
+    REQUIRE(pr.fixedVars == 0);
+}
+
 // ── presolveTBInPlace: time limit stops passes ──────────────────────────────────
 //
 // startTime set 100 s in the past with timeLimitS=1 → already expired.

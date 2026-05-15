@@ -1,7 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <algorithm>
+
 #include "baguette/cp/CPConstraints.hpp"
+#include "baguette/cp/constraints/AllDiff.hpp"
 #include "baguette/milp/BranchAndBound.hpp"
 #include "baguette/model/Model.hpp"
 #include "baguette/model/ModelEnums.hpp"
@@ -10,6 +13,33 @@ using namespace baguette;
 using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-9;
+
+// ── AllDiff: pas de doublons dans changedVarIds pour un seul appel ──────────────
+//
+// AllDiff(x1=[3,3], x2=[5,5], z=[3,5]).
+// Propagation pass 1 :
+//   x1 fixé à 3 → z.lb 3→4 : push z.id.
+//   x2 fixé à 5 → z.ub 5→4 : push z.id à nouveau (doublon !).
+// Propagation pass 2 : z=[4,4] fixé → aucun changement sur x1 ou x2.
+// changedVarIds doit contenir z.id exactement une fois.
+
+TEST_CASE("AllDiff propagate: no duplicate ids in changedVarIds", "[cp][alldiff]") {
+    Model m;
+    Variable x1 = m.addVar(3.0, 3.0, VarType::Integer, "x1");
+    Variable x2 = m.addVar(5.0, 5.0, VarType::Integer, "x2");
+    Variable z  = m.addVar(3.0, 5.0, VarType::Integer, "z");
+
+    AllDiffConstraint con{{x1, x2, z}};
+    PropagationResult r = propagate(con, m);
+
+    REQUIRE(r.status == CPStatus::Feasible);
+    REQUIRE_THAT(m.getHot().lb[z.id], WithinAbs(4.0, kTol));
+    REQUIRE_THAT(m.getHot().ub[z.id], WithinAbs(4.0, kTol));
+
+    const auto& changed = r.changedVarIds;
+    const long  zCount  = std::count(changed.begin(), changed.end(), z.id);
+    REQUIRE(zCount == 1); // échoue avant le fix (vaut 2)
+}
 
 // ── Test 1: single variable ───────────────────────────────────────────────────
 //

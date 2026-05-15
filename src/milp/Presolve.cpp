@@ -28,10 +28,11 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec) {
 MILPPresolveResult presolveMILPInPlace(
     Model&   model,
     uint32_t maxPasses,
+    double   intFeasTol,
     double   timeLimitS,
     std::chrono::steady_clock::time_point startTime)
 {
-    constexpr double kIntTol = 1e-6;
+    const double kIntTol = intFeasTol;
     constexpr double kInf    = std::numeric_limits<double>::infinity();
 
     MILPPresolveResult res;

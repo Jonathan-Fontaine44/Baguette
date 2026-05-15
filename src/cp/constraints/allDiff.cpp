@@ -27,6 +27,7 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
                                   std::vector<uint32_t>&       changedOut) {
     const auto& hot    = model.getHot(); // live reference — updated by setVarBounds
     StepResult  result = StepResult::NoChange;
+    const std::size_t prevSize = changedOut.size();
 
     for (const Variable vi : vars) {
         int64_t li = iLb(hot.lb[vi.id]);
@@ -50,6 +51,13 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
             }
         }
     }
+
+    // Remove duplicates introduced in this call (a variable may be affected by
+    // multiple fixed siblings in the same pass, producing O(K²) redundant entries).
+    auto newBegin = changedOut.begin() + static_cast<std::ptrdiff_t>(prevSize);
+    std::sort(newBegin, changedOut.end());
+    changedOut.erase(std::unique(newBegin, changedOut.end()), changedOut.end());
+
     return result;
 }
 

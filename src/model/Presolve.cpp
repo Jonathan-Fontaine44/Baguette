@@ -158,7 +158,7 @@ PresolveResult presolveTBInPlace(Model& model, uint32_t maxPasses,
     }
 
     const auto& hot = model.getHot();
-    for (std::size_t i = 0; i < hot.lb.size(); ++i) {
+    for (std::size_t i = 0; i < model.numVars(); ++i) {
         if (hot.ub[i] - hot.lb[i] <= lp_feasibility_tol)
             ++result.fixedVars;
     }
@@ -276,6 +276,16 @@ Model presolveElim(const Model& orig, EliminationRecord& rec) {
         }
 
         if (!redundant) {
+            // When LHS is empty all variables were fixed; check whether the
+            // fixed values actually satisfy the constraint before adding it.
+            if (newLHS.varIds.empty()) {
+                const bool violated =
+                    ((con.sense == Sense::LessEq   || con.sense == Sense::Equal) &&
+                     adjustedRHS < -tol) ||
+                    ((con.sense == Sense::GreaterEq || con.sense == Sense::Equal) &&
+                     adjustedRHS >  tol);
+                if (violated) { rec.infeasible = true; return reduced; }
+            }
             rec.conMap[i] = static_cast<uint32_t>(rec.reducedToOrigCon.size());
             rec.reducedToOrigCon.push_back(i);
             reduced.addLPConstraint(std::move(newLHS), con.sense, adjustedRHS);

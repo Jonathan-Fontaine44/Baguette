@@ -71,6 +71,11 @@ struct EliminationRecord {
 
     uint32_t varsEliminated = 0;
     uint32_t rowsEliminated = 0;
+
+    /// True if a constraint whose every variable was fixed is itself infeasible
+    /// (e.g. all variables sum to a value that violates the constraint).
+    /// Callers should short-circuit and return Infeasible without solving the LP.
+    bool infeasible = false;
 };
 
 /// Build a reduced model by eliminating fixed variables and redundant rows.

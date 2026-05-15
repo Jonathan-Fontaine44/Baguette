@@ -27,13 +27,18 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 ///
 /// Must not be called for LP-relaxation presolve — use presolveTBInPlace.
 ///
-/// @param maxPasses  Maximum outer (LP + round) cycles; 0 = until fixed point.
+/// @param maxPasses   Maximum outer (LP + round) cycles; 0 = until fixed point.
+/// @param intFeasTol  Tolerance for snapping integer bounds: lb → ceil(lb - tol),
+///                    ub → floor(ub + tol).  Must match BBOptions::intFeasTol so
+///                    that the presolve and the B&B tree use the same definition
+///                    of "integer-feasible".
 ///
 /// @par Complexity O(P × (C × N + V)) where P = outer iterations, C = LP
 ///   constraints, N = max variables per constraint, V = integer variable count.
 MILPPresolveResult presolveMILPInPlace(
     Model&   model,
     uint32_t maxPasses  = 0,
+    double   intFeasTol = 1e-6,
     double   timeLimitS = std::numeric_limits<double>::infinity(),
     std::chrono::steady_clock::time_point startTime =
         std::chrono::steady_clock::now());

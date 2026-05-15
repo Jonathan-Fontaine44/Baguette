@@ -83,6 +83,29 @@ TEST_CASE("presolveMILP: binary fixed by LP+round", "[presolve][milp]") {
     REQUIRE_THAT(m.getHot().ub[x.id], WithinAbs(1.0, kTol));
 }
 
+// ── presolveMILPInPlace: intFeasTol transmis depuis BBOptions ─────────────────────
+//
+// x ∈ [2.0005, 10] Integer, min x.
+// Avec intFeasTol = 1e-3 :
+//   ceil(2.0005 - 1e-3) = ceil(1.9995) = 2  → lb arrondi à 2, optimal = 2.
+// Avec kIntTol = 1e-6 hardcodé (bug) :
+//   ceil(2.0005 - 1e-6) = ceil(2.000499) = 3 → lb arrondi à 3, optimal = 3.
+
+TEST_CASE("presolveMILP: intFeasTol honoured from BBOptions", "[presolve][milp]") {
+    Model m;
+    Variable x = m.addVar(2.0005, 10.0, VarType::Integer, "x");
+    m.setObjective(1.0 * x, ObjSense::Minimize);
+
+    BBOptions opts;
+    opts.intFeasTol        = 1e-3;
+    opts.lpOpts.method     = LPMethod::DualSimplexBV;
+
+    MILPResult r = solveMILP(m, opts);
+    REQUIRE(r.status == MILPStatus::Optimal);
+    // Avec intFeasTol=1e-3 le presolve arrondit lb à 2, pas 3.
+    REQUIRE_THAT(r.objectiveValue, WithinAbs(2.0, kTol));
+}
+
 // ── Non-trivial: 10 integer vars, two-round outer cascade ─────────────────────
 //
 // x[0..4] ∈ [0,10] Integer — individual upper bounds: x[i] <= 3.9

@@ -161,6 +161,7 @@ MILPResult solveMILP(const Model&            modelRef,
     std::optional<MILPPresolveResult> presolveStat;
     if (opts.enablePresolve) {
         MILPPresolveResult pr = presolveMILPInPlace(model, opts.lpOpts.presolveMaxPasses,
+                                                    opts.intFeasTol,
                                                     opts.timeLimitS, startTime);
         presolveStat = pr;
         if (pr.infeasible) {
@@ -177,6 +178,12 @@ MILPResult solveMILP(const Model&            modelRef,
     if (elimApplied) {
         const CPConstraints cpSaved = model.getCPConstraints();
         model = presolveElim(model, elimRec);
+        if (elimRec.infeasible) {
+            MILPResult result;
+            result.status       = MILPStatus::Infeasible;
+            result.presolveStat = presolveStat;
+            return result;
+        }
         presolveElimCP(cpSaved, elimRec, model);
     }
 
