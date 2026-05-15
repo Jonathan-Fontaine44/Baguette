@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "SimplexConfig.hpp"
 #include "StandardForm.hpp"
 
 namespace baguette::internal {
@@ -45,6 +46,10 @@ struct SimplexTableau {
     /// so that artificial columns kept for dual extraction cannot enter the basis
     /// in phase II.  Zero means "use all n columns" (phase I default).
     std::size_t nActive = 0;
+
+    /// Per-solve numerical configuration. Set before init() so that all member
+    /// functions (selectEntering, selectLeaving, etc.) use per-solve tolerances.
+    SimplexConfig cfg;
 
     // ── Construction ────────────────────────────────────────────────────────
 

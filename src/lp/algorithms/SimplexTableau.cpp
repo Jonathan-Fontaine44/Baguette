@@ -4,8 +4,6 @@
 #include <cmath>
 #include <limits>
 
-#include "baguette/core/Config.hpp"
-
 namespace baguette::internal {
 
 // ── Construction ─────────────────────────────────────────────────────────────
@@ -44,7 +42,7 @@ bool SimplexTableau::init(const LPStandardForm& sf,
             if (val > maxAbs) { maxAbs = val; pivotRow = r; }
         }
 
-        if (maxAbs < baguette::pivot_tol)
+        if (maxAbs < cfg.pivotTol)
             return false; // truly singular basis
 
         // Swap physical rows (not basicCols: col stays basicCols[i]).
@@ -101,7 +99,7 @@ std::size_t SimplexTableau::selectEntering() const {
     // with artificial columns kept for dual extraction); 0 means all n columns (phase I).
     const std::size_t limit = (nActive > 0) ? nActive : n;
     for (std::size_t j = 0; j < limit; ++j)
-        if (rc[j] < -baguette::lp_optimality_tol)
+        if (rc[j] < -cfg.optimalityTol)
             return j;
     return n; // optimal (no improving column in active range)
 }
@@ -112,17 +110,17 @@ std::size_t SimplexTableau::selectLeaving(std::size_t enteringCol) const {
 
     for (std::size_t i = 0; i < m; ++i) {
         double aij = tab[i * (n + 1) + enteringCol];
-        if (aij <= baguette::pivot_tol) continue; // skip non-positive entries
+        if (aij <= cfg.pivotTol) continue; // skip non-positive entries
 
         double ratio = tab[i * (n + 1) + n] / aij;
         // Full Bland's rule: on ties (within pivot_tol), prefer the row whose
         // basic variable has the smallest column index. This guarantees finite
         // termination even on degenerate pivots. The tolerance guards against
         // floating-point drift causing near-equal ratios to be missed.
-        if (ratio < minRatio - baguette::pivot_tol) {
+        if (ratio < minRatio - cfg.pivotTol) {
             minRatio   = ratio;
             leavingRow = i;
-        } else if (ratio < minRatio + baguette::pivot_tol &&
+        } else if (ratio < minRatio + cfg.pivotTol &&
                    leavingRow < m &&
                    basicCols[i] < basicCols[leavingRow]) {
             leavingRow = i;
@@ -137,13 +135,13 @@ std::size_t SimplexTableau::selectLeavingDual() const {
 
     for (std::size_t i = 0; i < m; ++i) {
         double bi = tab[i * (n + 1) + n];
-        if (bi >= -baguette::lp_feasibility_tol) continue; // row is primal feasible
+        if (bi >= -cfg.feasibilityTol) continue; // row is primal feasible
 
-        if (bi < minB - baguette::lp_feasibility_tol) {
+        if (bi < minB - cfg.feasibilityTol) {
             // Strictly more infeasible: take this row and update threshold
             minB       = bi;
             leavingRow = i;
-        } else if (bi < minB + baguette::lp_feasibility_tol &&
+        } else if (bi < minB + cfg.feasibilityTol &&
                    leavingRow < m &&
                    basicCols[i] < basicCols[leavingRow]) {
             // Tie (within tolerance): Bland's rule — prefer smallest basic column index
@@ -159,14 +157,14 @@ std::size_t SimplexTableau::selectEnteringDual(std::size_t leavingRow) const {
 
     for (std::size_t j = 0; j < n; ++j) {
         double aij = tab[leavingRow * (n + 1) + j];
-        if (aij >= -baguette::pivot_tol) continue; // only strictly negative entries
+        if (aij >= -cfg.pivotTol) continue; // only strictly negative entries
 
         // rc[j] ≥ 0 (dual feasibility) and −aij > 0, so ratio ≥ 0.
         double ratio = rc[j] / (-aij);
-        if (ratio < minRatio - baguette::pivot_tol) {
+        if (ratio < minRatio - cfg.pivotTol) {
             minRatio    = ratio;
             enteringCol = j;
-        } else if (ratio < minRatio + baguette::pivot_tol && j < enteringCol) {
+        } else if (ratio < minRatio + cfg.pivotTol && j < enteringCol) {
             enteringCol = j; // tie-break: smallest column index
         }
     }

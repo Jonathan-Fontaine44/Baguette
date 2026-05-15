@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "SimplexConfig.hpp"
 #include "StandardForm.hpp"
 
 namespace baguette::internal {
@@ -42,6 +43,10 @@ struct LUTableau {
     /// Active column limit for entering selection.
     /// 0 = all n columns (phase I); nOrig in phase II to exclude artificials.
     std::size_t nActive = 0;
+
+    /// Per-solve numerical configuration. Set before init() so that all member
+    /// functions use per-solve tolerances.
+    SimplexConfig cfg;
 
     // ── Stored for on-demand column computation ──────────────────────────────
 

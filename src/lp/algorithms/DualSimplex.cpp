@@ -9,7 +9,6 @@
 #include "PrimalSimplex.hpp"
 #include "SimplexTableau.hpp"
 #include "StandardForm.hpp"
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -37,7 +36,7 @@ LPStatus runDualSimplex(internal::SimplexTableau&             tab,
     uint32_t iter = 0;
 
     uint32_t const timePeriod =
-        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
             >= timeLimitS)
@@ -61,7 +60,7 @@ LPStatus runDualSimplex(internal::SimplexTableau&             tab,
         ++iter;
 
         if (iter % timePeriod == 0) {
-            if (baguette::reinversion_period > 0)
+            if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
             double elapsed =
                 std::chrono::duration<double>(
@@ -135,7 +134,8 @@ LPDetailedResult solveDual(const Model&                          model,
                             std::chrono::steady_clock::time_point startTime,
                             const BasisRecord&                    warmBasis,
                             bool                                  computeSensitivity,
-                            bool                                  computeCutData) {
+                            bool                                  computeCutData,
+                            const SimplexConfig&                  cfg) {
     // Early infeasibility: empty variable domain.
     {
         const auto& hot = model.getHot();
@@ -162,11 +162,12 @@ LPDetailedResult solveDual(const Model&                          model,
     }
     LPStandardForm& sf = *sfPtr;
     SimplexTableau tab;
+    tab.cfg = cfg;
 
     // Fallback to primal: attaches sfPtr to the basis cache for the next call.
     auto fallback = [&]() -> LPDetailedResult {
         LPDetailedResult det = solvePrimal(model, maxIter, timeLimitS, startTime,
-                                           computeSensitivity, computeCutData);
+                                           computeSensitivity, computeCutData, cfg);
         if (det.result.status == LPStatus::Optimal)
             det.basis.sfCache = sfPtr;
         return det;
@@ -193,7 +194,7 @@ LPDetailedResult solveDual(const Model&                          model,
 
     // Verify dual feasibility (shared by both paths).
     for (std::size_t j = 0; j < sf.nCols; ++j) {
-        if (tab.rc[j] < -baguette::lp_optimality_tol)
+        if (tab.rc[j] < -tab.cfg.optimalityTol)
             return fallback();
     }
 

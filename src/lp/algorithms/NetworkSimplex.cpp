@@ -1,6 +1,7 @@
 #include "NetworkSimplex.hpp"
 
 #include "DualSimplexBV.hpp"
+#include "SimplexConfig.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -507,7 +508,8 @@ LPDetailedResult solveNetworkSimplex(const Model&                          model
                                      uint32_t                              maxIter,
                                      double                                timeLimitS,
                                      std::chrono::steady_clock::time_point startTime,
-                                     bool /*computeCutData*/) {
+                                     bool /*computeCutData*/,
+                                     const SimplexConfig&                  /*cfg*/) {
     return runNetworkSimplex(model, maxIter, timeLimitS, startTime);
 }
 

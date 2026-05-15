@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 
+#include "SimplexConfig.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -22,6 +23,7 @@ LPDetailedResult solveNetworkSimplex(const Model&                          model
                                      uint32_t                              maxIter,
                                      double                                timeLimitS,
                                      std::chrono::steady_clock::time_point startTime,
-                                     bool                                  computeCutData);
+                                     bool                                  computeCutData,
+                                     const SimplexConfig&                  cfg = {});
 
 } // namespace baguette::internal

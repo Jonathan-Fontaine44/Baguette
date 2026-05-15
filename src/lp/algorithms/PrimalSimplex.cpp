@@ -7,7 +7,6 @@
 #include "Extractor.hpp"
 #include "SimplexTableau.hpp"
 #include "StandardForm.hpp"
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -142,7 +141,7 @@ void driveOutArtificials(internal::SimplexTableau&       tab,
         if (tab.basicCols[i] < nOld) continue; // not an artificial
 
         for (std::size_t j = 0; j < nOld; ++j) {
-            if (std::abs(tab.tab[i * (tab.n + 1) + j]) > baguette::pivot_tol) {
+            if (std::abs(tab.tab[i * (tab.n + 1) + j]) > tab.cfg.pivotTol) {
                 tab.pivot(i, j);
                 break;
             }
@@ -172,7 +171,7 @@ void repairRedundantRows(internal::SimplexTableau& tab, std::size_t nOld) {
             if (inBasis[j]) continue;
             bool allZero = true;
             for (std::size_t r = 0; r < tab.m && allZero; ++r)
-                allZero = (std::abs(tab.tab[r * (tab.n + 1) + j]) <= baguette::pivot_tol);
+                allZero = (std::abs(tab.tab[r * (tab.n + 1) + j]) <= tab.cfg.pivotTol);
             if (allZero) {
                 tab.basicCols[i] = static_cast<uint32_t>(j);
                 inBasis[j] = true;
@@ -241,7 +240,7 @@ LPStatus runSimplex(internal::SimplexTableau&       tab,
                     std::chrono::steady_clock::time_point startTime,
                     uint32_t&                       iterConsumed) {
     uint32_t const timePeriod =
-        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
             >= timeLimitS)
@@ -263,7 +262,7 @@ LPStatus runSimplex(internal::SimplexTableau&       tab,
         ++iterConsumed;
 
         if (iterConsumed % timePeriod == 0) {
-            if (baguette::reinversion_period > 0)
+            if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
             double elapsed =
                 std::chrono::duration<double>(
@@ -312,7 +311,8 @@ LPDetailedResult solvePrimal(const Model&                          model,
                               double                                timeLimitS,
                               std::chrono::steady_clock::time_point startTime,
                               bool                                  computeSensitivity,
-                              bool                                  computeCutData) {
+                              bool                                  computeCutData,
+                              const SimplexConfig&                  cfg) {
     // Early infeasibility: a variable with lb > ub has an empty domain.
     {
         const auto& hot = model.getHot();
@@ -332,6 +332,7 @@ LPDetailedResult solvePrimal(const Model&                          model,
     // 2. Phase I
     AugmentedForm aug = buildPhaseOne(sf, model);
     SimplexTableau tab;
+    tab.cfg = cfg;
     [[maybe_unused]] bool initOk = tab.init(aug.sf, aug.initialBasis);
     assert(initOk && "identity basis: cannot be singular");
 
@@ -345,7 +346,7 @@ LPDetailedResult solvePrimal(const Model&                          model,
         return det;
     }
 
-    if (tab.objectiveValue() > baguette::lp_feasibility_tol) {
+    if (tab.objectiveValue() > tab.cfg.feasibilityTol) {
         LPDetailedResult det;
         det.result.status = LPStatus::Infeasible;
         det.farkas        = extractFarkasPhaseI(tab, sf, aug, model);

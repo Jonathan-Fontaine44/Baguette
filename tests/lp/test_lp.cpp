@@ -4,7 +4,6 @@
 
 #include <limits>
 
-#include "baguette/core/Config.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/model/Model.hpp"
 #include "lp_problems.hpp"
@@ -115,24 +114,17 @@ TEST_CASE("LP solve - degenerate LP (multiple tie ratios) solves correctly", "[l
 }
 
 TEST_CASE("LP solve - reinversion every pivot yields identical solution", "[lp]") {
-    // Force reinvert() after every single pivot (period = 1) and verify that
-    // the primal solution and objective are numerically identical to the
-    // default period. Uses makeSimpleMax() which requires several pivots.
-    const uint32_t savedPeriod = baguette::reinversion_period;
-    baguette::set_reinversion_period(1);
-    auto resFreq = solveLP(makeSimpleMax(), LPOptions{.enablePresolve = false});
-    baguette::set_reinversion_period(savedPeriod);
-
-    auto resRef = solveLP(makeSimpleMax(), LPOptions{.enablePresolve = false});
+    auto resFreq = solveLP(makeSimpleMax(),
+                           LPOptions{.enablePresolve = false, .reinversionPeriod = 1});
+    auto resRef  = solveLP(makeSimpleMax(),
+                           LPOptions{.enablePresolve = false});
 
     REQUIRE(resFreq.status == LPStatus::Optimal);
     REQUIRE(resRef.status  == LPStatus::Optimal);
-    CHECK_THAT(resFreq.objectiveValue,
-               WithinAbs(resRef.objectiveValue, kTol));
+    CHECK_THAT(resFreq.objectiveValue, WithinAbs(resRef.objectiveValue, kTol));
     REQUIRE(resFreq.primalValues.size() == resRef.primalValues.size());
     for (std::size_t j = 0; j < resRef.primalValues.size(); ++j)
-        CHECK_THAT(resFreq.primalValues[j],
-                   WithinAbs(resRef.primalValues[j], kTol));
+        CHECK_THAT(resFreq.primalValues[j], WithinAbs(resRef.primalValues[j], kTol));
 }
 
 // ── Tests: LPDetailedResult (solveDetailed) ───────────────────────────────────

@@ -7,7 +7,6 @@
 #include "PrimalSimplexBV.hpp"
 #include "SimplexTableauBV.hpp"
 #include "StandardForm.hpp"
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -26,7 +25,7 @@ LPStatus runDualSimplexBV(internal::SimplexTableauBV&              tab,
                            bool*                                     outBlockingExitsToUB) {
     uint32_t iter = 0;
     const uint32_t timePeriod =
-        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
             >= timeLimitS)
@@ -51,7 +50,7 @@ LPStatus runDualSimplexBV(internal::SimplexTableauBV&              tab,
         ++iter;
 
         if (iter % timePeriod == 0) {
-            if (baguette::reinversion_period > 0)
+            if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvert(sfbv)) return LPStatus::NumericalFailure;
             if (std::chrono::duration<double>(
                     std::chrono::steady_clock::now() - startTime).count() >= timeLimitS)
@@ -207,7 +206,8 @@ LPDetailedResult solveDualBV(const Model&                          model,
                               std::chrono::steady_clock::time_point startTime,
                               const BasisRecord&                    warmBasis,
                               bool                                  computeCutData,
-                              bool                                  computeSensitivity) {
+                              bool                                  computeSensitivity,
+                              const SimplexConfig&                  cfg) {
     if (std::chrono::duration<double>(
             std::chrono::steady_clock::now() - startTime).count() >= timeLimitS) {
         LPDetailedResult det;
@@ -230,10 +230,11 @@ LPDetailedResult solveDualBV(const Model&                          model,
 
     LPStandardFormBV sfbv = toStandardFormBV(model);
     SimplexTableauBV tab;
+    tab.cfg = cfg;
 
     auto fallback = [&]() -> LPDetailedResult {
         return solvePrimalBV(model, maxIter, timeLimitS, startTime,
-                             computeCutData, computeSensitivity);
+                             computeCutData, computeSensitivity, cfg);
     };
 
     const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
@@ -260,7 +261,7 @@ LPDetailedResult solveDualBV(const Model&                          model,
 
     // Verify dual feasibility (all rc[j] >= 0 under the complement invariant).
     for (std::size_t j = 0; j < sfbv.nCols; ++j) {
-        if (tab.rc[j] < -baguette::lp_optimality_tol)
+        if (tab.rc[j] < -tab.cfg.optimalityTol)
             return fallback();
     }
 

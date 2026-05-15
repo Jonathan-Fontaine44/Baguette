@@ -3,7 +3,6 @@
 #include <cmath>
 #include <limits>
 
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 
 namespace baguette {
@@ -90,9 +89,9 @@ SensitivityResult extractSensitivity(const internal::SimplexTableau& tab,
         for (std::size_t r = 0; r < m; ++r) {
             const double xBr = tab.tab[r * np + n];
             const double dr  = dirSign * tab.tab[r * np + colI];
-            if (dr > baguette::pivot_tol)
+            if (dr > tab.cfg.pivotTol)
                 deltaLo = std::max(deltaLo, -xBr / dr);
-            else if (dr < -baguette::pivot_tol)
+            else if (dr < -tab.cfg.pivotTol)
                 deltaHi = std::min(deltaHi, -xBr / dr);
         }
 
@@ -135,9 +134,9 @@ SensitivityResult extractSensitivity(const internal::SimplexTableau& tab,
                 if (isBasic[k]) continue;
                 const double t   = tab.tab[r * np + k];
                 const double rck = tab.rc[k];
-                if (t > baguette::pivot_tol)
+                if (t > tab.cfg.pivotTol)
                     deltaHiSF = std::min(deltaHiSF, rck / t);
-                else if (t < -baguette::pivot_tol)
+                else if (t < -tab.cfg.pivotTol)
                     deltaLoSF = std::max(deltaLoSF, rck / t);
             }
         }

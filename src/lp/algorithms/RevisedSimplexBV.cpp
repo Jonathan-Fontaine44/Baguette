@@ -6,7 +6,6 @@
 
 #include "LUTableau.hpp"
 #include "StandardForm.hpp"
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -114,7 +113,7 @@ void driveOutArtificialsRevBV(internal::LUTableau&              tab,
             // making xB[i] = colUB[j]*eta[i] ≠ 0 — a non-degenerate pivot that
             // puts j into the basis at its UB, violating the complement invariant.
             if (tab.atUB[j]) continue;
-            if (std::abs(trow[j]) > baguette::pivot_tol) {
+            if (std::abs(trow[j]) > tab.cfg.pivotTol) {
                 auto [rr, eta] = tab.selectLeavingBVWithEta(j);
                 // Drive out the artificial with a degenerate pivot; row i leaves at LB.
                 tab.pivotBV(i, j, /*leavingAtUB=*/false, eta);
@@ -133,7 +132,7 @@ LPStatus runSimplexRevBV(internal::LUTableau&                       tab,
                           std::chrono::steady_clock::time_point      startTime,
                           uint32_t&                                  iterConsumed) {
     const uint32_t timePeriod =
-        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
             >= timeLimitS)
@@ -157,7 +156,7 @@ LPStatus runSimplexRevBV(internal::LUTableau&                       tab,
         ++iterConsumed;
 
         if (iterConsumed % timePeriod == 0) {
-            if (baguette::reinversion_period > 0)
+            if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvertBV(sfbv)) return LPStatus::NumericalFailure;
             if (std::chrono::duration<double>(
                     std::chrono::steady_clock::now() - startTime).count() >= timeLimitS)
@@ -300,7 +299,8 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
                                  uint32_t                              maxIter,
                                  double                                timeLimitS,
                                  std::chrono::steady_clock::time_point startTime,
-                                 bool                                  computeCutData) {
+                                 bool                                  computeCutData,
+                                 const SimplexConfig&                  cfg) {
     // Early infeasibility: empty domain
     {
         const auto& hot = model.getHot();
@@ -320,6 +320,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
     // 2. Phase I: augment with artificials
     AugmentedFormBV aug = buildPhaseOneBV(sfbv, model);
     LUTableau tab;
+    tab.cfg = cfg;
     [[maybe_unused]] bool initOk = tab.initBV(aug.sfbv, aug.initialBasis);
     assert(initOk && "identity-like artificial basis: cannot be singular");
 
@@ -333,7 +334,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
         return det;
     }
 
-    if (tab.objectiveValue() > baguette::lp_feasibility_tol) {
+    if (tab.objectiveValue() > tab.cfg.feasibilityTol) {
         LPDetailedResult det;
         det.result.status = LPStatus::Infeasible;
         det.farkas        = extractFarkasRevBV(tab, sfbv, aug, model);

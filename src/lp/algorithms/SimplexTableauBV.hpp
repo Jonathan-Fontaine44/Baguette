@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "SimplexConfig.hpp"
 #include "StandardForm.hpp"
 
 namespace baguette::internal {
@@ -41,6 +42,10 @@ struct SimplexTableauBV {
 
     bool        hasRedundantRow = false;
     std::size_t nActive         = 0; ///< 0 = all n columns active (phase I).
+
+    /// Per-solve numerical configuration. Set before init() so that all member
+    /// functions use per-solve tolerances.
+    SimplexConfig cfg;
 
     /// Per-column upper bound in lb-shifted space. Length n.
     std::vector<double> colUB;

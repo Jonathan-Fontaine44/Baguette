@@ -6,7 +6,6 @@
 
 #include "LUTableau.hpp"
 #include "StandardForm.hpp"
-#include "baguette/core/Config.hpp"
 #include "baguette/core/Sense.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
@@ -117,7 +116,7 @@ void driveOutArtificialsRev(internal::LUTableau&             tab,
         // Find a non-zero entry in row i for an original column
         auto trow = tab.tableauRow(i);
         for (std::size_t j = 0; j < nOld; ++j) {
-            if (std::abs(trow[j]) > baguette::pivot_tol) {
+            if (std::abs(trow[j]) > tab.cfg.pivotTol) {
                 tab.pivot(i, j);
                 break;
             }
@@ -134,7 +133,7 @@ LPStatus runSimplexRev(internal::LUTableau&                       tab,
                         std::chrono::steady_clock::time_point      startTime,
                         uint32_t&                                  iterConsumed) {
     const uint32_t timePeriod =
-        baguette::reinversion_period > 0 ? baguette::reinversion_period : 64u;
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
             >= timeLimitS)
@@ -154,7 +153,7 @@ LPStatus runSimplexRev(internal::LUTableau&                       tab,
         ++iterConsumed;
 
         if (iterConsumed % timePeriod == 0) {
-            if (baguette::reinversion_period > 0)
+            if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
             if (std::chrono::duration<double>(
                     std::chrono::steady_clock::now() - startTime).count() >= timeLimitS)
@@ -296,9 +295,9 @@ LPDetailedResult extractDetailedRev(const internal::LUTableau&       tab,
             double deltaLo = -inf, deltaHi = +inf;
             for (std::size_t r = 0; r < m; ++r) {
                 double dr = dirSign * d[r];
-                if (dr > baguette::pivot_tol)
+                if (dr > tab.cfg.pivotTol)
                     deltaLo = std::max(deltaLo, -tab.xB[r] / dr);
-                else if (dr < -baguette::pivot_tol)
+                else if (dr < -tab.cfg.pivotTol)
                     deltaHi = std::min(deltaHi, -tab.xB[r] / dr);
             }
 
@@ -333,9 +332,9 @@ LPDetailedResult extractDetailedRev(const internal::LUTableau&       tab,
                     if (isBasic[k]) continue;
                     double t   = trow[k];
                     double rck = tab.rc[k];
-                    if (t > baguette::pivot_tol)
+                    if (t > tab.cfg.pivotTol)
                         deltaHiSF = std::min(deltaHiSF, rck / t);
-                    else if (t < -baguette::pivot_tol)
+                    else if (t < -tab.cfg.pivotTol)
                         deltaLoSF = std::max(deltaLoSF, rck / t);
                 }
             }
@@ -361,7 +360,8 @@ LPDetailedResult solveRevised(const Model&                          model,
                                double                                timeLimitS,
                                std::chrono::steady_clock::time_point startTime,
                                bool                                  computeSensitivity,
-                               bool                                  computeCutData) {
+                               bool                                  computeCutData,
+                               const SimplexConfig&                  cfg) {
     // Early infeasibility: empty variable domain
     {
         const auto& hot = model.getHot();
@@ -381,6 +381,7 @@ LPDetailedResult solveRevised(const Model&                          model,
     // 2. Phase I: augment with artificial variables
     AugmentedFormRev aug = buildPhaseOneRev(sf, model);
     LUTableau tab;
+    tab.cfg = cfg;
     [[maybe_unused]] bool initOk = tab.init(aug.sf, aug.initialBasis);
     assert(initOk && "identity artificial basis: cannot be singular");
 
@@ -394,7 +395,7 @@ LPDetailedResult solveRevised(const Model&                          model,
         return det;
     }
 
-    if (tab.objectiveValue() > baguette::lp_feasibility_tol) {
+    if (tab.objectiveValue() > tab.cfg.feasibilityTol) {
         LPDetailedResult det;
         det.result.status = LPStatus::Infeasible;
         det.farkas        = extractFarkasPhaseIRev(tab, sf, aug, model);

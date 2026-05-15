@@ -39,7 +39,7 @@ bool SimplexTableauBV::init(const LPStandardFormBV& sfbv,
             double val = std::abs(tab[r * w + col]);
             if (val > maxAbs) { maxAbs = val; pivotRow = r; }
         }
-        if (maxAbs < baguette::pivot_tol) return false;
+        if (maxAbs < cfg.pivotTol) return false;
 
         if (pivotRow != i)
             for (std::size_t j = 0; j <= n; ++j)
@@ -111,9 +111,9 @@ SimplexTableauBV::DualLeavingResult SimplexTableauBV::selectLeavingDualBV() cons
         const double bi  = tab[i * w + n];
         const double ubi = colUB[basicCols[i]];
 
-        const double infeasL = (bi < -baguette::lp_feasibility_tol)
+        const double infeasL = (bi < -cfg.feasibilityTol)
                                ? -bi : 0.0;
-        const double infeasU = (std::isfinite(ubi) && bi > ubi + baguette::lp_feasibility_tol)
+        const double infeasU = (std::isfinite(ubi) && bi > ubi + cfg.feasibilityTol)
                                ? bi - ubi : 0.0;
 
         if (infeasL == 0.0 && infeasU == 0.0) continue;
@@ -122,8 +122,8 @@ SimplexTableauBV::DualLeavingResult SimplexTableauBV::selectLeavingDualBV() cons
         const bool     thisExitsToUB = (infeasU > infeasL);
         const uint32_t idx           = basicCols[i];
 
-        if (thisInfeas > maxInfeas + baguette::lp_feasibility_tol ||
-            (thisInfeas > maxInfeas - baguette::lp_feasibility_tol && idx < bestIdx)) {
+        if (thisInfeas > maxInfeas + cfg.feasibilityTol ||
+            (thisInfeas > maxInfeas - cfg.feasibilityTol && idx < bestIdx)) {
             maxInfeas     = thisInfeas;
             bestRow       = i;
             bestIdx       = idx;
@@ -150,16 +150,16 @@ std::size_t SimplexTableauBV::selectEnteringDualBV(std::size_t leavingRow,
 
         if (!exitsToUB) {
             // xBi < LB → wants to increase → need eta_ij < 0
-            if (eta >= -baguette::pivot_tol) continue;
+            if (eta >= -cfg.pivotTol) continue;
             ratio = rc[j] / (-eta);
         } else {
             // xBi > UB → wants to decrease → need eta_ij > 0
-            if (eta <= baguette::pivot_tol) continue;
+            if (eta <= cfg.pivotTol) continue;
             ratio = rc[j] / eta;
         }
 
-        if (ratio < minRatio - baguette::pivot_tol ||
-            (ratio < minRatio + baguette::pivot_tol && j < entering)) {
+        if (ratio < minRatio - cfg.pivotTol ||
+            (ratio < minRatio + cfg.pivotTol && j < entering)) {
             minRatio = ratio;
             entering = j;
         }
@@ -197,11 +197,11 @@ SimplexTableauBV::selectLeavingBV(std::size_t e) const {
         double   ratio;
         bool     thisAtUB;
 
-        if (eta > baguette::pivot_tol) {
+        if (eta > cfg.pivotTol) {
             // xBi decreases: check LB = 0
             ratio    = xBi / eta;
             thisAtUB = false;
-        } else if (eta < -baguette::pivot_tol) {
+        } else if (eta < -cfg.pivotTol) {
             // xBi increases: check its UB
             const double ubi = colUB[basicCols[i]];
             if (!std::isfinite(ubi)) continue;
@@ -212,8 +212,8 @@ SimplexTableauBV::selectLeavingBV(std::size_t e) const {
         }
 
         const uint32_t idx = basicCols[i];
-        if (ratio < best - baguette::pivot_tol ||
-            (ratio < best + baguette::pivot_tol && idx < bestIdx)) {
+        if (ratio < best - cfg.pivotTol ||
+            (ratio < best + cfg.pivotTol && idx < bestIdx)) {
             best     = ratio;
             bestRow  = i;
             bestIdx  = idx;
@@ -296,6 +296,7 @@ SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
     const auto&  objCoeffs   = model.getHot().obj;
     const double inf         = Lim::infinity();
 
+    const SimplexConfig& cfg = tab.cfg;
     const std::size_t m   = tab.m;
     const std::size_t n   = tab.n;
     const std::size_t np  = n + 1;
@@ -335,11 +336,11 @@ SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
             const double xBr = tab.tab[r * np + n];
             const double dr  = dirSign * tab.tab[r * np + colI];
             const double ubr = tab.colUB[tab.basicCols[r]];
-            if (dr > baguette::pivot_tol) {
+            if (dr > cfg.pivotTol) {
                 deltaLo = std::max(deltaLo, -xBr / dr);
                 if (std::isfinite(ubr))
                     deltaHi = std::min(deltaHi, (ubr - xBr) / dr);
-            } else if (dr < -baguette::pivot_tol) {
+            } else if (dr < -cfg.pivotTol) {
                 deltaHi = std::min(deltaHi, -xBr / dr);
                 if (std::isfinite(ubr))
                     deltaLo = std::max(deltaLo, (ubr - xBr) / dr);
@@ -381,9 +382,9 @@ SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
                 if (isBasic[k]) continue;
                 const double t   = tab.tab[r * np + k];
                 const double rck = tab.rc[k];
-                if (t > baguette::pivot_tol)
+                if (t > cfg.pivotTol)
                     deltaHiSF = std::min(deltaHiSF, rck / t);
-                else if (t < -baguette::pivot_tol)
+                else if (t < -cfg.pivotTol)
                     deltaLoSF = std::max(deltaLoSF, rck / t);
             }
         }

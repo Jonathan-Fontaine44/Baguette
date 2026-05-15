@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 
+#include "SimplexConfig.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -26,6 +27,7 @@ LPDetailedResult solveDual(const Model&                          model,
                             std::chrono::steady_clock::time_point startTime,
                             const BasisRecord&                    warmBasis,
                             bool                                  computeSensitivity,
-                            bool                                  computeCutData);
+                            bool                                  computeCutData,
+                            const SimplexConfig&                  cfg = {});
 
 } // namespace baguette::internal

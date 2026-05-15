@@ -122,6 +122,23 @@ struct LPOptions {
     /// reducing the problem size before solving. postsolveElim() restores the
     /// full solution after the solve. Default true.
     bool enableElimination = true;
+
+    /// Primal feasibility tolerance forwarded to the simplex.
+    /// A basic variable value b_i is considered primal feasible when
+    /// b_i >= -feasibilityTol. Phase-I succeeds when the phase-I objective
+    /// value is <= feasibilityTol.
+    /// Default: 1e-9.
+    double feasibilityTol = 1e-9;
+
+    /// Dual optimality tolerance forwarded to the simplex.
+    /// A reduced cost rc[j] is considered non-improving when rc[j] >= -optimalityTol.
+    /// Default: 1e-9.
+    double optimalityTol = 1e-9;
+
+    /// Basis reinversion period. B⁻¹ is rebuilt from scratch every this many pivots
+    /// to cap floating-point drift. 0 disables reinversion.
+    /// Default: 50.
+    uint32_t reinversionPeriod = 50;
 };
 
 /// Solve the LP relaxation of @p model.

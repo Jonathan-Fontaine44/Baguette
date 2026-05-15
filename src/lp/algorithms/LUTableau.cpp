@@ -6,8 +6,6 @@
 #include <limits>
 #include <numeric>
 
-#include "baguette/core/Config.hpp"
-
 namespace baguette::internal {
 
 namespace {
@@ -19,7 +17,7 @@ namespace {
 // Returns false if any pivot is below pivot_tol (singular or near-singular).
 
 bool luFactorise(std::vector<double>& mat, std::size_t m,
-                 std::vector<std::size_t>& perm) {
+                 std::vector<std::size_t>& perm, double pivotTol) {
     perm.resize(m);
     std::iota(perm.begin(), perm.end(), 0);
 
@@ -31,7 +29,7 @@ bool luFactorise(std::vector<double>& mat, std::size_t m,
             double v = std::abs(mat[i * m + k]);
             if (v > maxv) { maxv = v; pivot = i; }
         }
-        if (maxv < baguette::pivot_tol) return false;
+        if (maxv < pivotTol) return false;
 
         if (pivot != k) {
             std::swap(perm[k], perm[pivot]);
@@ -86,7 +84,7 @@ bool LUTableau::doReinvert() {
             B[i * m + k] = Avec[i * n + basicCols[k]];
 
     std::vector<std::size_t> perm;
-    if (!luFactorise(B, m, perm)) return false;
+    if (!luFactorise(B, m, perm, cfg.pivotTol)) return false;
 
     // Compute B⁻¹ column by column: solve B x = e_k for each k
     std::vector<double> ek(m, 0.0);
@@ -216,10 +214,10 @@ LUTableau::selectLeavingBVWithEta(std::size_t e) const {
         double       ratio;
         bool         thisAtUB;
 
-        if (eta > baguette::pivot_tol) {
+        if (eta > cfg.pivotTol) {
             ratio    = xBi / eta;
             thisAtUB = false;
-        } else if (eta < -baguette::pivot_tol) {
+        } else if (eta < -cfg.pivotTol) {
             const double ubi = colUB[basicCols[i]];
             if (!std::isfinite(ubi)) continue;
             ratio    = (ubi - xBi) / (-eta);
@@ -229,8 +227,8 @@ LUTableau::selectLeavingBVWithEta(std::size_t e) const {
         }
 
         const uint32_t idx = basicCols[i];
-        if (ratio < best - baguette::pivot_tol ||
-            (ratio < best + baguette::pivot_tol && idx < bestIdx)) {
+        if (ratio < best - cfg.pivotTol ||
+            (ratio < best + cfg.pivotTol && idx < bestIdx)) {
             best     = ratio;
             bestRow  = i;
             bestIdx  = idx;
@@ -303,7 +301,7 @@ std::vector<double> LUTableau::tableauRow(std::size_t r) const {
 std::size_t LUTableau::selectEntering() const {
     const std::size_t limit = (nActive > 0) ? nActive : n;
     for (std::size_t j = 0; j < limit; ++j)
-        if (rc[j] < -baguette::lp_optimality_tol)
+        if (rc[j] < -cfg.optimalityTol)
             return j;
     return n;
 }
@@ -315,12 +313,12 @@ LUTableau::selectLeavingWithEta(std::size_t j) const {
     double      minRatio = std::numeric_limits<double>::infinity();
 
     for (std::size_t i = 0; i < m; ++i) {
-        if (eta[i] <= baguette::pivot_tol) continue;
+        if (eta[i] <= cfg.pivotTol) continue;
         double ratio = xB[i] / eta[i];
-        if (ratio < minRatio - baguette::pivot_tol) {
+        if (ratio < minRatio - cfg.pivotTol) {
             minRatio = ratio;
             leaving  = i;
-        } else if (ratio < minRatio + baguette::pivot_tol &&
+        } else if (ratio < minRatio + cfg.pivotTol &&
                    leaving < m && basicCols[i] < basicCols[leaving]) {
             leaving = i;
         }
@@ -338,12 +336,12 @@ std::size_t LUTableau::selectLeavingDual() const {
 
     for (std::size_t i = 0; i < m; ++i) {
         double bi = xB[i];
-        if (bi >= -baguette::lp_feasibility_tol) continue;
+        if (bi >= -cfg.feasibilityTol) continue;
 
-        if (bi < minB - baguette::lp_feasibility_tol) {
+        if (bi < minB - cfg.feasibilityTol) {
             minB    = bi;
             leaving = i;
-        } else if (bi < minB + baguette::lp_feasibility_tol &&
+        } else if (bi < minB + cfg.feasibilityTol &&
                    leaving < m && basicCols[i] < basicCols[leaving]) {
             leaving = i;
         }
@@ -357,12 +355,12 @@ std::size_t LUTableau::selectEnteringDual(std::size_t leavingRow) const {
     double      minRatio = std::numeric_limits<double>::infinity();
 
     for (std::size_t j = 0; j < n; ++j) {
-        if (t[j] >= -baguette::pivot_tol) continue;
+        if (t[j] >= -cfg.pivotTol) continue;
         double ratio = rc[j] / (-t[j]);
-        if (ratio < minRatio - baguette::pivot_tol) {
+        if (ratio < minRatio - cfg.pivotTol) {
             minRatio = ratio;
             entering = j;
-        } else if (ratio < minRatio + baguette::pivot_tol && j < entering) {
+        } else if (ratio < minRatio + cfg.pivotTol && j < entering) {
             entering = j;
         }
     }

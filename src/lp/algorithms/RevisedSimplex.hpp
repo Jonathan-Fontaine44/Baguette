@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 
+#include "SimplexConfig.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -21,6 +22,7 @@ LPDetailedResult solveRevised(const Model&                          model,
                                double                                timeLimitS,
                                std::chrono::steady_clock::time_point startTime,
                                bool                                  computeSensitivity,
-                               bool                                  computeCutData);
+                               bool                                  computeCutData,
+                               const SimplexConfig&                  cfg = {});
 
 } // namespace baguette::internal
