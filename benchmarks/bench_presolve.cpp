@@ -4,6 +4,7 @@
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/lp/presolve.hpp"
 #include "baguette/milp/BranchAndBound.hpp"
+#include "baguette/milp/Presolve.hpp"
 #include "baguette/model/Model.hpp"
 #include "baguette/model/ModelEnums.hpp"
 #include "lp/MILP_problems.hpp"
@@ -24,6 +25,34 @@ static Model makeChainLP(int n) {
         m.addLPConstraint(1.0*x[i] + 1.0*x[i+1], Sense::LessEq, double(n - i));
     LinearExpr obj;
     for (int i = 0; i < n; ++i) obj += 1.0 * x[i];
+    m.setObjective(obj, ObjSense::Minimize);
+    return m;
+}
+
+// MILPCascade: n Integer variables in groups of 5.
+// Each group: x[i] in [0,10], per-var LP constraint x[i] <= 3.9, group sum >= 13.5.
+// presolveMILPInPlace runs two outer iterations:
+//   iter 1: LP tightens ub to 3.9, MILP rounds to 3. (bt=n, br=n)
+//   iter 2: With ub=3, LP tightens lb to 1.5, MILP rounds to 2. (bt=n, br=n)
+// presolveTBInPlace alone reaches ub=3.9 but cannot round lb to 2.
+// n must be a multiple of 5.
+static Model makeMILPCascade(int n) {
+    Model m;
+    std::vector<Variable> x;
+    x.reserve(n);
+    for (int i = 0; i < n; ++i)
+        x.push_back(m.addVar(0.0, 10.0, VarType::Integer, "x" + std::to_string(i)));
+    for (int g = 0; g < n / 5; ++g) {
+        LinearExpr sum;
+        for (int k = 0; k < 5; ++k) {
+            int vi = g * 5 + k;
+            m.addLPConstraint(1.0 * x[vi], Sense::LessEq, 3.9);
+            sum += 1.0 * x[vi];
+        }
+        m.addLPConstraint(sum, Sense::GreaterEq, 13.5);
+    }
+    LinearExpr obj;
+    for (auto& v : x) obj += 1.0 * v;
     m.setObjective(obj, ObjSense::Minimize);
     return m;
 }
@@ -291,4 +320,77 @@ static void BM_PresolveOnly_Elim_TSP10(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_PresolveOnly_Elim_TSP10);
+
+// ── MILPCascade: LP-presolve vs MILP-presolve (presolve-only timing) ─────────
+// Cascade20: 4 groups of 5 vars — two outer MILP iterations.
+// Cascade50: 10 groups  — same cascade, scaled up.
+// LP-only (presolveTBInPlace): reaches ub=3.9, cannot round lb → misses iter 2.
+// MILP     (presolveMILPInPlace): two rounds → tighter [2,3] bounds.
+
+static void BM_PresolveOnly_LP_Cascade20(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = makeMILPCascade(20);
+        PresolveResult pr = presolveTBInPlace(m);
+        benchmark::DoNotOptimize(pr.boundsTightened);
+        state.counters["bounds_tightened"] = pr.boundsTightened;
+        state.counters["passes"]           = pr.passesRun;
+    }
+}
+BENCHMARK(BM_PresolveOnly_LP_Cascade20);
+
+static void BM_PresolveOnly_MILP_Cascade20(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = makeMILPCascade(20);
+        MILPPresolveResult pr = presolveMILPInPlace(m);
+        benchmark::DoNotOptimize(pr.boundsTightened);
+        state.counters["bounds_tightened"] = pr.boundsTightened;
+        state.counters["bounds_rounded"]   = pr.boundsRounded;
+        state.counters["passes"]           = pr.passesRun;
+    }
+}
+BENCHMARK(BM_PresolveOnly_MILP_Cascade20);
+
+static void BM_PresolveOnly_LP_Cascade50(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = makeMILPCascade(50);
+        PresolveResult pr = presolveTBInPlace(m);
+        benchmark::DoNotOptimize(pr.boundsTightened);
+        state.counters["bounds_tightened"] = pr.boundsTightened;
+        state.counters["passes"]           = pr.passesRun;
+    }
+}
+BENCHMARK(BM_PresolveOnly_LP_Cascade50);
+
+static void BM_PresolveOnly_MILP_Cascade50(benchmark::State& state) {
+    for (auto _ : state) {
+        Model m = makeMILPCascade(50);
+        MILPPresolveResult pr = presolveMILPInPlace(m);
+        benchmark::DoNotOptimize(pr.boundsTightened);
+        state.counters["bounds_tightened"] = pr.boundsTightened;
+        state.counters["bounds_rounded"]   = pr.boundsRounded;
+        state.counters["passes"]           = pr.passesRun;
+    }
+}
+BENCHMARK(BM_PresolveOnly_MILP_Cascade50);
+
+// ── MILPCascade: full MILP solve (NoPresolve / MILP-presolve) ────────────────
+// Measures the end-to-end B&B benefit of MILP presolve on the cascade model.
+// NoPresolve: B&B starts with x[i] ∈ [0,10] — wide domains, many branches.
+// MILP-TB:    B&B starts with x[i] ∈ [2,3]  — domains reduced by 87.5%.
+
+static void BM_MILP_Cascade20_NoPresolve(benchmark::State& state) {
+    for (auto _ : state) {
+        MILPResult r = solveMILP(makeMILPCascade(20), bbNone());
+        benchmark::DoNotOptimize(r.objectiveValue);
+    }
+}
+BENCHMARK(BM_MILP_Cascade20_NoPresolve);
+
+static void BM_MILP_Cascade20_MILPPresolve(benchmark::State& state) {
+    for (auto _ : state) {
+        MILPResult r = solveMILP(makeMILPCascade(20), bbTB());
+        benchmark::DoNotOptimize(r.objectiveValue);
+    }
+}
+BENCHMARK(BM_MILP_Cascade20_MILPPresolve);
 
