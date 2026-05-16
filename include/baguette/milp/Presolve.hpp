@@ -23,11 +23,15 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 /// Integer/Binary variable, lb is snapped to ceil(lb) and ub to floor(ub).
 /// Infeasibility is detected when lb > ub after rounding.  The two-phase loop
 /// (LP-propagation to its own fixed point, then integer rounding) repeats
-/// until no bound changes or @p maxPasses outer iterations are reached.
+/// until no bound changes or @p maxCycles outer iterations are reached.
 ///
 /// Must not be called for LP-relaxation presolve — use presolveTBInPlace.
 ///
-/// @param maxPasses   Maximum outer (LP + round) cycles; 0 = until fixed point.
+/// @param maxCycles   Maximum outer (LP-fixpoint + integrality round) cycles.
+///                    0 = run until fixed point.  Independent of
+///                    LPOptions::presolveMaxPasses, which controls LP pass count
+///                    inside each LP solve node.  Configure via
+///                    BBOptions::milpPresolveMaxCycles.
 /// @param intFeasTol  Tolerance for snapping integer bounds: lb → ceil(lb - tol),
 ///                    ub → floor(ub + tol).  Must match BBOptions::intFeasTol so
 ///                    that the presolve and the B&B tree use the same definition
@@ -37,7 +41,7 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 ///   constraints, N = max variables per constraint, V = integer variable count.
 MILPPresolveResult presolveMILPInPlace(
     Model&   model,
-    uint32_t maxPasses  = 0,
+    uint32_t maxCycles  = 0,
     double   intFeasTol = 1e-6,
     double   timeLimitS = std::numeric_limits<double>::infinity(),
     std::chrono::steady_clock::time_point startTime =

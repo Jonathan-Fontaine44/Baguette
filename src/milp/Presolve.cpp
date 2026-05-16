@@ -27,7 +27,7 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec) {
 
 MILPPresolveResult presolveMILPInPlace(
     Model&   model,
-    uint32_t maxPasses,
+    uint32_t maxCycles,
     double   intFeasTol,
     double   timeLimitS,
     std::chrono::steady_clock::time_point startTime)
@@ -62,7 +62,7 @@ MILPPresolveResult presolveMILPInPlace(
     // Initial integrality pass before LP propagation.
     if (!roundIntBounds()) { res.infeasible = true; return res; }
 
-    for (uint32_t outer = 0; maxPasses == 0 || outer < maxPasses; ++outer) {
+    for (uint32_t outer = 0; maxCycles == 0 || outer < maxCycles; ++outer) {
         const double elapsed = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - startTime).count();
         if (elapsed >= timeLimitS) { res.timeLimitReached = true; break; }

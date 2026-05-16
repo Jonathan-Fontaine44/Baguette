@@ -160,7 +160,7 @@ MILPResult solveMILP(const Model&            modelRef,
     // for LP relaxation nodes; only at the B&B root on the integer model.
     std::optional<MILPPresolveResult> presolveStat;
     if (opts.enablePresolve) {
-        MILPPresolveResult pr = presolveMILPInPlace(model, opts.lpOpts.presolveMaxPasses,
+        MILPPresolveResult pr = presolveMILPInPlace(model, opts.milpPresolveMaxCycles,
                                                     opts.intFeasTol,
                                                     opts.timeLimitS, startTime);
         presolveStat = pr;

@@ -101,6 +101,13 @@ struct BBOptions {
     /// Populates MILPResult::presolveStat. Default true.
     bool enablePresolve = true;
 
+    /// Maximum number of outer MILP presolve cycles (LP-fixpoint + integrality round).
+    /// Each cycle runs LP bound-tightening to its own fixpoint, then snaps integer
+    /// bounds. Independent of LPOptions::presolveMaxPasses, which controls the LP
+    /// pass count inside each LP solve node.
+    /// 0 = run until fixed point (default).
+    uint32_t milpPresolveMaxCycles = 0;
+
     /// If true, apply elimination presolve (presolveElim) after bound tightening.
     /// Removes fixed variables (lb == ub) and always-satisfied constraints before
     /// the B&B loop, reducing the size of every LP solve in the tree.

@@ -185,3 +185,49 @@ TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
     }
     REQUIRE_THAT(sumFront, WithinAbs(14.0, kTol));
 }
+
+// ── D2: milpPresolveMaxCycles distinct de lpOpts.presolveMaxPasses ────────────
+//
+// Same 5-var setup as above. With maxCycles = 1, only the first outer iteration
+// runs (LP: ub 10→3.9, round: ub→3). The second outer iteration (LP: lb→1.5,
+// round: lb→2) is skipped. B&B still finds the correct optimal.
+
+TEST_CASE("presolveMILP: milpPresolveMaxCycles limits outer iterations", "[presolve][milp]") {
+    Model m;
+    std::vector<Variable> x(5);
+    for (int i = 0; i < 5; ++i)
+        x[i] = m.addVar(0.0, 10.0, VarType::Integer, "x" + std::to_string(i));
+
+    for (int i = 0; i < 5; ++i)
+        m.addLPConstraint(1.0*x[i], Sense::LessEq, 3.9);
+    m.addLPConstraint(1.0*x[0] + 1.0*x[1] + 1.0*x[2] + 1.0*x[3] + 1.0*x[4],
+                      Sense::GreaterEq, 13.5);
+    m.setObjective(1.0*x[0] + 1.0*x[1] + 1.0*x[2] + 1.0*x[3] + 1.0*x[4],
+                   ObjSense::Minimize);
+
+    // 1 cycle: LP tightens ub (5 bounds), round snaps ub (5 bounds).
+    // lb tightening (requires a second outer cycle) is NOT done.
+    {
+        Model mCopy = m;
+        MILPPresolveResult res = presolveMILPInPlace(mCopy, /*maxCycles=*/1);
+        REQUIRE_FALSE(res.infeasible);
+        REQUIRE(res.boundsTightened == 5); // only ub tightened
+        REQUIRE(res.boundsRounded   == 5); // only ub rounded
+        const auto& hot = mCopy.getHot();
+        for (int i = 0; i < 5; ++i) {
+            REQUIRE_THAT(hot.lb[x[i].id], WithinAbs(0.0, kTol)); // lb unchanged
+            REQUIRE_THAT(hot.ub[x[i].id], WithinAbs(3.0, kTol)); // ub rounded
+        }
+    }
+
+    // BBOptions::milpPresolveMaxCycles controls the outer loop;
+    // lpOpts.presolveMaxPasses (LP node passes) is independent.
+    BBOptions opts;
+    opts.milpPresolveMaxCycles  = 1;
+    opts.lpOpts.presolveMaxPasses = 0; // unlimited LP passes per node
+    opts.lpOpts.method          = LPMethod::DualSimplexBV;
+    MILPResult r = solveMILP(m, opts);
+
+    REQUIRE(r.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r.objectiveValue, WithinAbs(14.0, kTol));
+}
