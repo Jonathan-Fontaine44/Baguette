@@ -195,16 +195,19 @@ void repairRedundantRows(internal::SimplexTableau& tab, std::size_t nOld) {
 
 /// Transition the tableau from phase I to phase II.
 ///
-/// Artificial columns are NOT stripped from the tableau.  Instead, their
-/// phase-II cost is set to zero and they are excluded from pivot selection
-/// via tab.nActive = sfOrig.nCols.  This keeps their rc entries up-to-date
-/// through every phase-II pivot so that, at optimality:
-///   rc[art_i] = 0 − y_i  →  y_i = −rc[art_i]
-/// enabling dual-variable extraction for Equal constraints.
+/// Artificial columns are NOT stripped from the tableau.  Instead:
+///   - tab.nActive = sfOrig.nCols  excludes all artificials from pivot selection.
+///   - tab.artColsForDual          tracks only Equal-row artificials that must be
+///     updated through Phase-II pivots so that at optimality:
+///       rc[art_i] = 0 − y_i  →  y_i = −rc[art_i]
+///     enabling dual-variable extraction for Equal constraints.
+///   - Non-Equal artificials (GreaterEq, negated LessEq) are no longer updated
+///     after this point and their rc values are left at 0 (never read again).
 ///
-/// @note Complexity: O(m·n) for objective repricing.
+/// @note Complexity: O(m·nOld + m·nEqualArt) for repricing, vs O(m·n) before.
 void preparePhaseTwo(internal::SimplexTableau&       tab,
-                      const internal::LPStandardForm& sfOrig) {
+                      const internal::LPStandardForm& sfOrig,
+                      const std::vector<uint32_t>&    equalArtCol) {
     const std::size_t nOld = sfOrig.nCols;
     const std::size_t m    = tab.m;
     const std::size_t w    = tab.n + 1;
@@ -213,7 +216,17 @@ void preparePhaseTwo(internal::SimplexTableau&       tab,
 
     repairRedundantRows(tab, nOld);
 
-    // Re-price: rc_j = c_j − c_B * B⁻¹ a_j for ALL columns (including artificials).
+    // Populate artColsForDual: Equal-row artificials whose rc must stay current
+    // for dual extraction.  The sentinel value (== tab.n before reinversion) marks
+    // rows that have no artificial (non-Equal constraints).
+    const auto sentinel = static_cast<uint32_t>(tab.n);
+    tab.artColsForDual.clear();
+    for (uint32_t ac : equalArtCol)
+        if (ac < sentinel)
+            tab.artColsForDual.push_back(ac);
+
+    // Re-price: rc_j = c_j − c_B * B⁻¹ a_j for original cols + artColsForDual + rhs.
+    // Non-Equal artificials are skipped (their rc stays 0; never read again).
     tab.rc.assign(w, 0.0);
     for (std::size_t j = 0; j < nOld; ++j)
         tab.rc[j] = sfOrig.c[j];
@@ -221,8 +234,11 @@ void preparePhaseTwo(internal::SimplexTableau&       tab,
     for (std::size_t i = 0; i < m; ++i) {
         double cb = sfOrig.c[tab.basicCols[i]];
         if (cb == 0.0) continue;
-        for (std::size_t j = 0; j < w; ++j)
+        for (std::size_t j = 0; j < nOld; ++j)
             tab.rc[j] -= cb * tab.tab[i * w + j];
+        for (uint32_t ac : tab.artColsForDual)
+            tab.rc[ac] -= cb * tab.tab[i * w + ac];
+        tab.rc[tab.n] -= cb * tab.tab[i * w + tab.n];
     }
 }
 
@@ -357,7 +373,7 @@ LPDetailedResult solvePrimal(const Model&                          model,
     driveOutArtificials(tab, sf);
 
     // 4. Phase II
-    preparePhaseTwo(tab, sf);
+    preparePhaseTwo(tab, sf, aug.equalArtCol);
 
     LPStatus p2Status = runSimplex(tab, sf, maxIter, timeLimitS, startTime, iters);
 

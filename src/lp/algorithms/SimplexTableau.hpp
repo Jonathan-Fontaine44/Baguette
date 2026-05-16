@@ -47,6 +47,13 @@ struct SimplexTableau {
     /// in phase II.  Zero means "use all n columns" (phase I default).
     std::size_t nActive = 0;
 
+    /// Artificial column indices tracked through Phase II pivots for Equal-row
+    /// dual extraction.  Set by preparePhaseTwo(); cleared by reinvert() when
+    /// reinversion drops the artificial columns (sfOrig.nCols < n).
+    /// pivot() updates these columns in addition to the [0, nActive) range.
+    /// @par Complexity O(|artColsForDual|) extra work per pivot.
+    std::vector<uint32_t> artColsForDual;
+
     /// Per-solve numerical configuration. Set before init() so that all member
     /// functions (selectEntering, selectLeaving, etc.) use per-solve tolerances.
     SimplexConfig cfg;

@@ -193,4 +193,18 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal);
 /// @note Complexity: O(m·n), same as toStandardForm() but without the UB row fill.
 LPStandardFormBV toStandardFormBV(const Model& model);
 
+/// Lightweight bounds-only update of an existing LPStandardFormBV.
+///
+/// Recomputes b, varShiftVal, objOffset, and colUB from updated variable bounds
+/// in @p model.  A, c, colKind, colOrigin, rowSlackCol, rowNegated, varColSign,
+/// and varFreeNegCol are assumed unchanged and are NOT touched.
+///
+/// Returns true if the update succeeded.  Returns false if:
+///   - The number of variables or constraints changed.
+///   - Any variable's shift type changed (e.g. a bound crossed finite/infinite).
+///   - Any constraint row's shifted RHS would change sign.
+/// The caller must fall back to toStandardFormBV() when false is returned.
+/// @note Complexity: O(nOrig + nnz), no matrix allocation or A-fill.
+bool toStandardFormBoundsOnlyBV(LPStandardFormBV& sfbv, const Model& model);
+
 } // namespace baguette::internal

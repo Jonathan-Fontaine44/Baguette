@@ -342,6 +342,69 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
     return true;
 }
 
+bool toStandardFormBoundsOnlyBV(LPStandardFormBV& sfbv, const Model& model) {
+    const auto& hot         = model.getHot();
+    const auto& constraints = model.getLPConstraints();
+    const std::size_t nOrig     = model.numVars();
+    const std::size_t nOrigRows = model.numConstraints();
+
+    if (nOrig != sfbv.nOrig || nOrigRows != sfbv.nOrigRows)
+        return false;
+
+    // Verify that each variable's shift type is unchanged.
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        const bool lbFin      = std::isfinite(hot.lb[j]);
+        const bool ubFin      = std::isfinite(hot.ub[j]);
+        const bool wasFree    = (sfbv.varFreeNegCol[j] < sfbv.nCols);
+        const bool wasUbShift = (sfbv.varColSign[j] == -1);
+        const bool wasLbShift = !wasFree && !wasUbShift;
+
+        if (lbFin  && !wasLbShift)           return false;
+        if (!lbFin && ubFin  && !wasUbShift) return false;
+        if (!lbFin && !ubFin && !wasFree)    return false;
+    }
+
+    // Update varShiftVal.
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (sfbv.varColSign[j] == +1 && sfbv.varFreeNegCol[j] == sfbv.nCols)
+            sfbv.varShiftVal[j] = hot.lb[j];   // lb-shift
+        else if (sfbv.varColSign[j] == -1)
+            sfbv.varShiftVal[j] = hot.ub[j];   // ub-shift
+        // free-split: varShiftVal[j] remains 0.0
+    }
+
+    // Update objOffset.
+    const bool   maximize = (model.getObjSense() == ObjSense::Maximize);
+    const double objSign  = maximize ? -1.0 : 1.0;
+    sfbv.objOffset = objSign * model.getObjConstant();
+    for (std::size_t j = 0; j < nOrig; ++j)
+        sfbv.objOffset += objSign * hot.obj[j] * sfbv.varShiftVal[j];
+
+    // Recompute b for model constraint rows.
+    // Reject if any row's sign would need to flip (A row negation not performed here).
+    for (std::size_t i = 0; i < nOrigRows; ++i) {
+        const auto& con = constraints[i];
+        double rhs = con.rhs;
+        for (std::size_t k = 0; k < con.lhs.size(); ++k)
+            rhs -= con.lhs.coeffs[k] * sfbv.varShiftVal[con.lhs.varIds[k]];
+
+        const bool needsNeg = (rhs < 0.0);
+        if (needsNeg != sfbv.rowNegated[i])
+            return false; // sign flip would require updating A — fall back
+        sfbv.b[i] = needsNeg ? -rhs : rhs;
+    }
+
+    // Update colUB for lb-shifted vars with finite ub.
+    for (std::size_t j = 0; j < nOrig; ++j) {
+        if (sfbv.varColSign[j] == +1 && sfbv.varFreeNegCol[j] == sfbv.nCols)
+            sfbv.colUB[j] = std::isfinite(hot.ub[j])
+                            ? hot.ub[j] - sfbv.varShiftVal[j]
+                            : std::numeric_limits<double>::infinity();
+    }
+
+    return true;
+}
+
 LPStandardFormBV toStandardFormBV(const Model& model) {
     const auto& hot         = model.getHot();
     const auto& constraints = model.getLPConstraints();

@@ -11,6 +11,7 @@
 #include "baguette/model/Presolve.hpp"
 
 namespace baguette { namespace internal { struct LPStandardForm; } }
+namespace baguette { namespace internal { struct LPStandardFormBV; } }
 
 namespace baguette {
 
@@ -101,6 +102,11 @@ struct BasisRecord {
     /// Populated only when result.status == Optimal.  Consumers must not modify
     /// or interpret this field; it is internal to the solver.
     std::shared_ptr<internal::LPStandardForm> sfCache;
+
+    /// Cached BV standard form for bounds-only warm restart in solveDualBV().
+    /// Populated only when result.status == Optimal.  Consumers must not modify
+    /// or interpret this field; it is internal to the solver.
+    std::shared_ptr<internal::LPStandardFormBV> sfbvCache;
 
     /// Complement state for BV warm-start (atUB[j] = true means column j was
     /// non-basic AT_UB when the solve ended).  Length == total BV columns.

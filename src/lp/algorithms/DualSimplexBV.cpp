@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <limits>
+#include <memory>
 
 #include "PrimalSimplexBV.hpp"
 #include "SimplexTableauBV.hpp"
@@ -228,7 +229,20 @@ LPDetailedResult solveDualBV(const Model&                          model,
         }
     }
 
-    LPStandardFormBV sfbv = toStandardFormBV(model);
+    // On the warm-start path, A and c are invariant between B&B nodes.
+    // Reuse the cached A (shared_ptr copy is O(1)) and update only b,
+    // varShiftVal, objOffset, and colUB via toStandardFormBoundsOnlyBV.
+    const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
+    auto sfbvPtr = std::make_shared<LPStandardFormBV>();
+    if (hasWarm && warmBasis.sfbvCache) {
+        *sfbvPtr = *warmBasis.sfbvCache; // shallow: A shared_ptr copied O(1)
+        if (!toStandardFormBoundsOnlyBV(*sfbvPtr, model))
+            *sfbvPtr = toStandardFormBV(model);
+    } else {
+        *sfbvPtr = toStandardFormBV(model);
+    }
+    LPStandardFormBV& sfbv = *sfbvPtr;
+
     SimplexTableauBV tab;
     tab.cfg = cfg;
 
@@ -236,8 +250,6 @@ LPDetailedResult solveDualBV(const Model&                          model,
         return solvePrimalBV(model, maxIter, timeLimitS, startTime,
                              computeCutData, computeSensitivity, cfg);
     };
-
-    const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
 
     if (hasWarm) {
         // ── Warm-start path ──────────────────────────────────────────────────
@@ -278,6 +290,9 @@ LPDetailedResult solveDualBV(const Model&                          model,
 
     LPDetailedResult det = extractDualBV(tab, sfbv, model, status,
                                           computeCutData, computeSensitivity);
+
+    if (status == LPStatus::Optimal)
+        det.basis.sfbvCache = sfbvPtr;
 
     if (status != LPStatus::Optimal) {
         det.result.primalValues.clear();

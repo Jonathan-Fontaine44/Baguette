@@ -88,6 +88,10 @@ bool SimplexTableau::reinvert(const LPStandardForm& sf) {
     // Rebuild the tableau from scratch using the current basis.
     // std::move avoids a copy: init() receives the buffer and moves it back
     // into basicCols via the by-value parameter, reusing the same allocation.
+    //
+    // After reinversion with sfOrig (nCols == nOld), the tableau shrinks to
+    // nOld columns and artificial columns are gone — clear the tracking list.
+    artColsForDual.clear();
     return init(sf, std::move(basicCols));
 }
 
@@ -173,21 +177,30 @@ std::size_t SimplexTableau::selectEnteringDual(std::size_t leavingRow) const {
 
 void SimplexTableau::pivot(std::size_t leavingRow, std::size_t enteringCol) {
     const std::size_t w = n + 1;
+    // In Phase II nActive == nOld limits updates to original SF columns, skipping
+    // non-tracked artificial columns.  artColsForDual tracks Equal-row artificials
+    // still needed for dual extraction.  Phase I uses nActive == 0 (all n columns).
+    const std::size_t pEnd = (nActive > 0) ? nActive : n;
 
-    // Scale pivot row
-    double pivotVal = tab[leavingRow * w + enteringCol];
-    double inv = 1.0 / pivotVal;
-    for (std::size_t j = 0; j <= n; ++j)
+    // Scale pivot row: original cols [0, pEnd) + Equal-art tracked cols + rhs
+    double inv = 1.0 / tab[leavingRow * w + enteringCol];
+    for (std::size_t j = 0; j < pEnd; ++j)
         tab[leavingRow * w + j] *= inv;
+    for (uint32_t ac : artColsForDual)
+        tab[leavingRow * w + ac] *= inv;
+    tab[leavingRow * w + n] *= inv;
 
-    // Eliminate entering column from all other rows (including rc)
-    for (std::size_t r = 0; r <= m; ++r) { // r == m means the rc row
+    // Eliminate entering column from all other rows (including rc row at r == m)
+    for (std::size_t r = 0; r <= m; ++r) {
         double* row = (r < m) ? &tab[r * w] : rc.data();
         if (r == leavingRow) continue;
         double factor = row[enteringCol];
         if (factor == 0.0) continue;
-        for (std::size_t j = 0; j <= n; ++j)
+        for (std::size_t j = 0; j < pEnd; ++j)
             row[j] -= factor * tab[leavingRow * w + j];
+        for (uint32_t ac : artColsForDual)
+            row[ac] -= factor * tab[leavingRow * w + ac];
+        row[n] -= factor * tab[leavingRow * w + n];
     }
 
     // If enteringCol was already assigned to another row (a dummy redundant row
