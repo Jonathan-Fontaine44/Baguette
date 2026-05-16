@@ -17,47 +17,66 @@ inline int64_t iUb(double ub) { return static_cast<int64_t>(std::floor(ub + 1e-9
 
 enum class StepResult { NoChange, Changed, Infeasible };
 
-// One pass of fixed-value elimination.
-// For each fixed x_i (lb_i == ub_i), exclude its value from every other x_j:
-//   lb_j == v → raise lb_j to v+1
-//   ub_j == v → lower ub_j to v-1
-// Stops on the first empty domain (lb_j > ub_j).
+// Smallest integer ≥ x not present in sorted fixed-values list.
+int64_t nextNotFixed(const std::vector<int64_t>& fixed, int64_t x) {
+    auto it = std::lower_bound(fixed.begin(), fixed.end(), x);
+    while (it != fixed.end() && *it == x) { ++x; ++it; }
+    return x;
+}
+
+// Largest integer ≤ x not present in sorted fixed-values list.
+int64_t prevNotFixed(const std::vector<int64_t>& fixed, int64_t x) {
+    auto it = std::upper_bound(fixed.begin(), fixed.end(), x);
+    while (it != fixed.begin()) {
+        auto prev = std::prev(it);
+        if (*prev != x) break;
+        --x;
+        it = prev;
+    }
+    return x;
+}
+
+// One pass of fixed-value elimination (O(K log K)).
+// Collects all fixed values into a sorted list, then for each non-fixed variable
+// advances lb and retreats ub past every fixed value in one shot.
 StepResult fixedValueElimination(const std::vector<Variable>& vars,
                                   Model&                       model,
                                   std::vector<uint32_t>&       changedOut) {
-    const auto& hot    = model.getHot(); // live reference — updated by setVarBounds
-    StepResult  result = StepResult::NoChange;
+    const auto& hot    = model.getHot();
     const std::size_t prevSize = changedOut.size();
 
-    for (const Variable vi : vars) {
-        int64_t li = iLb(hot.lb[vi.id]);
-        int64_t ui = iUb(hot.ub[vi.id]);
-        if (li != ui) continue; // not fixed — skip
-        const int64_t v = li;
+    std::vector<int64_t> fixed;
+    fixed.reserve(vars.size());
+    for (const Variable v : vars) {
+        int64_t lb = iLb(hot.lb[v.id]);
+        int64_t ub = iUb(hot.ub[v.id]);
+        if (lb == ub) fixed.push_back(lb);
+    }
+    if (fixed.empty()) return StepResult::NoChange;
+    std::sort(fixed.begin(), fixed.end());
+    // Two variables fixed to the same value → immediate infeasibility.
+    for (std::size_t i = 1; i < fixed.size(); ++i)
+        if (fixed[i] == fixed[i - 1]) return StepResult::Infeasible;
 
-        for (const Variable vj : vars) {
-            if (vj.id == vi.id) continue;
-            int64_t lj    = iLb(hot.lb[vj.id]);
-            int64_t uj    = iUb(hot.ub[vj.id]);
-            int64_t newLj = lj;
-            int64_t newUj = uj;
-            if (lj == v) newLj = v + 1;
-            if (uj == v) newUj = v - 1;
-            if (newLj > newUj) return StepResult::Infeasible;
-            if (newLj != lj || newUj != uj) {
-                model.setVarBounds(vj, static_cast<double>(newLj), static_cast<double>(newUj));
-                changedOut.push_back(vj.id);
-                result = StepResult::Changed;
-            }
+    StepResult result = StepResult::NoChange;
+    for (const Variable vj : vars) {
+        const int64_t lj = iLb(hot.lb[vj.id]);
+        const int64_t uj = iUb(hot.ub[vj.id]);
+        if (lj == uj) continue; // fixed — no adjustment needed (conflicts caught above)
+
+        const int64_t newLj = nextNotFixed(fixed, lj);
+        const int64_t newUj = prevNotFixed(fixed, uj);
+        if (newLj > newUj) return StepResult::Infeasible;
+        if (newLj != lj || newUj != uj) {
+            model.setVarBounds(vj, static_cast<double>(newLj), static_cast<double>(newUj));
+            changedOut.push_back(vj.id);
+            result = StepResult::Changed;
         }
     }
 
-    // Remove duplicates introduced in this call (a variable may be affected by
-    // multiple fixed siblings in the same pass, producing O(K²) redundant entries).
     auto newBegin = changedOut.begin() + static_cast<std::ptrdiff_t>(prevSize);
     std::sort(newBegin, changedOut.end());
     changedOut.erase(std::unique(newBegin, changedOut.end()), changedOut.end());
-
     return result;
 }
 
