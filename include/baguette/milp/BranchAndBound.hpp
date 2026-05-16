@@ -46,8 +46,8 @@ struct BBOptions {
     /// Variable selection strategy for branching. Default: MostFractional.
     BranchStrategy branchStrat = BranchStrategy::MostFractional;
 
-    /// Node selection strategy. Default: BestBound.
-    NodeSelection nodeSelect = NodeSelection::BestBound;
+    /// Node selection strategy. Default: HybridPlunge.
+    NodeSelection nodeSelect = NodeSelection::HybridPlunge;
 
     /// Maximum number of B&B nodes to explore. 0 = no limit.
     uint32_t maxNodes = 1'000'000;
