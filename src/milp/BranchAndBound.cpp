@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <vector>
 #include <cstdint>
 
@@ -28,11 +29,19 @@ struct BoundChange {
     double   newUb;
 };
 
+// Persistent linked-list node for the bound-change trail.
+// Children share the parent's prefix; only their own BoundChange is appended.
+// O(1) child creation; O(depth) pointer traversal in restoreBounds (no copy).
+struct ChangesNode {
+    std::shared_ptr<const ChangesNode> parent;
+    BoundChange change;
+};
+
 struct Node {
-    std::vector<BoundChange> changes;  // accumulated deltas from root (one per branch depth)
-    BasisRecord              basis;    // warm-start data from the parent LP solve
-    double                   lpBound;  // LP objective at the parent (pruning + pseudo-costs)
-    int                      depth;
+    std::shared_ptr<const ChangesNode> changesHead; // nullptr = root (no changes)
+    BasisRecord                        basis;
+    double                             lpBound;
+    int                                depth;
 
     // Pseudo-cost bookkeeping: records the branching decision that created this node.
     int    parentBranchVar = -1; // -1 = root node (no parent branch)
@@ -264,16 +273,17 @@ MILPResult solveMILP(const Model&            modelRef,
 
     // ── Restore model bounds from a node's accumulated delta trail ─────────────
     auto restoreBounds = [&](const Node& node) {
-        // Reset previously modified variables to root bounds.
         for (uint32_t id : dirtyVars)
             model.setVarBounds(Variable{id}, rootLb[id], rootUb[id]);
-        // Apply this node's changes and rebuild the dirty set.
         dirtyVars.clear();
-        for (const BoundChange& bc : node.changes) {
-            model.setVarBounds(Variable{bc.varId}, bc.newLb, bc.newUb);
-            dirtyVars.push_back(bc.varId);
+        // Collect path leaf→root, apply root→leaf so the deepest change wins.
+        std::vector<const BoundChange*> path;
+        for (const ChangesNode* p = node.changesHead.get(); p; p = p->parent.get())
+            path.push_back(&p->change);
+        for (auto it = path.rbegin(); it != path.rend(); ++it) {
+            model.setVarBounds(Variable{(*it)->varId}, (*it)->newLb, (*it)->newUb);
+            dirtyVars.push_back((*it)->varId);
         }
-        // Deduplicate: the same variable may appear at multiple depths.
         std::sort(dirtyVars.begin(), dirtyVars.end());
         dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()), dirtyVars.end());
     };
@@ -281,10 +291,9 @@ MILPResult solveMILP(const Model&            modelRef,
     // ── Root node ──────────────────────────────────────────────────────────────
     {
         Node root;
-        root.changes  = {};               // no changes from root bounds
-        root.lpBound  = minimize ? -inf : inf;
-        root.depth    = 0;
-        // root.basis is default-constructed (empty) → cold start
+        root.changesHead = nullptr;
+        root.lpBound     = minimize ? -inf : inf;
+        root.depth       = 0;
         pushNode(std::move(root));
     }
 
@@ -490,9 +499,11 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // Left child:  x_j ≤ floor(x_j)
         if (!canPrune(bound)) {
+            auto chg    = std::make_shared<ChangesNode>();
+            chg->parent = node.changesHead;
+            chg->change = {static_cast<uint32_t>(branchId), curLb, floorX};
             Node left;
-            left.changes = node.changes; // copy parent's trail
-            left.changes.push_back({static_cast<uint32_t>(branchId), curLb, floorX});
+            left.changesHead     = std::move(chg);
             left.lpBound         = bound;
             left.depth           = node.depth + 1;
             left.basis           = lp.basis;
@@ -504,9 +515,11 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // Right child: x_j ≥ ceil(x_j)
         if (!canPrune(bound)) {
+            auto chg    = std::make_shared<ChangesNode>();
+            chg->parent = node.changesHead;
+            chg->change = {static_cast<uint32_t>(branchId), ceilX, curUb};
             Node right;
-            right.changes = node.changes; // copy parent's trail
-            right.changes.push_back({static_cast<uint32_t>(branchId), ceilX, curUb});
+            right.changesHead     = std::move(chg);
             right.lpBound         = bound;
             right.depth           = node.depth + 1;
             right.basis           = lp.basis;

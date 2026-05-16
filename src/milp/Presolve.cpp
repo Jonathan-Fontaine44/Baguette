@@ -67,8 +67,9 @@ MILPPresolveResult presolveMILPInPlace(
             std::chrono::steady_clock::now() - startTime).count();
         if (elapsed >= timeLimitS) { res.timeLimitReached = true; break; }
 
-        // LP bound-tightening to its own fixed point.
-        PresolveResult pr = presolveTBInPlace(model, 0, timeLimitS, startTime);
+        // One LP pass per outer cycle — interleaves LP propagation and integer
+        // rounding more tightly, avoiding over-propagation before the next snap.
+        PresolveResult pr = presolveTBInPlace(model, 1, timeLimitS, startTime);
         res.passesRun       += pr.passesRun;
         res.boundsTightened += pr.boundsTightened;
         if (pr.infeasible)       { res.infeasible = true; return res; }
