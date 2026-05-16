@@ -159,7 +159,56 @@ TEST_CASE("AllDiff: only affected variable reported in changedVarIds", "[cp][all
             == r.changedVarIds.end());
 }
 
-// ── Test 7: MILP + AllDiff, optimal permutation ──────────────────────────────
+// ── Test 7: Hall interval propagation ────────────────────────────────────────
+//
+// AllDiff(x1=[1,2], x2=[1,2], x3=[1,3]):
+// Hall interval [1,2]: x1 and x2 have domain ⊆ [1,2], count=2=capacity=2.
+// → x3 must avoid [1,2]: lb 1→3. x3=[3,3].
+// Fixed-value elimination alone would not propagate (x1,x2 not fixed).
+
+TEST_CASE("AllDiff: Hall interval tightens bounds of non-Hall variables", "[cp][alldiff]") {
+    Model m;
+    Variable x1 = m.addVar(1.0, 2.0, VarType::Integer, "x1");
+    Variable x2 = m.addVar(1.0, 2.0, VarType::Integer, "x2");
+    Variable x3 = m.addVar(1.0, 3.0, VarType::Integer, "x3");
+
+    AllDiffConstraint con{{x1, x2, x3}};
+    PropagationResult r = propagate(con, m);
+
+    REQUIRE(r.status == CPStatus::Feasible);
+    // x3 forced to 3 (only value outside Hall set {1,2})
+    REQUIRE_THAT(m.getHot().lb[x3.id], WithinAbs(3.0, kTol));
+    REQUIRE_THAT(m.getHot().ub[x3.id], WithinAbs(3.0, kTol));
+    // x1, x2 unchanged
+    REQUIRE_THAT(m.getHot().lb[x1.id], WithinAbs(1.0, kTol));
+    REQUIRE_THAT(m.getHot().ub[x1.id], WithinAbs(2.0, kTol));
+    // x3 in changedVarIds; x1, x2 not
+    const auto& ch = r.changedVarIds;
+    REQUIRE(std::find(ch.begin(), ch.end(), x3.id) != ch.end());
+    REQUIRE(std::find(ch.begin(), ch.end(), x1.id) == ch.end());
+    REQUIRE(std::find(ch.begin(), ch.end(), x2.id) == ch.end());
+}
+
+// ── Test 8: Hall interval cascade ────────────────────────────────────────────
+//
+// AllDiff(x1=[1,2], x2=[1,2], x3=[1,2], x4=[3,4], x5=[3,4]):
+// Hall [1,2]: count=3 > capacity=2 → infeasible.
+
+TEST_CASE("AllDiff: Hall interval detects overcrowded sub-interval infeasibility", "[cp][alldiff]") {
+    Model m;
+    Variable x1 = m.addVar(1.0, 2.0, VarType::Integer, "x1");
+    Variable x2 = m.addVar(1.0, 2.0, VarType::Integer, "x2");
+    Variable x3 = m.addVar(1.0, 2.0, VarType::Integer, "x3");
+    Variable x4 = m.addVar(3.0, 4.0, VarType::Integer, "x4");
+    Variable x5 = m.addVar(3.0, 4.0, VarType::Integer, "x5");
+
+    AllDiffConstraint con{{x1, x2, x3, x4, x5}};
+    PropagationResult r = propagate(con, m);
+
+    REQUIRE(r.status == CPStatus::Infeasible);
+}
+
+// ── MILP + AllDiff, optimal permutation ──────────────────────────────────────
 //
 // min x + y + z,  x,y,z ∈ {1,2,3},  AllDiff(x,y,z).
 // Feasible solutions are permutations of {1,2,3}.  Optimal value = 6.

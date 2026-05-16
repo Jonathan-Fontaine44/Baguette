@@ -25,13 +25,17 @@ struct AllDiffConstraint {
     explicit AllDiffConstraint(std::vector<Variable> vs) : vars(std::move(vs)) {}
 };
 
-/// Propagate one AllDiff constraint (Bounds Consistency).
+/// Propagate one AllDiff constraint (Bounds Consistency with Hall intervals).
 ///
-/// Fixed-value elimination: if x_i is fixed to v, raise lb_j or lower ub_j to
-/// exclude v for all j ≠ i.  Repeated until fixpoint.  Range check: if
-/// max(ub) − min(lb) + 1 < k the constraint is infeasible.
+/// Alternates two phases until fixpoint:
+///   1. Fixed-value elimination: if x_i is fixed to v, exclude v from every
+///      other domain by raising lb_j or lowering ub_j.
+///   2. Hall interval propagation: for each interval [u, v] formed by variable
+///      bounds, if exactly v-u+1 variables have their domain entirely within
+///      [u, v] (a Hall set), clip all other domains to avoid [u, v].  Also
+///      detects infeasibility when count > capacity (subsumes range check).
 ///
-/// @note Complexity  O(K² × I) where K = vars.size(), I = fixpoint iterations (≤ K).
+/// @note Complexity: O(K³ × I) where K = vars.size(), I = fixpoint iterations (≤ K).
 PropagationResult propagate(const AllDiffConstraint& con, Model& model);
 
 /// Check whether a given integer solution satisfies AllDiff (all values distinct).

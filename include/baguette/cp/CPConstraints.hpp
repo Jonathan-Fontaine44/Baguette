@@ -32,7 +32,24 @@ struct CPConstraints {
     void add(BuiltinConstraint c)                   { builtins_.push_back(std::move(c)); }
     void add(std::shared_ptr<const CPConstraint> c) { customs_.push_back(std::move(c)); }
 
-    bool empty() const noexcept { return builtins_.empty() && customs_.empty(); }
+    bool        empty()       const noexcept { return builtins_.empty() && customs_.empty(); }
+    std::size_t numBuiltins() const noexcept { return builtins_.size(); }
+    std::size_t numCustoms()  const noexcept { return customs_.size(); }
+
+    /// Remove the built-in constraint at @p index (zero-based). O(n).
+    void removeBuiltin(std::size_t index) {
+        builtins_.erase(builtins_.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+
+    /// Remove the custom constraint at @p index (zero-based). O(n).
+    void removeCustom(std::size_t index) {
+        customs_.erase(customs_.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+
+    /// Replace the built-in constraint at @p index in place. O(1).
+    void updateBuiltin(std::size_t index, BuiltinConstraint c) {
+        builtins_[index] = std::move(c);
+    }
 
     void merge(const CPConstraints& other) {
         builtins_.insert(builtins_.end(), other.builtins_.begin(), other.builtins_.end());
