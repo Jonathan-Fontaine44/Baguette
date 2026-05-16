@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 
+#include "baguette/core/Sense.hpp"
+#include "baguette/model/ModelData.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
 namespace baguette {
@@ -61,6 +63,42 @@ MILPPresolveResult presolveMILPInPlace(
 
     // Initial integrality pass before LP propagation.
     if (!roundIntBounds()) { res.infeasible = true; return res; }
+
+    // PR1 — Round RHS of all-integer constraints once before the outer loop.
+    // For ∑ aᵢ xᵢ ≤ b where all xᵢ are Integer/Binary and all aᵢ are integer-
+    // valued, the LHS is always integer at any feasible point, so ⌊b⌋ is a
+    // valid tighter RHS (analogously ⌈b⌉ for ≥).  Reported in res.rhsRounded.
+    // @par Complexity O(C × N) over all constraints × variables per constraint.
+    [&]() {
+        const auto& types = model.getCold().types;
+        const auto& cons  = model.getLPConstraints();
+        for (uint32_t ci = 0; ci < static_cast<uint32_t>(cons.size()); ++ci) {
+            const Constraint& con = cons[ci];
+            if (con.sense == Sense::Equal) continue;
+            if (con.lhs.varIds.empty()) continue;
+
+            bool eligible = true;
+            for (std::size_t k = 0; k < con.lhs.varIds.size(); ++k) {
+                const VarType t = types[con.lhs.varIds[k]];
+                if (t != VarType::Integer && t != VarType::Binary) {
+                    eligible = false; break;
+                }
+                if (std::abs(con.lhs.coeffs[k] - std::round(con.lhs.coeffs[k])) > kIntTol) {
+                    eligible = false; break;
+                }
+            }
+            if (!eligible) continue;
+
+            const double rhs    = con.rhs;
+            const double newRhs = (con.sense == Sense::LessEq)
+                ? std::floor(rhs + kIntTol)
+                : std::ceil(rhs  - kIntTol);
+            if (std::abs(newRhs - rhs) > kIntTol) {
+                model.setConstraintRHS(ci, newRhs);
+                ++res.rhsRounded;
+            }
+        }
+    }();
 
     for (uint32_t outer = 0; maxCycles == 0 || outer < maxCycles; ++outer) {
         const double elapsed = std::chrono::duration<double>(

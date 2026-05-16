@@ -25,6 +25,14 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 /// (LP-propagation to its own fixed point, then integer rounding) repeats
 /// until no bound changes or @p maxCycles outer iterations are reached.
 ///
+/// Before the outer loop, constraint RHS values are tightened (PR1):
+/// for every constraint whose variables are all Integer/Binary and whose
+/// coefficients are all integer-valued, the RHS is rounded down (floor for ≤)
+/// or up (ceil for ≥).  This is valid because the LHS is always integer at any
+/// feasible integer point, allowing tighter LP propagation without loss of
+/// integer solutions.  The count of tightened RHS values is reported in
+/// MILPPresolveResult::rhsRounded.
+///
 /// Must not be called for LP-relaxation presolve — use presolveTBInPlace.
 ///
 /// @param maxCycles   Maximum outer (LP-fixpoint + integrality round) cycles.
@@ -37,8 +45,10 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 ///                    that the presolve and the B&B tree use the same definition
 ///                    of "integer-feasible".
 ///
-/// @par Complexity O(P × (C × N + V)) where P = outer iterations, C = LP
-///   constraints, N = max variables per constraint, V = integer variable count.
+/// @par Complexity O(C × N + P × (C × N + V)) where C = constraint count,
+///   N = max variables per constraint, P = outer iterations,
+///   V = integer variable count.  The leading C × N term is the one-time
+///   PR1 RHS scan; P × (...) is the iterative LP + rounding loop.
 MILPPresolveResult presolveMILPInPlace(
     Model&   model,
     uint32_t maxCycles  = 0,

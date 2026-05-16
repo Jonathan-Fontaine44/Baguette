@@ -47,6 +47,11 @@ void Model::addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
     constraints.push_back({std::move(lhs), sense, rhs});
 }
 
+void Model::setConstraintRHS(uint32_t conIdx, double newRhs) {
+    assert(conIdx < constraints.size() && "setConstraintRHS: index out of range");
+    constraints[conIdx].rhs = newRhs;
+}
+
 void Model::setVarBounds(Variable var, double newLb, double newUb) {
     assert(var.id < hot.lb.size() && "setVarBounds: variable does not belong to this model");
     hot.lb[var.id] = newLb;

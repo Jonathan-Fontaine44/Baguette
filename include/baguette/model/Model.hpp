@@ -52,6 +52,14 @@ public:
     void setObjective(LinearExpr expr,
                       ObjSense sense = ObjSense::Minimize);
 
+    /// Update the right-hand side of a constraint in place.
+    ///
+    /// Used by MILP presolve to tighten constraint RHS values when all
+    /// variables are integral (PR1 — integer RHS rounding).
+    /// @note No validation of @p conIdx is performed (intentional: same
+    ///       philosophy as setVarBounds — fast path, caller is responsible).
+    void setConstraintRHS(uint32_t conIdx, double newRhs);
+
     /// Update the bounds of @p var in place.
     ///
     /// This is the preferred method for Branch & Bound hot loops.  Modify

@@ -73,6 +73,7 @@ struct MILPPresolveResult {
     bool     timeLimitReached = false; ///< True if time limit was hit before fixpoint.
     uint32_t boundsTightened  = 0;     ///< LP-based bound updates applied.
     uint32_t boundsRounded    = 0;     ///< Integer variables whose bounds were snapped (ceil/floor).
+    uint32_t rhsRounded       = 0;     ///< Constraint RHS values rounded (floor for ≤, ceil for ≥).
     uint32_t fixedVars        = 0;     ///< Variables with lb == ub at termination.
     uint32_t passesRun        = 0;     ///< LP propagation passes executed.
 };

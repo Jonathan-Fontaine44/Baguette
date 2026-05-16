@@ -48,7 +48,8 @@ TEST_CASE("presolveMILP: empty integer domain", "[presolve][milp]") {
 // ── Trivial 3: LP tightening then integer rounding ────────────────────────────
 //
 // x ∈ [0, 10] Integer,  x <= 2.9
-// LP: ub 10 → 2.9; round: ub 2.9 → 2.
+// PR1 rounds constraint RHS: x <= 2.9 → x <= 2 (floor).
+// LP: ub 10 → 2 (1 tightening, already integer → 0 roundings).
 
 TEST_CASE("presolveMILP: LP tightening cascades into rounding", "[presolve][milp]") {
     Model m;
@@ -58,15 +59,17 @@ TEST_CASE("presolveMILP: LP tightening cascades into rounding", "[presolve][milp
     MILPPresolveResult res = presolveMILPInPlace(m);
 
     REQUIRE_FALSE(res.infeasible);
-    REQUIRE(res.boundsTightened == 1); // LP: ub 10→2.9
-    REQUIRE(res.boundsRounded   == 1); // round: ub 2.9→2
+    REQUIRE(res.rhsRounded      == 1); // PR1: 2.9 → floor(2.9) = 2
+    REQUIRE(res.boundsTightened == 1); // LP: ub 10→2
+    REQUIRE(res.boundsRounded   == 0); // LP gave integer bound directly
     REQUIRE_THAT(m.getHot().ub[x.id], WithinAbs(2.0, kTol));
 }
 
 // ── Trivial 4: binary variable fixed by LP+round cascade ─────────────────────
 //
 // x ∈ [0, 1] Binary,  x >= 0.5
-// LP: lb 0→0.5; round: lb 0.5→1. x fixed to 1.
+// PR1 rounds constraint RHS: x >= 0.5 → x >= 1 (ceil).
+// LP: lb 0→1 (1 tightening, already integer → 0 roundings). x fixed to 1.
 
 TEST_CASE("presolveMILP: binary fixed by LP+round", "[presolve][milp]") {
     Model m;
@@ -76,8 +79,9 @@ TEST_CASE("presolveMILP: binary fixed by LP+round", "[presolve][milp]") {
     MILPPresolveResult res = presolveMILPInPlace(m);
 
     REQUIRE_FALSE(res.infeasible);
-    REQUIRE(res.boundsTightened == 1); // LP: lb 0→0.5
-    REQUIRE(res.boundsRounded   == 1); // round: lb 0.5→1
+    REQUIRE(res.rhsRounded      == 1); // PR1: 0.5 → ceil(0.5) = 1
+    REQUIRE(res.boundsTightened == 1); // LP: lb 0→1
+    REQUIRE(res.boundsRounded   == 0); // LP gave integer bound directly
     REQUIRE(res.fixedVars       == 1);
     REQUIRE_THAT(m.getHot().lb[x.id], WithinAbs(1.0, kTol));
     REQUIRE_THAT(m.getHot().ub[x.id], WithinAbs(1.0, kTol));
@@ -106,26 +110,27 @@ TEST_CASE("presolveMILP: intFeasTol honoured from BBOptions", "[presolve][milp]"
     REQUIRE_THAT(r.objectiveValue, WithinAbs(2.0, kTol));
 }
 
-// ── Non-trivial: 10 integer vars, two-round outer cascade ─────────────────────
+// ── Non-trivial: 10 integer vars, PR1 + LP cascade ────────────────────────────
 //
 // x[0..4] ∈ [0,10] Integer — individual upper bounds: x[i] <= 3.9
 // x[5..9] ∈ [0,10] Integer — no individual constraints
 // Sum: x[0]+x[1]+x[2]+x[3]+x[4] >= 13.5
 // Objective: min sum(x[0..9])
 //
-// Outer iteration 1:
-//   LP:   x[i].ub ← 3.9 (5 tightenings)   [excl_max=4×3.9=15.6 > 13.5, no lb change]
-//   Round: x[i].ub ← 3  (5 roundings)
+// PR1 (before outer loop):
+//   x[i] <= 3.9  →  x[i] <= 3   (floor, 5 constraints)
+//   sum   >= 13.5 →  sum  >= 14  (ceil,  1 constraint)
+//   rhsRounded = 6
 //
-// Outer iteration 2:
-//   LP:   x[i].lb ← 1.5 (5 tightenings)   [excl_max=4×3=12, newLb=(13.5−12)/1=1.5]
-//   Round: x[i].lb ← 2  (5 roundings)
+// Outer iteration 1 (LP pass — constraints processed in order):
+//   x[i] <= 3:   x[i].ub 10→3 (5 LP tightenings)
+//   sum  >= 14:  excl_max=4×3=12, x[i].lb 0→2 (5 LP tightenings) — in same pass!
+//   LP result: x[i] ∈ [2, 3]   (already integer → 0 roundings)
 //
-// Outer iteration 3: no change → fixed point.
+// Outer iteration 2: LP finds no change → fixed point.
 //
 // After presolve: x[0..4] ∈ [2, 3]; x[5..9] ∈ [0, 10] (untouched).
-//
-// MILP optimal: x[0..4] ∈ {2,3} summing to 14 (⌈13.5⌉=14); x[5..9]=0 → obj=14.
+// MILP optimal: sum(x[0..4]) = 14 (=⌈13.5⌉), x[5..9]=0 → obj=14.
 
 TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
     Model m;
@@ -149,8 +154,9 @@ TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
         MILPPresolveResult res = presolveMILPInPlace(mCopy);
 
         REQUIRE_FALSE(res.infeasible);
-        REQUIRE(res.boundsTightened == 10); // 5 ub (LP) + 5 lb (LP)
-        REQUIRE(res.boundsRounded   == 10); // 5 ub (round) + 5 lb (round)
+        REQUIRE(res.rhsRounded      == 6);  // PR1: 5×(3.9→3) + 1×(13.5→14)
+        REQUIRE(res.boundsTightened == 10); // 5 ub (LP) + 5 lb (LP) in one pass
+        REQUIRE(res.boundsRounded   == 0);  // LP gave integer bounds directly
         REQUIRE(res.fixedVars       == 0);  // x[i] ∈ [2,3], not fixed
 
         const auto& hot = mCopy.getHot();
@@ -188,46 +194,182 @@ TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
 
 // ── D2: milpPresolveMaxCycles distinct de lpOpts.presolveMaxPasses ────────────
 //
-// Same 5-var setup as above. With maxCycles = 1, only the first outer iteration
-// runs (LP: ub 10→3.9, round: ub→3). The second outer iteration (LP: lb→1.5,
-// round: lb→2) is skipped. B&B still finds the correct optimal.
+// a, b ∈ [0, 100] Integer.  Constraints added in this order:
+//   C1: 2b - a <= 1   (added first — processed first in each LP pass)
+//   C2: 2a    <= 9
+//
+// PR1: both RHS are already integers → rhsRounded = 0.
+//
+// With maxCycles=1 (1 LP pass + 1 round):
+//   LP pass:  C1 with a.ub=100 → b.ub ≤ (1+100)/2 = 50.5 (tightened from 100)
+//             C2            → a.ub ≤ 9/2 = 4.5   (tightened from 100)
+//   Round:    a.ub 4.5→4, b.ub 50.5→50   (2 roundings)
+//   Result:   a ∈ [0,4], b ∈ [0,50]      — b NOT fully tightened
+//
+// With maxCycles=2 (two LP+round cycles):
+//   Cycle 2 LP:  C1 with a.ub=4 → b.ub ≤ (1+4)/2 = 2.5 (tightened from 50)
+//   Cycle 2 Round: b.ub 2.5→2   (1 more rounding)
+//   Result:   a ∈ [0,4], b ∈ [0,2]       — fully tightened
+//
+// The key: C1 is processed before a.ub is tightened in cycle 1, so it cannot
+// propagate to b.ub yet.  Only after a.ub is rounded (cycle 1) and cycle 2's
+// LP pass runs can C1 propagate tightly.
+//
+// Also verifies milpPresolveMaxCycles ⊥ lpOpts.presolveMaxPasses.
 
 TEST_CASE("presolveMILP: milpPresolveMaxCycles limits outer iterations", "[presolve][milp]") {
     Model m;
-    std::vector<Variable> x(5);
-    for (int i = 0; i < 5; ++i)
-        x[i] = m.addVar(0.0, 10.0, VarType::Integer, "x" + std::to_string(i));
+    Variable a = m.addVar(0.0, 100.0, VarType::Integer, "a");
+    Variable b = m.addVar(0.0, 100.0, VarType::Integer, "b");
 
-    for (int i = 0; i < 5; ++i)
-        m.addLPConstraint(1.0*x[i], Sense::LessEq, 3.9);
-    m.addLPConstraint(1.0*x[0] + 1.0*x[1] + 1.0*x[2] + 1.0*x[3] + 1.0*x[4],
-                      Sense::GreaterEq, 13.5);
-    m.setObjective(1.0*x[0] + 1.0*x[1] + 1.0*x[2] + 1.0*x[3] + 1.0*x[4],
-                   ObjSense::Minimize);
+    // C1 first so it processes before a.ub is tightened in cycle-1 LP.
+    m.addLPConstraint(2.0*b - 1.0*a, Sense::LessEq, 1.0);
+    m.addLPConstraint(2.0*a,         Sense::LessEq, 9.0);
 
-    // 1 cycle: LP tightens ub (5 bounds), round snaps ub (5 bounds).
-    // lb tightening (requires a second outer cycle) is NOT done.
+    m.setObjective(1.0*a + 1.0*b, ObjSense::Minimize);
+
+    // maxCycles=1: b.ub only tightened to 50 (a.ub not yet rounded when C1 runs).
     {
         Model mCopy = m;
         MILPPresolveResult res = presolveMILPInPlace(mCopy, /*maxCycles=*/1);
         REQUIRE_FALSE(res.infeasible);
-        REQUIRE(res.boundsTightened == 5); // only ub tightened
-        REQUIRE(res.boundsRounded   == 5); // only ub rounded
+        REQUIRE(res.rhsRounded      == 0); // all RHS already integer
+        REQUIRE(res.boundsTightened == 2); // b.ub 100→50.5, a.ub 100→4.5
+        REQUIRE(res.boundsRounded   == 2); // a.ub 4.5→4, b.ub 50.5→50
         const auto& hot = mCopy.getHot();
-        for (int i = 0; i < 5; ++i) {
-            REQUIRE_THAT(hot.lb[x[i].id], WithinAbs(0.0, kTol)); // lb unchanged
-            REQUIRE_THAT(hot.ub[x[i].id], WithinAbs(3.0, kTol)); // ub rounded
-        }
+        REQUIRE_THAT(hot.ub[a.id], WithinAbs(4.0,  kTol));
+        REQUIRE_THAT(hot.ub[b.id], WithinAbs(50.0, kTol)); // NOT yet 2
+    }
+
+    // maxCycles=2: b.ub fully tightened to 2 using rounded a.ub=4.
+    {
+        Model mCopy = m;
+        MILPPresolveResult res = presolveMILPInPlace(mCopy, /*maxCycles=*/2);
+        REQUIRE_FALSE(res.infeasible);
+        REQUIRE(res.boundsTightened == 3); // +1: b.ub 50→2.5 in cycle 2
+        REQUIRE(res.boundsRounded   == 3); // +1: b.ub 2.5→2  in cycle 2
+        const auto& hot = mCopy.getHot();
+        REQUIRE_THAT(hot.ub[a.id], WithinAbs(4.0, kTol));
+        REQUIRE_THAT(hot.ub[b.id], WithinAbs(2.0, kTol)); // fully tightened
     }
 
     // BBOptions::milpPresolveMaxCycles controls the outer loop;
     // lpOpts.presolveMaxPasses (LP node passes) is independent.
     BBOptions opts;
-    opts.milpPresolveMaxCycles  = 1;
+    opts.milpPresolveMaxCycles    = 1;
     opts.lpOpts.presolveMaxPasses = 0; // unlimited LP passes per node
-    opts.lpOpts.method          = LPMethod::DualSimplexBV;
+    opts.lpOpts.method            = LPMethod::DualSimplexBV;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
-    REQUIRE_THAT(r.objectiveValue, WithinAbs(14.0, kTol));
+    REQUIRE_THAT(r.objectiveValue, WithinAbs(0.0, kTol)); // min = a=b=0
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PR1 — Integer RHS rounding
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── PR1.1: LessEq with non-integer RHS ───────────────────────────────────────
+//
+// x ∈ [0, 10] Integer, x <= 3.7  →  PR1 rounds to x <= 3.
+// LP then tightens x.ub from 10 to 3; result is already integer → 0 roundings.
+
+TEST_CASE("presolveMILP: PR1 LessEq RHS rounded to floor", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    m.addLPConstraint(1.0*x, Sense::LessEq, 3.7);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE_FALSE(res.infeasible);
+    REQUIRE(res.rhsRounded      == 1); // 3.7 → floor(3.7) = 3
+    REQUIRE(res.boundsTightened == 1); // x.ub 10 → 3
+    REQUIRE(res.boundsRounded   == 0); // result already integer
+    REQUIRE_THAT(m.getHot().ub[x.id], WithinAbs(3.0, kTol));
+}
+
+// ── PR1.2: GreaterEq with non-integer RHS ────────────────────────────────────
+//
+// x ∈ [0, 10] Integer, x >= 2.3  →  PR1 rounds to x >= 3.
+// LP then tightens x.lb from 0 to 3.
+
+TEST_CASE("presolveMILP: PR1 GreaterEq RHS rounded to ceil", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    m.addLPConstraint(1.0*x, Sense::GreaterEq, 2.3);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE_FALSE(res.infeasible);
+    REQUIRE(res.rhsRounded      == 1); // 2.3 → ceil(2.3) = 3
+    REQUIRE(res.boundsTightened == 1); // x.lb 0 → 3
+    REQUIRE(res.boundsRounded   == 0); // result already integer
+    REQUIRE_THAT(m.getHot().lb[x.id], WithinAbs(3.0, kTol));
+}
+
+// ── PR1.3: Already-integer RHS → no rounding ─────────────────────────────────
+
+TEST_CASE("presolveMILP: PR1 integer RHS unchanged", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    m.addLPConstraint(1.0*x, Sense::LessEq, 4.0);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE(res.rhsRounded == 0); // 4.0 is already integer
+    REQUIRE_THAT(m.getHot().ub[x.id], WithinAbs(4.0, kTol));
+}
+
+// ── PR1.4: Equality constraint → no rounding (no safe direction) ─────────────
+
+TEST_CASE("presolveMILP: PR1 equality constraint not rounded", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    // x == 3.7 → LP fixes x ∈ [3.7, 3.7] → roundIntBounds: infeasible
+    m.addLPConstraint(1.0*x, Sense::Equal, 3.7);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE(res.rhsRounded == 0); // equality skipped by PR1
+    REQUIRE(res.infeasible);      // LP pins x=3.7; rounding detects lb>ub
+}
+
+// ── PR1.5: Continuous variable in constraint → no rounding ───────────────────
+
+TEST_CASE("presolveMILP: PR1 skips constraint with continuous variable", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer,    "x");
+    Variable y = m.addVar(0.0, 10.0, VarType::Continuous, "y");
+    m.addLPConstraint(1.0*x + 1.0*y, Sense::LessEq, 3.7);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE(res.rhsRounded == 0); // y is Continuous → ineligible
+}
+
+// ── PR1.6: Non-integer coefficient → no rounding ─────────────────────────────
+
+TEST_CASE("presolveMILP: PR1 skips constraint with non-integer coefficient", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 10.0, VarType::Integer, "x");
+    m.addLPConstraint(1.5*x, Sense::LessEq, 3.7); // coeff 1.5 is not integer
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE(res.rhsRounded == 0); // non-integer coefficient → ineligible
+}
+
+// ── PR1.7: Binary variable eligible ──────────────────────────────────────────
+//
+// x ∈ {0,1} Binary, y ∈ {0,1} Binary, x + y <= 1.5 → rounds to x + y <= 1.
+
+TEST_CASE("presolveMILP: PR1 binary variable eligible for rounding", "[presolve][milp][PR1]") {
+    Model m;
+    Variable x = m.addVar(0.0, 1.0, VarType::Binary, "x");
+    Variable y = m.addVar(0.0, 1.0, VarType::Binary, "y");
+    m.addLPConstraint(1.0*x + 1.0*y, Sense::LessEq, 1.5);
+
+    MILPPresolveResult res = presolveMILPInPlace(m);
+
+    REQUIRE(res.rhsRounded == 1); // 1.5 → floor(1.5) = 1
 }

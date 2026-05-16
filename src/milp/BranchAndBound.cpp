@@ -330,6 +330,40 @@ MILPResult solveMILP(const Model&            modelRef,
             }
         }
 
+        // ── Lightweight integer bound rounding O(V_int) — no LP needed ────────
+        // After branching (and CP propagation), integer variable bounds may be
+        // fractional (e.g., CP tightened x.lb to 2.3 → ceil to 3).  Snap them
+        // here to detect cheap infeasibility and tighten the LP relaxation
+        // before the solve.  New dirty vars are merged into dirtyVars so that
+        // restoreBounds() resets them at the next node.
+        {
+            bool intInfeasible = false;
+            const std::size_t oldSize = dirtyVars.size();
+            for (uint32_t id : intIds) {
+                const double lb    = model.getHot().lb[id];
+                const double ub    = model.getHot().ub[id];
+                const double newLb = (lb == -inf) ? lb : std::ceil(lb  - opts.intFeasTol);
+                const double newUb = (ub ==  inf) ? ub : std::floor(ub + opts.intFeasTol);
+                if (newLb > newUb + opts.intFeasTol) { intInfeasible = true; break; }
+                if (newLb != lb || newUb != ub) {
+                    model.setVarBounds(Variable{id}, newLb, newUb);
+                    dirtyVars.push_back(id);
+                }
+            }
+            if (intInfeasible) {
+                if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                continue;
+            }
+            if (dirtyVars.size() > oldSize) {
+                // intIds is sorted → the new suffix is already sorted; merge.
+                std::inplace_merge(dirtyVars.begin(),
+                                   dirtyVars.begin() + static_cast<std::ptrdiff_t>(oldSize),
+                                   dirtyVars.end());
+                dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
+                                dirtyVars.end());
+            }
+        }
+
         // ── First LP solve ─────────────────────────────────────────────────────
         if (opts.collectStats) ++stats_acc.lpSolvesTotal;
         LPOptions lpOpts           = opts.lpOpts;
