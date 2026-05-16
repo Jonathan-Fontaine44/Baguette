@@ -201,6 +201,20 @@ MILPResult solveMILP(const Model&            modelRef,
     const bool   minimize = (model.getObjSense() == ObjSense::Minimize);
     const double inf      = std::numeric_limits<double>::infinity();
 
+    // When all objective coefficients are integer-valued, the IP optimal is
+    // integer too. LP bounds that land slightly below (e.g. 9.9999997 instead
+    // of 10.0) due to FP noise then defeat canPrune after the first incumbent
+    // is found. Round them toward the integer optimum before every comparison.
+    const auto& objVec = model.getHot().obj;
+    const bool integerObj = std::all_of(objVec.begin(), objVec.end(), [&](double c) {
+        return std::abs(c - std::round(c)) <= opts.intFeasTol;
+    });
+    auto effectiveBound = [&](double v) -> double {
+        if (!integerObj) return v;
+        return minimize ? std::ceil(v - opts.intFeasTol)
+                        : std::floor(v + opts.intFeasTol);
+    };
+
     const std::vector<uint32_t> intIds = collectIntVarIds(model);
 
     // ── Pseudo-costs ───────────────────────────────────────────────────────────
@@ -403,7 +417,7 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── Prune by bound (pre-cut) ───────────────────────────────────────────
-        if (canPrune(lp.result.objectiveValue)) {
+        if (canPrune(effectiveBound(lp.result.objectiveValue))) {
             if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
             continue;
         }
@@ -464,7 +478,7 @@ MILPResult solveMILP(const Model&            modelRef,
                     case LPStatus::Optimal:          break;
                 }
 
-                if (canPrune(lp.result.objectiveValue)) {
+                if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                     if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
                     continue;
                 }
@@ -525,7 +539,7 @@ MILPResult solveMILP(const Model&            modelRef,
         const double floorX = cpBranch ? (xj - 1.0) : std::floor(xj);
         const double ceilX  = cpBranch ? (xj + 1.0) : std::ceil(xj);
         const double fracXj = cpBranch ? 0.5 : (xj - std::floor(xj));
-        const double bound  = lp.result.objectiveValue;
+        const double bound  = effectiveBound(lp.result.objectiveValue);
 
         // Read the variable's current bounds from the model (already restored for this node).
         const double curLb = model.getHot().lb[static_cast<uint32_t>(branchId)];
