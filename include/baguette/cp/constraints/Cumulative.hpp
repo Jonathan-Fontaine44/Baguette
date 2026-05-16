@@ -37,9 +37,10 @@ struct CumulativeConstraint {
 /// the compulsory resource load from other tasks at some time point in
 /// [t, t + duration_i) would exceed capacity − consumption_i.
 ///
-/// @note Complexity  O(N² × D × I) where N = tasks.size(),
-///   D = max range of any start variable, I = fixpoint iterations.
-///   Tight B&B bounds keep D small in practice.
+/// @note Complexity  O(N × D × I) per iteration — compulsory load profile
+///   built in O(N + D) via difference array; per-task earliest-start search
+///   uses a deque-based sliding window max in O(W_i + D) where W_i = lst_i − est_i.
+///   N = tasks.size(), D = time horizon width, I = fixpoint iterations.
 PropagationResult propagate(const CumulativeConstraint& con, Model& model);
 
 /// Check whether a given integer solution satisfies the Cumulative constraint
