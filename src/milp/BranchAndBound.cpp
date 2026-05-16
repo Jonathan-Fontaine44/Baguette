@@ -366,10 +366,18 @@ MILPResult solveMILP(const Model&            modelRef,
         }
 
         // ── GMI cut generation ─────────────────────────────────────────────────
-        if (opts.enableCuts && !lp.fractionalRows.empty()) {
+        // Skip if the global budget (maxTotalCuts) is exhausted.
+        const bool budgetOk = opts.maxTotalCuts == 0 || cutsAdded < opts.maxTotalCuts;
+        if (opts.enableCuts && !lp.fractionalRows.empty() && budgetOk) {
+            // Effective per-node limit: respect both maxCutsPerNode and global budget.
+            uint32_t perNode = opts.maxCutsPerNode;
+            if (opts.maxTotalCuts > 0) {
+                const uint32_t remaining = opts.maxTotalCuts - cutsAdded;
+                if (perNode == 0 || perNode > remaining) perNode = remaining;
+            }
             std::vector<Cut> cuts = generateGMICuts(
                 lp.fractionalRows, lp.basis, model,
-                opts.maxCutsPerNode, opts.intFeasTol);
+                perNode, opts.intFeasTol);
 
             if (!cuts.empty()) {
                 for (const Cut& c : cuts)

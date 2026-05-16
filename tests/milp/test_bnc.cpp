@@ -470,3 +470,41 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
         REQUIRE(r.status == MILPStatus::Infeasible);
     }
 }
+
+// ── D4: maxTotalCuts caps total GMI cuts across all nodes ────────────────────
+//
+// min x + y,  2x + 2y >= 7,  x,y ∈ Z[0,5].
+// LP relaxation: x+y = 3.5 (fractional) → the solver generates at least 1 cut
+// without a cap.  With maxTotalCuts=1: cutsAdded ≤ 1, result still optimal.
+// With maxTotalCuts=0 (unlimited): cutsAdded matches the uncapped run.
+
+TEST_CASE("BnC: maxTotalCuts caps total cuts across all nodes", "[bnc][cuts]") {
+    Model m;
+    Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
+    m.addLPConstraint(2.0*x + 2.0*y, Sense::GreaterEq, 7.0);
+    m.setObjective(1.0*x + 1.0*y, ObjSense::Minimize);
+
+    BBOptions base;
+    base.enableCuts      = true;
+    base.maxCutsPerNode  = 10;
+    base.collectStats    = true;
+    base.enablePresolve  = false;
+    base.lpOpts.method   = LPMethod::DualSimplexBV;
+
+    // Unlimited: at least 1 cut expected (LP relaxation is fractional at root).
+    BBOptions unlimited = base;
+    unlimited.maxTotalCuts = 0;
+    MILPResult rUnlimited = solveMILP(m, unlimited);
+    REQUIRE(rUnlimited.status == MILPStatus::Optimal);
+    REQUIRE_THAT(rUnlimited.objectiveValue, WithinAbs(4.0, kTol));
+    REQUIRE(rUnlimited.stats->cutsAdded >= 1);
+
+    // Capped at 1: still optimal, total cuts ≤ 1.
+    BBOptions capped = base;
+    capped.maxTotalCuts = 1;
+    MILPResult rCapped = solveMILP(m, capped);
+    REQUIRE(rCapped.status == MILPStatus::Optimal);
+    REQUIRE_THAT(rCapped.objectiveValue, WithinAbs(4.0, kTol));
+    REQUIRE(rCapped.stats->cutsAdded <= 1);
+}

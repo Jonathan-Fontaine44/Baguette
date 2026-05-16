@@ -1,5 +1,7 @@
 #include "baguette/lp/LPSolver.hpp"
 
+#include <cassert>
+
 #include "baguette/lp/Presolve.hpp"
 
 #include "algorithms/SimplexConfig.hpp"
@@ -61,56 +63,56 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         .reinversionPeriod = opts.reinversionPeriod,
     };
 
-    if (opts.method == LPMethod::PrimalSimplex) {
-        return internal::solvePrimal(model, opts.maxIter, opts.timeLimitS,
-                                     opts.startTime, opts.computeSensitivity,
-                                     opts.computeCutData, simplexCfg);
+    switch (opts.method) {
+        case LPMethod::PrimalSimplex:
+            return internal::solvePrimal(model, opts.maxIter, opts.timeLimitS,
+                                         opts.startTime, opts.computeSensitivity,
+                                         opts.computeCutData, simplexCfg);
+        case LPMethod::RevisedSimplex:
+            return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
+                                          opts.startTime, opts.computeSensitivity,
+                                          opts.computeCutData, simplexCfg);
+        case LPMethod::RevisedSimplexBV:
+            return internal::solveRevisedBV(model, opts.maxIter, opts.timeLimitS,
+                                            opts.startTime, opts.computeCutData,
+                                            simplexCfg);
+        case LPMethod::ShortStepIPM:
+            return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,
+                                               opts.startTime);
+        case LPMethod::MehrotraIPM:
+            return internal::solveMehrotraIPM(model, opts.maxIter, opts.timeLimitS,
+                                              opts.startTime);
+        case LPMethod::PrimalSimplexBV:
+            return internal::solvePrimalBV(model, opts.maxIter, opts.timeLimitS,
+                                           opts.startTime, opts.computeCutData,
+                                           opts.computeSensitivity, simplexCfg);
+        case LPMethod::DualSimplexBV:
+            return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
+                                         opts.startTime, opts.warmBasis,
+                                         opts.computeCutData, opts.computeSensitivity,
+                                         simplexCfg);
+        case LPMethod::NetworkSimplex:
+            return internal::solveNetworkSimplex(model, opts.maxIter, opts.timeLimitS,
+                                                 opts.startTime, opts.computeCutData,
+                                                 simplexCfg);
+        case LPMethod::DualSimplex:
+            return internal::solveDual(model, opts.maxIter, opts.timeLimitS,
+                                       opts.startTime, opts.warmBasis,
+                                       opts.computeSensitivity, opts.computeCutData,
+                                       simplexCfg);
+        case LPMethod::Auto:
+            return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
+                                         opts.startTime, opts.warmBasis,
+                                         opts.computeCutData, opts.computeSensitivity,
+                                         simplexCfg);
+        default:
+            // A new LPMethod was added to the enum but not handled here.
+            assert(false && "Unhandled LPMethod — add a case for each new enum value");
+            return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
+                                         opts.startTime, opts.warmBasis,
+                                         opts.computeCutData, opts.computeSensitivity,
+                                         simplexCfg); // unreachable
     }
-    if (opts.method == LPMethod::RevisedSimplex) {
-        return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
-                                      opts.startTime, opts.computeSensitivity,
-                                      opts.computeCutData, simplexCfg);
-    }
-    if (opts.method == LPMethod::RevisedSimplexBV) {
-        return internal::solveRevisedBV(model, opts.maxIter, opts.timeLimitS,
-                                        opts.startTime, opts.computeCutData,
-                                        simplexCfg);
-    }
-    if (opts.method == LPMethod::ShortStepIPM) {
-        return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,
-                                           opts.startTime);
-    }
-    if (opts.method == LPMethod::MehrotraIPM) {
-        return internal::solveMehrotraIPM(model, opts.maxIter, opts.timeLimitS,
-                                          opts.startTime);
-    }
-    if (opts.method == LPMethod::PrimalSimplexBV) {
-        return internal::solvePrimalBV(model, opts.maxIter, opts.timeLimitS,
-                                       opts.startTime, opts.computeCutData,
-                                       opts.computeSensitivity, simplexCfg);
-    }
-    if (opts.method == LPMethod::DualSimplexBV) {
-        return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
-                                     opts.startTime, opts.warmBasis,
-                                     opts.computeCutData, opts.computeSensitivity,
-                                     simplexCfg);
-    }
-    if (opts.method == LPMethod::NetworkSimplex) {
-        return internal::solveNetworkSimplex(model, opts.maxIter, opts.timeLimitS,
-                                             opts.startTime, opts.computeCutData,
-                                             simplexCfg);
-    }
-    if (opts.method == LPMethod::DualSimplex) {
-        return internal::solveDual(model, opts.maxIter, opts.timeLimitS,
-                                   opts.startTime, opts.warmBasis,
-                                   opts.computeSensitivity, opts.computeCutData,
-                                   simplexCfg);
-    }
-    // Auto: DualSimplexBV with fallback to PrimalSimplexBV.
-    return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
-                                 opts.startTime, opts.warmBasis,
-                                 opts.computeCutData, opts.computeSensitivity,
-                                 simplexCfg);
 }
 
 } // namespace baguette

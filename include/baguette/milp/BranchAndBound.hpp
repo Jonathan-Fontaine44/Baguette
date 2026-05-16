@@ -78,6 +78,12 @@ struct BBOptions {
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;
 
+    /// Maximum total number of GMI cuts added across all nodes. 0 = unlimited.
+    /// When the budget is exhausted, cut generation stops for all subsequent nodes.
+    /// Prevents unbounded LP growth: with maxCutsPerNode=10 and a 10 000-node tree,
+    /// the model can otherwise accumulate up to 100 000 extra rows.
+    uint32_t maxTotalCuts = 0;
+
     /// LP solver options forwarded to every node's LP solve.
     ///
     /// Configure @p method (algorithm) and @p maxIter (pivot limit) here.
