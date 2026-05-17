@@ -98,14 +98,19 @@ bool SimplexTableau::reinvert(const LPStandardForm& sf) {
 // ── Simplex operations ────────────────────────────────────────────────────────
 
 std::size_t SimplexTableau::selectEntering() const {
-    // Bland's rule: smallest index with rc[j] < -lp_optimality_tol.
-    // nActive restricts the search to the first nActive columns when set (phase II
-    // with artificial columns kept for dual extraction); 0 means all n columns (phase I).
     const std::size_t limit = (nActive > 0) ? nActive : n;
+    if (cfg.useDantzig) {
+        std::size_t best  = n;
+        double      bestRc = -cfg.optimalityTol;
+        for (std::size_t j = 0; j < limit; ++j)
+            if (rc[j] < bestRc) { bestRc = rc[j]; best = j; }
+        return best;
+    }
+    // Bland's rule: smallest index with rc[j] < -optimalityTol.
     for (std::size_t j = 0; j < limit; ++j)
         if (rc[j] < -cfg.optimalityTol)
             return j;
-    return n; // optimal (no improving column in active range)
+    return n;
 }
 
 std::size_t SimplexTableau::selectLeaving(std::size_t enteringCol) const {

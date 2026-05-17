@@ -76,6 +76,18 @@ inline std::ostream& operator<<(std::ostream& os, LPMethod m) {
     return os << to_string(m);
 }
 
+/// Entering-variable selection rule for the primal simplex.
+enum class PivotRule {
+    /// Bland's rule: smallest column index j with rc[j] < -optimalityTol.
+    /// Anti-cycling guarantee; O(nActive) per iteration.
+    Bland,
+
+    /// Dantzig's rule: most-negative reduced cost (min rc[j]).
+    /// Typically fewer pivots than Bland; no anti-cycling guarantee.
+    /// O(nActive) per iteration (full scan).
+    Dantzig,
+};
+
 /// Options for LP solves — analogous to BBOptions for MILP.
 ///
 /// Default-constructed LPOptions{} produces a cold-start Auto solve with no
@@ -139,6 +151,11 @@ struct LPOptions {
     /// to cap floating-point drift. 0 disables reinversion.
     /// Default: 50.
     uint32_t reinversionPeriod = 50;
+
+    /// Entering-variable selection rule for the primal simplex phases.
+    /// Has no effect on dual-simplex or IPM methods.
+    /// Default: Dantzig.
+    PivotRule pivotRule = PivotRule::Dantzig;
 };
 
 /// Solve the LP relaxation of @p model.

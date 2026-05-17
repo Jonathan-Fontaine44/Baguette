@@ -300,6 +300,13 @@ std::vector<double> LUTableau::tableauRow(std::size_t r) const {
 
 std::size_t LUTableau::selectEntering() const {
     const std::size_t limit = (nActive > 0) ? nActive : n;
+    if (cfg.useDantzig) {
+        std::size_t best  = n;
+        double      bestRc = -cfg.optimalityTol;
+        for (std::size_t j = 0; j < limit; ++j)
+            if (rc[j] < bestRc) { bestRc = rc[j]; best = j; }
+        return best;
+    }
     for (std::size_t j = 0; j < limit; ++j)
         if (rc[j] < -cfg.optimalityTol)
             return j;

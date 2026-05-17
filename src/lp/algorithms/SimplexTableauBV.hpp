@@ -69,7 +69,7 @@ struct SimplexTableauBV {
 
     // ── Pivot selection ───────────────────────────────────────────────────────
 
-    /// Bland's rule: smallest j with rc[j] < −lp_optimality_tol.
+    /// Bland's (default) or Dantzig's entering rule, per cfg.useDantzig.
     /// Works for both AT_LB and AT_UB columns (complement invariant).
     std::size_t selectEntering() const;
 

@@ -29,6 +29,10 @@ struct SimplexConfig {
     /// B⁻¹ is rebuilt from scratch every this many pivots to cap floating-point
     /// drift. 0 disables reinversion.
     uint32_t reinversionPeriod = 50;
+
+    /// If true, use Dantzig's most-negative-rc entering rule instead of Bland's.
+    /// Applies to primal-simplex phases only (no effect on dual or IPM).
+    bool useDantzig = false;
 };
 
 } // namespace baguette::internal

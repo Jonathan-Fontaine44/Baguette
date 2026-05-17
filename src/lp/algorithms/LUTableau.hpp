@@ -76,7 +76,7 @@ struct LUTableau {
 
     // ── Pivot selection ──────────────────────────────────────────────────────
 
-    /// Bland's rule: smallest j with rc[j] < −lp_optimality_tol.
+    /// Bland's (default) or Dantzig's entering rule, per cfg.useDantzig.
     /// @return j < n (entering column) or n (optimal).
     /// @note Complexity: O(nActive).
     std::size_t selectEntering() const;

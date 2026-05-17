@@ -61,6 +61,7 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         .feasibilityTol    = opts.feasibilityTol,
         .optimalityTol     = opts.optimalityTol,
         .reinversionPeriod = opts.reinversionPeriod,
+        .useDantzig        = (opts.pivotRule == PivotRule::Dantzig),
     };
 
     switch (opts.method) {

@@ -168,8 +168,14 @@ std::size_t SimplexTableauBV::selectEnteringDualBV(std::size_t leavingRow,
 }
 
 std::size_t SimplexTableauBV::selectEntering() const {
-    // Bland's rule — complement invariant makes this identical to the standard tableau.
     const std::size_t limit = (nActive > 0) ? nActive : n;
+    if (cfg.useDantzig) {
+        std::size_t best  = n;
+        double      bestRc = -cfg.optimalityTol;
+        for (std::size_t j = 0; j < limit; ++j)
+            if (rc[j] < bestRc) { bestRc = rc[j]; best = j; }
+        return best;
+    }
     for (std::size_t j = 0; j < limit; ++j)
         if (rc[j] < -baguette::lp_optimality_tol)
             return j;

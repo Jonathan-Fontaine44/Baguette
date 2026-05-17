@@ -81,10 +81,10 @@ struct SimplexTableau {
 
     // ── Simplex operations ───────────────────────────────────────────────────
 
-    /// Select the entering column using Bland's rule:
-    /// the smallest column index j with rc[j] < −lp_optimality_tol.
-    /// @return Index of the entering column, or `n` if no improving column exists
-    ///         (current solution is optimal).
+    /// Select the entering column.
+    /// Bland's rule (cfg.useDantzig == false): smallest j with rc[j] < −optimalityTol.
+    /// Dantzig's rule (cfg.useDantzig == true): most-negative rc[j].
+    /// @return Index of the entering column, or `n` if no improving column exists.
     /// @note Complexity: O(nActive), where nActive equals n when nActive == 0 (phase I).
     std::size_t selectEntering() const;
 
