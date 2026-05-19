@@ -65,6 +65,7 @@ add_executable(BaguetteTests
     tests/lp/test_lp.cpp
     tests/lp/test_dual_simplex.cpp
     tests/lp/test_warm_start.cpp
+    tests/lp/test_lp_stats.cpp
     tests/lp/test_farkas.cpp
     tests/lp/test_sensitivity.cpp
     tests/lp/test_revised_simplex.cpp

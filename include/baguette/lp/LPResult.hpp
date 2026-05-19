@@ -230,6 +230,11 @@ struct LPDetailedResult {
     /// False when no warm basis was provided or a fallback to cold primal occurred.
     bool usedWarmStart = false;
 
+    /// Number of solver iterations performed: simplex pivots for simplex methods,
+    /// Newton steps for IPM methods. Counts only the iterations of the final solve;
+    /// phase-I and phase-II pivots are summed. Zero on early infeasibility detection.
+    uint32_t iterationsUsed = 0;
+
     /// Presolve statistics. Populated only when LPOptions::enablePresolve is true.
     std::optional<PresolveResult> presolveStat;
 };

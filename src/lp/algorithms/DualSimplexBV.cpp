@@ -22,9 +22,9 @@ LPStatus runDualSimplexBV(internal::SimplexTableauBV&              tab,
                            uint32_t                                  maxIter,
                            double                                    timeLimitS,
                            std::chrono::steady_clock::time_point     startTime,
+                           uint32_t&                                 iter,
                            std::size_t*                              outBlockingRow,
                            bool*                                     outBlockingExitsToUB) {
-    uint32_t iter = 0;
     const uint32_t timePeriod =
         tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
 
@@ -277,14 +277,16 @@ LPDetailedResult solveDualBV(const Model&                          model,
             return fallback();
     }
 
-    std::size_t blockingRow      = tab.m;
+    uint32_t    dualIters         = 0;
+    std::size_t blockingRow       = tab.m;
     bool        blockingExitsToUB = false;
     LPStatus status = runDualSimplexBV(tab, sfbv, maxIter, timeLimitS, startTime,
-                                       &blockingRow, &blockingExitsToUB);
+                                       dualIters, &blockingRow, &blockingExitsToUB);
 
     if (status == LPStatus::NumericalFailure) {
         LPDetailedResult det;
-        det.result.status = LPStatus::NumericalFailure;
+        det.result.status  = LPStatus::NumericalFailure;
+        det.iterationsUsed = dualIters;
         return det;
     }
 
@@ -303,7 +305,8 @@ LPDetailedResult solveDualBV(const Model&                          model,
             det.farkas = extractFarkasDualBV(tab, sfbv, model, blockingRow);
     }
 
-    det.usedWarmStart = hasWarm;
+    det.iterationsUsed = dualIters;
+    det.usedWarmStart  = hasWarm;
     return det;
 }
 

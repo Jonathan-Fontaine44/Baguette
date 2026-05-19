@@ -269,7 +269,10 @@ LPDetailedResult solveMehrotraIPM(
 
     for (uint32_t iter = 0; iter < maxIter; ++iter) {
         if (timeUp()) {
-            LPDetailedResult r; r.result.status = LPStatus::TimeLimit; return r;
+            LPDetailedResult r;
+            r.result.status    = LPStatus::TimeLimit;
+            r.iterationsUsed   = iter;
+            return r;
         }
 
         // Residuals and duality measure
@@ -291,17 +294,26 @@ LPDetailedResult solveMehrotraIPM(
         for (double v : rd) norm_rd = std::max(norm_rd, std::abs(v));
 
         // Optimality
-        if (mu < kTol && norm_rp < kTol && norm_rd < kTol)
-            return extractResult(sf, x, y, s, n, maximize);
+        if (mu < kTol && norm_rp < kTol && norm_rd < kTol) {
+            LPDetailedResult det = extractResult(sf, x, y, s, n, maximize);
+            det.iterationsUsed   = iter;
+            return det;
+        }
 
         // Infeasibility: gap closed but primal residual didn't (early exit)
         if (mu < kGapSmall && norm_rp > kResLarge) {
-            LPDetailedResult r; r.result.status = LPStatus::Infeasible; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::Infeasible;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         // Unboundedness: primal iterate blew up
         if (*std::max_element(x.begin(), x.end()) > kXBig) {
-            LPDetailedResult r; r.result.status = LPStatus::Unbounded; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::Unbounded;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         // Factor A D Aᵀ + δI once; reuse for both predictor and corrector.
@@ -309,7 +321,8 @@ LPDetailedResult solveMehrotraIPM(
         std::vector<int>    pivots;
         if (!buildAndFactor(A, m, n, x, s, LU, pivots)) {
             LPDetailedResult r;
-            r.result.status = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+            r.result.status  = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+            r.iterationsUsed = iter;
             return r;
         }
 
@@ -349,17 +362,24 @@ LPDetailedResult solveMehrotraIPM(
 
         if (alpha_p <= 0.0 || alpha_d <= 0.0) {
             LPDetailedResult r;
-            r.result.status = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+            r.result.status  = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+            r.iterationsUsed = iter;
             return r;
         }
 
         // Stagnation: primal step vanishes while ‖rp‖ stays large → infeasible.
         if (alpha_p < kStepTiny && norm_rp > kResLarge) {
-            LPDetailedResult r; r.result.status = LPStatus::Infeasible; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::Infeasible;
+            r.iterationsUsed = iter;
+            return r;
         }
         // Stagnation: dual step vanishes while ‖rd‖ stays large → unbounded.
         if (alpha_d < kStepTiny && norm_rd > kResLarge) {
-            LPDetailedResult r; r.result.status = LPStatus::Unbounded; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::Unbounded;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         for (int j = 0; j < n; ++j) { x[j] += alpha_p * dx[j]; s[j] += alpha_d * ds[j]; }
@@ -369,7 +389,8 @@ LPDetailedResult solveMehrotraIPM(
     // ‖rp‖ is bounded below by the infeasibility gap and cannot reach 0.
     // If it is still large after maxIter iterations the problem is infeasible.
     LPDetailedResult r;
-    r.result.status = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+    r.result.status  = (norm_rp > kResLarge) ? LPStatus::Infeasible : LPStatus::MaxIter;
+    r.iterationsUsed = maxIter;
     return r;
 }
 

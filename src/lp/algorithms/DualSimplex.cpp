@@ -32,8 +32,8 @@ LPStatus runDualSimplex(internal::SimplexTableau&             tab,
                          uint32_t                              maxIter,
                          double                                timeLimitS,
                          std::chrono::steady_clock::time_point startTime,
+                         uint32_t&                             iter,
                          std::size_t*                          outBlockingRow = nullptr) {
-    uint32_t iter = 0;
 
     uint32_t const timePeriod =
         tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
@@ -198,12 +198,15 @@ LPDetailedResult solveDual(const Model&                          model,
             return fallback();
     }
 
+    uint32_t    dualIters   = 0;
     std::size_t blockingRow = tab.m; // sentinel
-    LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime, &blockingRow);
+    LPStatus status = runDualSimplex(tab, sf, maxIter, timeLimitS, startTime,
+                                     dualIters, &blockingRow);
 
     if (status == LPStatus::NumericalFailure) {
         LPDetailedResult det;
-        det.result.status = LPStatus::NumericalFailure;
+        det.result.status  = LPStatus::NumericalFailure;
+        det.iterationsUsed = dualIters;
         return det;
     }
 
@@ -241,7 +244,8 @@ LPDetailedResult solveDual(const Model&                          model,
         }
     }
 
-    det.usedWarmStart = !warmBasis.basicCols.empty();
+    det.iterationsUsed = dualIters;
+    det.usedWarmStart  = !warmBasis.basicCols.empty();
     return det;
 }
 

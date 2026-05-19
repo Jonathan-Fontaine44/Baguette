@@ -363,6 +363,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
     }
 
     LPDetailedResult det = extractRevBV(tab, sfbv, model, p2, aug.equalArtCol, computeCutData);
+    det.iterationsUsed = iters;
     if (p2 == LPStatus::Unbounded) det.result.primalValues.clear();
     return det;
 }

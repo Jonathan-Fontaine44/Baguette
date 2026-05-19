@@ -387,6 +387,8 @@ LPDetailedResult solvePrimal(const Model&                          model,
     LPDetailedResult det = extractDetailed(tab, sf, model, p2Status, aug.equalArtCol,
                                            computeSensitivity);
 
+    det.iterationsUsed = iters;
+
     if (p2Status == LPStatus::Unbounded)
         det.result.primalValues.clear();
 

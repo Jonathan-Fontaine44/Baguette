@@ -466,13 +466,15 @@ LPDetailedResult runNetworkSimplex(const Model&                          model,
     while (true) {
         if (maxIter > 0 && iters >= maxIter) {
             LPDetailedResult det;
-            det.result.status = LPStatus::MaxIter;
+            det.result.status      = LPStatus::MaxIter;
+            det.iterationsUsed     = iters;
             return det;
         }
         if (std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - startTime).count() >= timeLimitS) {
             LPDetailedResult det;
-            det.result.status = LPStatus::TimeLimit;
+            det.result.status      = LPStatus::TimeLimit;
+            det.iterationsUsed     = iters;
             return det;
         }
 
@@ -481,17 +483,21 @@ LPDetailedResult runNetworkSimplex(const Model&                          model,
             LPStatus st = hasArtificialFlow(g) ? LPStatus::Infeasible : LPStatus::Optimal;
             if (st == LPStatus::Infeasible) {
                 LPDetailedResult det;
-                det.result.status = LPStatus::Infeasible;
+                det.result.status  = LPStatus::Infeasible;
+                det.iterationsUsed = iters;
                 return det;
             }
-            return extractResult(g, model, LPStatus::Optimal);
+            LPDetailedResult det = extractResult(g, model, LPStatus::Optimal);
+            det.iterationsUsed = iters;
+            return det;
         }
 
         PivotInfo piv = findPivot(g, entering);
 
         if (piv.delta >= kInf * 0.5) {
             LPDetailedResult det;
-            det.result.status = LPStatus::Unbounded;
+            det.result.status      = LPStatus::Unbounded;
+            det.iterationsUsed     = iters;
             return det;
         }
 

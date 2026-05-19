@@ -294,6 +294,42 @@ TEST_CASE("sfCache: three-level chain produces correct results and propagates ca
     REQUIRE_THAT(grand.result.primalValues[1], WithinAbs(1.0, kTol));
 }
 
+TEST_CASE("Warm-start: usedWarmStart confirms effective warm on branch, false on cold", "[warm_start]") {
+    // Verifies that usedWarmStart == true when the warm path is taken (no sfCache
+    // mismatch, no dual-feasibility fallback), and false on a plain cold solve.
+    // Covers both DualSimplex (sfCache-based) and DualSimplexBV (atUBCache-based).
+    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+
+    Model    parent_m = makeFractionalLP();
+    Variable x1{0};
+
+    LPOptions coldOpts; coldOpts.method = method; coldOpts.enablePresolve = false;
+    auto parent = solveLPDetailed(parent_m, coldOpts);
+    REQUIRE(parent.result.status == LPStatus::Optimal);
+    REQUIRE_FALSE(parent.usedWarmStart); // no warm basis supplied → cold path
+
+    // Branch: x1 <= floor(4/3) = 1.  Tightening the bound makes the parent basis
+    // primal-infeasible; the dual simplex repairs it via a single-pivot ratio test.
+    Model child_m = parent_m.withVarBounds(x1, 0.0, 1.0);
+
+    LPOptions warmOpts;
+    warmOpts.method        = method;
+    warmOpts.warmBasis     = parent.basis;
+    warmOpts.enablePresolve = false;
+    auto warm = solveLPDetailed(child_m, warmOpts);
+    REQUIRE(warm.result.status == LPStatus::Optimal);
+    REQUIRE(warm.usedWarmStart);                              // warm-start accepted — no fallback
+    REQUIRE_THAT(warm.result.objectiveValue, WithinAbs(-2.5, kTol));
+
+    LPOptions coldChildOpts; coldChildOpts.method = method; coldChildOpts.enablePresolve = false;
+    auto cold = solveLPDetailed(child_m, coldChildOpts);
+    REQUIRE(cold.result.status == LPStatus::Optimal);
+    REQUIRE_FALSE(cold.usedWarmStart);                        // cold path: no basis supplied
+    REQUIRE_THAT(cold.result.objectiveValue, WithinAbs(warm.result.objectiveValue, kTol));
+    // Warm start repairs the parent basis with 1-2 dual pivots; cold rebuilds from scratch.
+    CHECK(warm.iterationsUsed < cold.iterationsUsed);
+}
+
 TEST_CASE("sfCache: result matches cold solve at every level", "[warm_start]") {
     // Verify that the sfCache optimisation does not affect correctness by
     // comparing the warm (cached) result to an independent cold solve.
@@ -316,4 +352,45 @@ TEST_CASE("sfCache: result matches cold solve at every level", "[warm_start]") {
                  WithinAbs(cold.result.primalValues[0], kTol));
     REQUIRE_THAT(warm.result.primalValues[1],
                  WithinAbs(cold.result.primalValues[1], kTol));
+    // The sfCache reuses the parent basis: warm repairs primal infeasibility with fewer
+    // pivots than a cold solve reconstructing the optimal vertex from the slack basis.
+    CHECK(warm.iterationsUsed < cold.iterationsUsed);
+}
+
+// ── Non-implementing methods: basis ignored, identical work ───────────────────
+
+TEST_CASE("Warm-start: non-implementing methods ignore basis and produce identical results", "[warm_start]") {
+    // Methods that do not implement warm-start ignore warmBasis entirely.
+    // Passing a basis record must be a no-op: usedWarmStart stays false and the
+    // solver does exactly the same work (same iterationsUsed) as a cold call.
+    auto method = GENERATE(LPMethod::PrimalSimplex,  LPMethod::PrimalSimplexBV,
+                           LPMethod::RevisedSimplex, LPMethod::RevisedSimplexBV,
+                           LPMethod::ShortStepIPM,   LPMethod::MehrotraIPM,
+                           LPMethod::NetworkSimplex);
+
+    DYNAMIC_SECTION(to_string(method)) {
+        Model    parent_m = makeFractionalLP();
+        Variable x1{0};
+
+        // Solve the parent to obtain a basis record (even if the method doesn't
+        // produce one, passing it to the warm call below must be harmless).
+        LPOptions parentOpts; parentOpts.method = method; parentOpts.enablePresolve = false;
+        auto parent = solveLPDetailed(parent_m, parentOpts);
+
+        // Child LP: x1 <= 1 (tightened upper bound → different feasible region).
+        Model child_m = parent_m.withVarBounds(x1, 0.0, 1.0);
+
+        LPOptions coldOpts; coldOpts.method = method; coldOpts.enablePresolve = false;
+        LPOptions warmOpts; warmOpts.method = method; warmOpts.warmBasis = parent.basis;
+        warmOpts.enablePresolve = false;
+
+        auto cold = solveLPDetailed(child_m, coldOpts);
+        auto warm = solveLPDetailed(child_m, warmOpts);
+
+        // Basis ignored: the warm path must not be entered.
+        CHECK_FALSE(warm.usedWarmStart);
+        // Same algorithm, same initial conditions → identical amount of work.
+        REQUIRE(warm.result.status == cold.result.status);
+        CHECK(warm.iterationsUsed == cold.iterationsUsed);
+    }
 }

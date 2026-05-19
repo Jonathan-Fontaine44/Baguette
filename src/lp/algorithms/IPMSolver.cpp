@@ -256,7 +256,10 @@ LPDetailedResult solveShortStepIPM(
 
     for (uint32_t iter = 0; iter < maxIter; ++iter) {
         if (timeUp()) {
-            LPDetailedResult r; r.result.status = LPStatus::TimeLimit; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::TimeLimit;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         // Primal residual rp = b − Ax
@@ -283,20 +286,29 @@ LPDetailedResult solveShortStepIPM(
         for (double v : rp) norm_rp = std::max(norm_rp, std::abs(v));
         for (double v : rd) norm_rd = std::max(norm_rd, std::abs(v));
 
-        if (mu < kTol && norm_rp < kTol && norm_rd < kTol)
-            return extractResult(sf, x, y, s, n, maximize);
+        if (mu < kTol && norm_rp < kTol && norm_rd < kTol) {
+            LPDetailedResult det = extractResult(sf, x, y, s, n, maximize);
+            det.iterationsUsed   = iter;
+            return det;
+        }
 
         // Newton direction toward the (1−α)μ-center; reduces gap by (1−α²) per step.
         const double mu_target = (1.0 - alpha_short) * mu;
         std::vector<double> dx, dy, ds;
         if (!newtonDirection(A, m, n, x, s, mu_target, rp, rd, dx, dy, ds)) {
-            LPDetailedResult r; r.result.status = LPStatus::MaxIter; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::MaxIter;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         // Step: capped at the short-step length α = 1/(1+√n)
         const double alpha = computeStep(x, dx, s, ds, alpha_short);
         if (alpha <= 0.0) {
-            LPDetailedResult r; r.result.status = LPStatus::MaxIter; return r;
+            LPDetailedResult r;
+            r.result.status  = LPStatus::MaxIter;
+            r.iterationsUsed = iter;
+            return r;
         }
 
         for (int j = 0; j < n; ++j) { x[j] += alpha * dx[j]; s[j] += alpha * ds[j]; }
@@ -304,7 +316,8 @@ LPDetailedResult solveShortStepIPM(
     }
 
     LPDetailedResult r;
-    r.result.status = LPStatus::MaxIter;
+    r.result.status  = LPStatus::MaxIter;
+    r.iterationsUsed = maxIter;
     return r;
 }
 

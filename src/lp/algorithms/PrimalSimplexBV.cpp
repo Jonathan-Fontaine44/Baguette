@@ -417,6 +417,7 @@ LPDetailedResult solvePrimalBV(const Model&                          model,
 
     LPDetailedResult det = extractBV(tab, sfbv, model, p2, aug.equalArtCol,
                                       computeCutData, computeSensitivity);
+    det.iterationsUsed = iters;
     if (p2 == LPStatus::Unbounded) det.result.primalValues.clear();
     return det;
 }
