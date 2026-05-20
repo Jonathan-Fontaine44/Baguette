@@ -317,6 +317,18 @@ MILPResult solveMILP(const Model&            modelRef,
         if (opts.maxNodes > 0 && nodesExplored >= opts.maxNodes) { maxNodesHit = true; break; }
 
         Node node = popNode();
+
+        // ── Pre-LP bound prune ─────────────────────────────────────────────────
+        // The child LP bound >= parent LP bound (branching only tightens the
+        // feasible region). If the parent bound already certifies pruning, skip
+        // the LP solve entirely. Critical for problems where LP relaxation value
+        // equals the IP optimal: after the first incumbent is found, every
+        // pending node with lpBound == incumbent is pruned without an LP solve.
+        if (canPrune(effectiveBound(node.lpBound))) {
+            if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+            continue;
+        }
+
         ++nodesExplored;
 
         // Apply this node's accumulated bound deltas to the shared model.

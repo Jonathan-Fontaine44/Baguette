@@ -104,30 +104,24 @@ SimplexTableauBV::DualLeavingResult SimplexTableauBV::selectLeavingDualBV() cons
     const std::size_t w   = n + 1;
     std::size_t bestRow   = m;
     uint32_t    bestIdx   = std::numeric_limits<uint32_t>::max();
-    double      maxInfeas = 0.0;
     bool        bestExitsToUB = false;
 
+    // Bland's rule: select the infeasible basic variable with the smallest
+    // column index. Guarantees finite termination on degenerate LPs.
     for (std::size_t i = 0; i < m; ++i) {
         const double bi  = tab[i * w + n];
         const double ubi = colUB[basicCols[i]];
 
-        const double infeasL = (bi < -cfg.feasibilityTol)
-                               ? -bi : 0.0;
-        const double infeasU = (std::isfinite(ubi) && bi > ubi + cfg.feasibilityTol)
-                               ? bi - ubi : 0.0;
+        const bool infeasL = (bi < -cfg.feasibilityTol);
+        const bool infeasU = (std::isfinite(ubi) && bi > ubi + cfg.feasibilityTol);
 
-        if (infeasL == 0.0 && infeasU == 0.0) continue;
+        if (!infeasL && !infeasU) continue;
 
-        const double   thisInfeas    = (infeasL >= infeasU) ? infeasL : infeasU;
-        const bool     thisExitsToUB = (infeasU > infeasL);
-        const uint32_t idx           = basicCols[i];
-
-        if (thisInfeas > maxInfeas + cfg.feasibilityTol ||
-            (thisInfeas > maxInfeas - cfg.feasibilityTol && idx < bestIdx)) {
-            maxInfeas     = thisInfeas;
-            bestRow       = i;
+        const uint32_t idx = basicCols[i];
+        if (idx < bestIdx) {
             bestIdx       = idx;
-            bestExitsToUB = thisExitsToUB;
+            bestRow       = i;
+            bestExitsToUB = (infeasU && (!infeasL || bi - ubi > -bi));
         }
     }
     return {bestRow, bestExitsToUB};
