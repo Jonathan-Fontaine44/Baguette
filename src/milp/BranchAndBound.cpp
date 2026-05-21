@@ -316,6 +316,16 @@ MILPResult solveMILP(const Model&            modelRef,
         if (elapsedS() >= opts.timeLimitS) { timeLimitHit = true; break; }
         if (opts.maxNodes > 0 && nodesExplored >= opts.maxNodes) { maxNodesHit = true; break; }
 
+        // ── HybridPlunge cap ───────────────────────────────────────────────────
+        // If DFS has explored maxPlungeNodes without finding an incumbent,
+        // abort the plunge and switch to BestBound. Prevents indefinite DFS
+        // in degenerate LP sub-trees where no integer vertex is reachable via
+        // the current pivot path (e.g. PrimalSimplex+Dantzig on TSP-like LPs).
+        if (plunging && opts.maxPlungeNodes > 0 && nodesExplored >= opts.maxPlungeNodes) {
+            plunging = false;
+            std::make_heap(queue.begin(), queue.end(), cmpNodes);
+        }
+
         Node node = popNode();
 
         // ── Pre-LP bound prune ─────────────────────────────────────────────────

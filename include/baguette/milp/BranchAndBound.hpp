@@ -49,6 +49,18 @@ struct BBOptions {
     /// Node selection strategy. Default: HybridPlunge.
     NodeSelection nodeSelect = NodeSelection::HybridPlunge;
 
+    /// Maximum nodes explored in the DFS plunge phase of HybridPlunge before
+    /// aborting the plunge and switching to BestBound. 0 = no limit.
+    ///
+    /// Without a cap, HybridPlunge may explore thousands of nodes in a DFS
+    /// sub-tree where no integer solution exists (e.g., PrimalSimplex on
+    /// degenerate LPs with Dantzig pivot), because the plunge-to-BestBound
+    /// switch only fires on the first incumbent. A cap of ~200 aborts the
+    /// unproductive plunge early and lets BestBound find an incumbent via a
+    /// different exploration order. Has no effect unless nodeSelect is
+    /// HybridPlunge.
+    uint32_t maxPlungeNodes = 200;
+
     /// Maximum number of B&B nodes to explore. 0 = no limit.
     uint32_t maxNodes = 1'000'000;
 
