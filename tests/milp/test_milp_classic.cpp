@@ -70,6 +70,7 @@ TEST_CASE("Classic MILP x presolve coherence", "[milp_classic][presolve]") {
 
 TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     auto lpMethod = GENERATE(LPMethod::RevisedSimplex, LPMethod::MehrotraIPM,
+                             LPMethod::PrimalSimplex, LPMethod::DualSimplex,
                              LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
                              LPMethod::RevisedSimplexBV);
 

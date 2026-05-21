@@ -140,20 +140,16 @@ std::size_t SimplexTableau::selectLeaving(std::size_t enteringCol) const {
 
 std::size_t SimplexTableau::selectLeavingDual() const {
     std::size_t leavingRow = m; // sentinel: primal feasible (all bi >= -tol)
-    double minB = std::numeric_limits<double>::infinity();
+    uint32_t    bestIdx    = std::numeric_limits<uint32_t>::max();
 
+    // Bland's rule: select the infeasible row with the smallest basic column
+    // index. Guarantees finite termination on degenerate LPs.
     for (std::size_t i = 0; i < m; ++i) {
         double bi = tab[i * (n + 1) + n];
-        if (bi >= -cfg.feasibilityTol) continue; // row is primal feasible
+        if (bi >= -cfg.feasibilityTol) continue;
 
-        if (bi < minB - cfg.feasibilityTol) {
-            // Strictly more infeasible: take this row and update threshold
-            minB       = bi;
-            leavingRow = i;
-        } else if (bi < minB + cfg.feasibilityTol &&
-                   leavingRow < m &&
-                   basicCols[i] < basicCols[leavingRow]) {
-            // Tie (within tolerance): Bland's rule — prefer smallest basic column index
+        if (basicCols[i] < bestIdx) {
+            bestIdx    = basicCols[i];
             leavingRow = i;
         }
     }
