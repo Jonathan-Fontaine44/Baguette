@@ -337,19 +337,70 @@ std::size_t LUTableau::selectLeaving(std::size_t j) const {
     return selectLeavingWithEta(j).first;
 }
 
+LUTableau::DualLeavingResultBV LUTableau::selectLeavingDualBV() const {
+    std::size_t bestRow       = m;
+    uint32_t    bestIdx       = std::numeric_limits<uint32_t>::max();
+    bool        bestExitsToUB = false;
+
+    for (std::size_t i = 0; i < m; ++i) {
+        const double bi  = xB[i];
+        const double ubi = colUB[basicCols[i]];
+
+        const bool infeasL = (bi < -cfg.feasibilityTol);
+        const bool infeasU = (std::isfinite(ubi) && bi > ubi + cfg.feasibilityTol);
+        if (!infeasL && !infeasU) continue;
+
+        const uint32_t idx = basicCols[i];
+        if (idx < bestIdx) {
+            bestIdx       = idx;
+            bestRow       = i;
+            bestExitsToUB = (infeasU && (!infeasL || bi - ubi > -bi));
+        }
+    }
+    return {bestRow, bestExitsToUB};
+}
+
+std::size_t LUTableau::selectEnteringDualBV(std::size_t leavingRow, bool exitsToUB) const {
+    auto        t        = tableauRow(leavingRow);
+    const std::size_t limit = (nActive > 0) ? nActive : n;
+    const uint32_t    currentBasic = basicCols[leavingRow];
+    std::size_t entering = n;
+    double      minRatio = std::numeric_limits<double>::infinity();
+
+    for (std::size_t j = 0; j < limit; ++j) {
+        if (j == currentBasic) continue; // never enter the variable already basic here
+        // AT_UB variables are complemented: their effective column direction is negated.
+        const double eta = atUB[j] ? -t[j] : t[j];
+        double ratio;
+
+        if (!exitsToUB) {
+            if (eta >= -cfg.pivotTol) continue;
+            ratio = rc[j] / (-eta);
+        } else {
+            if (eta <= cfg.pivotTol) continue;
+            ratio = rc[j] / eta;
+        }
+
+        if (ratio < minRatio - cfg.pivotTol ||
+            (ratio < minRatio + cfg.pivotTol && j < entering)) {
+            minRatio = ratio;
+            entering = j;
+        }
+    }
+    return entering;
+}
+
 std::size_t LUTableau::selectLeavingDual() const {
     std::size_t leaving = m;
-    double      minB    = std::numeric_limits<double>::infinity();
+    uint32_t    bestIdx = std::numeric_limits<uint32_t>::max();
 
+    // Bland's rule: smallest basic column index among infeasible rows.
+    // Guarantees finite termination on degenerate LPs.
     for (std::size_t i = 0; i < m; ++i) {
         double bi = xB[i];
         if (bi >= -cfg.feasibilityTol) continue;
-
-        if (bi < minB - cfg.feasibilityTol) {
-            minB    = bi;
-            leaving = i;
-        } else if (bi < minB + cfg.feasibilityTol &&
-                   leaving < m && basicCols[i] < basicCols[leaving]) {
+        if (basicCols[i] < bestIdx) {
+            bestIdx = basicCols[i];
             leaving = i;
         }
     }

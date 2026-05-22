@@ -72,11 +72,12 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
         case LPMethod::RevisedSimplex:
             return internal::solveRevised(model, opts.maxIter, opts.timeLimitS,
                                           opts.startTime, opts.computeSensitivity,
-                                          opts.computeCutData, simplexCfg);
+                                          opts.computeCutData, simplexCfg,
+                                          opts.warmBasis);
         case LPMethod::RevisedSimplexBV:
             return internal::solveRevisedBV(model, opts.maxIter, opts.timeLimitS,
                                             opts.startTime, opts.computeCutData,
-                                            simplexCfg);
+                                            simplexCfg, opts.warmBasis);
         case LPMethod::ShortStepIPM:
             return internal::solveShortStepIPM(model, opts.maxIter, opts.timeLimitS,
                                                opts.startTime);

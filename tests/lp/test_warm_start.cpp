@@ -297,8 +297,10 @@ TEST_CASE("sfCache: three-level chain produces correct results and propagates ca
 TEST_CASE("Warm-start: usedWarmStart confirms effective warm on branch, false on cold", "[warm_start]") {
     // Verifies that usedWarmStart == true when the warm path is taken (no sfCache
     // mismatch, no dual-feasibility fallback), and false on a plain cold solve.
-    // Covers both DualSimplex (sfCache-based) and DualSimplexBV (atUBCache-based).
-    auto method = GENERATE(LPMethod::DualSimplex, LPMethod::DualSimplexBV);
+    // Covers DualSimplex (sfCache), DualSimplexBV (atUBCache), RevisedSimplex and
+    // RevisedSimplexBV (sfbvCache + atUBCache + BV dual repair).
+    auto method = GENERATE(LPMethod::DualSimplex,    LPMethod::DualSimplexBV,
+                           LPMethod::RevisedSimplex, LPMethod::RevisedSimplexBV);
 
     Model    parent_m = makeFractionalLP();
     Variable x1{0};
@@ -363,9 +365,8 @@ TEST_CASE("Warm-start: non-implementing methods ignore basis and produce identic
     // Methods that do not implement warm-start ignore warmBasis entirely.
     // Passing a basis record must be a no-op: usedWarmStart stays false and the
     // solver does exactly the same work (same iterationsUsed) as a cold call.
-    auto method = GENERATE(LPMethod::PrimalSimplex,  LPMethod::PrimalSimplexBV,
-                           LPMethod::RevisedSimplex, LPMethod::RevisedSimplexBV,
-                           LPMethod::ShortStepIPM,   LPMethod::MehrotraIPM,
+    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::PrimalSimplexBV,
+                           LPMethod::ShortStepIPM,  LPMethod::MehrotraIPM,
                            LPMethod::NetworkSimplex);
 
     DYNAMIC_SECTION(to_string(method)) {

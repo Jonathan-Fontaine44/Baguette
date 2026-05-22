@@ -124,7 +124,7 @@ void driveOutArtificialsRev(internal::LUTableau&             tab,
     }
 }
 
-// ── Simplex loop (primal) ─────────────────────────────────────────────────────
+// ── Simplex loops ─────────────────────────────────────────────────────────────
 
 LPStatus runSimplexRev(internal::LUTableau&                       tab,
                         const internal::LPStandardForm&            sf,
@@ -153,6 +153,43 @@ LPStatus runSimplexRev(internal::LUTableau&                       tab,
         ++iterConsumed;
 
         if (iterConsumed % timePeriod == 0) {
+            if (tab.cfg.reinversionPeriod > 0)
+                if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
+            if (std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - startTime).count() >= timeLimitS)
+                return LPStatus::TimeLimit;
+        }
+    }
+}
+
+/// Dual simplex loop using LUTableau.  Precondition: tab is dual feasible (rc[j] >= 0).
+/// Drives primal feasibility; returns Optimal when all xB[i] >= 0.
+LPStatus runDualRev(internal::LUTableau&                      tab,
+                    const internal::LPStandardForm&           sf,
+                    uint32_t                                  maxIter,
+                    double                                    timeLimitS,
+                    std::chrono::steady_clock::time_point     startTime,
+                    uint32_t&                                 iters) {
+    const uint32_t timePeriod =
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
+
+    if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
+            >= timeLimitS)
+        return LPStatus::TimeLimit;
+
+    while (true) {
+        if (maxIter > 0 && iters >= maxIter) return LPStatus::MaxIter;
+
+        std::size_t leaving = tab.selectLeavingDual();
+        if (leaving == tab.m) return LPStatus::Optimal;
+
+        std::size_t entering = tab.selectEnteringDual(leaving);
+        if (entering == tab.n) return LPStatus::Infeasible;
+
+        tab.pivot(leaving, entering);
+        ++iters;
+
+        if (iters % timePeriod == 0) {
             if (tab.cfg.reinversionPeriod > 0)
                 if (!tab.reinvert(sf)) return LPStatus::NumericalFailure;
             if (std::chrono::duration<double>(
@@ -351,6 +388,36 @@ LPDetailedResult extractDetailedRev(const internal::LUTableau&       tab,
     return det;
 }
 
+/// Populate cut data from a solved LUTableau (original-SF columns only).
+void extractCutDataRev(internal::LUTableau&             tab,
+                        const internal::LPStandardForm&  sf,
+                        const Model&                     model,
+                        LPDetailedResult&                det) {
+    const auto& types = model.getCold().types;
+    const std::size_t nSF = sf.nCols;
+    constexpr double kIntFeasTol = 1e-6;
+
+    for (std::size_t r = 0; r < tab.m; ++r) {
+        uint32_t col = tab.basicCols[r];
+        if (col >= nSF) continue;
+        if (sf.colKind[col] != ColumnKind::Original) continue;
+        if (sf.varFreeNegCol[col] < static_cast<uint32_t>(nSF)) continue;
+        uint32_t varId = sf.colOrigin[col];
+        if (types[varId] != VarType::Integer && types[varId] != VarType::Binary)
+            continue;
+        double sfBFS = tab.xB[r];
+        double frac  = sfBFS - std::floor(sfBFS);
+        if (frac <= kIntFeasTol || frac >= 1.0 - kIntFeasTol) continue;
+
+        FractionalRow fr;
+        fr.origVarId = varId;
+        fr.fracVal   = frac;
+        auto trow    = tab.tableauRow(r);
+        fr.tabRow.assign(trow.begin(), trow.begin() + static_cast<std::ptrdiff_t>(nSF));
+        det.fractionalRows.push_back(std::move(fr));
+    }
+}
+
 } // anonymous namespace
 
 namespace internal {
@@ -361,7 +428,8 @@ LPDetailedResult solveRevised(const Model&                          model,
                                std::chrono::steady_clock::time_point startTime,
                                bool                                  computeSensitivity,
                                bool                                  computeCutData,
-                               const SimplexConfig&                  cfg) {
+                               const SimplexConfig&                  cfg,
+                               const BasisRecord&                    warmBasis) {
     // Early infeasibility: empty variable domain
     {
         const auto& hot = model.getHot();
@@ -375,13 +443,60 @@ LPDetailedResult solveRevised(const Model&                          model,
         }
     }
 
-    // 1. Standard form
-    LPStandardForm sf = toStandardForm(model);
+    // Standard form — wrap in shared_ptr to support sfCache across B&B nodes.
+    auto sfPtr = std::make_shared<LPStandardForm>();
+    if (!warmBasis.basicCols.empty() && warmBasis.sfCache) {
+        *sfPtr = *warmBasis.sfCache;        // shallow: A shared_ptr copied O(1)
+        if (!toStandardFormBoundsOnly(*sfPtr, model))
+            *sfPtr = toStandardForm(model);
+    } else {
+        *sfPtr = toStandardForm(model);
+    }
+    LPStandardForm& sf = *sfPtr;
+
+    LUTableau tab;
+    tab.cfg = cfg;
+
+    // ── Warm-start path ───────────────────────────────────────────────────────
+    // Skip Phase I: initialise from the parent's basis and run dual simplex to
+    // restore primal feasibility.  Dual feasibility is preserved because bounds
+    // only change the RHS (b), not the reduced costs.
+    if (!warmBasis.basicCols.empty() &&
+        warmBasis.basicCols.size() == sf.nRows &&
+        warmBasis.colKind.size()   == sf.nCols &&
+        tab.init(sf, warmBasis.basicCols)) {
+
+        bool dualFeasible = true;
+        for (std::size_t j = 0; j < sf.nCols; ++j) {
+            if (tab.rc[j] < -tab.cfg.optimalityTol) { dualFeasible = false; break; }
+        }
+
+        if (dualFeasible) {
+            uint32_t iters = 0;
+            LPStatus status = runDualRev(tab, sf, maxIter, timeLimitS, startTime, iters);
+
+            LPDetailedResult det = extractDetailedRev(tab, sf, model, status,
+                                                       {}, computeSensitivity);
+            det.iterationsUsed = iters;
+            det.usedWarmStart  = true;
+
+            if (status == LPStatus::Optimal) {
+                det.basis.sfCache = sfPtr;
+                if (computeCutData)
+                    extractCutDataRev(tab, sf, model, det);
+            }
+            if (status == LPStatus::Unbounded) det.result.primalValues.clear();
+            return det;
+        }
+        // Warm basis is dual infeasible — reinitialise tab for cold start below.
+        tab = LUTableau{};
+        tab.cfg = cfg;
+    }
+
+    // ── Cold-start path: Phase I + Phase II ───────────────────────────────────
 
     // 2. Phase I: augment with artificial variables
     AugmentedFormRev aug = buildPhaseOneRev(sf, model);
-    LUTableau tab;
-    tab.cfg = cfg;
     [[maybe_unused]] bool initOk = tab.init(aug.sf, aug.initialBasis);
     assert(initOk && "identity artificial basis: cannot be singular");
 
@@ -407,7 +522,6 @@ LPDetailedResult solveRevised(const Model&                          model,
 
     // 4. Phase II: switch to real objective, restrict entering to original cols
     {
-        // Build phase-II objective: c[j] = sfOrig.c[j] for j < nOld, 0 for artificials
         std::vector<double> c2(aug.sf.nCols, 0.0);
         for (std::size_t j = 0; j < sf.nCols; ++j)
             c2[j] = sf.c[j];
@@ -433,31 +547,10 @@ LPDetailedResult solveRevised(const Model&                          model,
     if (p2Status == LPStatus::Unbounded)
         det.result.primalValues.clear();
 
-    // Cut data for GMI generation
-    if (computeCutData && p2Status == LPStatus::Optimal) {
-        const auto& types = model.getCold().types;
-        const std::size_t nSF = sf.nCols;
-        constexpr double kIntFeasTol = 1e-6;
-
-        for (std::size_t r = 0; r < tab.m; ++r) {
-            uint32_t col = tab.basicCols[r];
-            if (col >= nSF) continue;
-            if (sf.colKind[col] != ColumnKind::Original) continue;
-            if (sf.varFreeNegCol[col] < static_cast<uint32_t>(nSF)) continue;
-            uint32_t varId = sf.colOrigin[col];
-            if (types[varId] != VarType::Integer && types[varId] != VarType::Binary)
-                continue;
-            double sfBFS = tab.xB[r];
-            double frac  = sfBFS - std::floor(sfBFS);
-            if (frac <= kIntFeasTol || frac >= 1.0 - kIntFeasTol) continue;
-
-            FractionalRow fr;
-            fr.origVarId = varId;
-            fr.fracVal   = frac;
-            auto trow    = tab.tableauRow(r);
-            fr.tabRow.assign(trow.begin(), trow.begin() + static_cast<std::ptrdiff_t>(nSF));
-            det.fractionalRows.push_back(std::move(fr));
-        }
+    if (p2Status == LPStatus::Optimal) {
+        det.basis.sfCache = sfPtr;      // enable bounds-only rebuild on next warm-start
+        if (computeCutData)
+            extractCutDataRev(tab, sf, model, det);
     }
 
     return det;

@@ -105,6 +105,23 @@ struct LUTableau {
     /// @note Complexity: O(m·n).
     std::size_t selectEnteringDual(std::size_t leavingRow) const;
 
+    struct DualLeavingResultBV {
+        std::size_t leavingRow; ///< m = all basics feasible (optimal).
+        bool        exitsToUB;  ///< True when the leaving basic exceeds its UB.
+    };
+
+    /// BV-aware dual leaving: picks the basic variable with the largest feasibility
+    /// violation (xB[i] < 0 or xB[i] > colUB[basicCols[i]]), Bland's index tie-break.
+    /// @return {m, false} when all basics are primal feasible.
+    /// @note Complexity: O(m).
+    DualLeavingResultBV selectLeavingDualBV() const;
+
+    /// BV-aware dual entering: ratio rc[j]/|t_r[j]| with sign dictated by exitsToUB.
+    /// exitsToUB=false (xBi < LB): needs t_r[j] < 0; =true (xBi > UB): needs t_r[j] > 0.
+    /// @return j < n (entering) or n (dual infeasible).
+    /// @note Complexity: O(m·n) for tableauRow + O(n) ratio scan.
+    std::size_t selectEnteringDualBV(std::size_t leavingRow, bool exitsToUB) const;
+
     // ── Pivot ────────────────────────────────────────────────────────────────
 
     /// Bring enteringCol into the basis at leavingRow.

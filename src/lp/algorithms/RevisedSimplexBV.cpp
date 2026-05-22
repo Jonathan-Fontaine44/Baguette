@@ -123,6 +123,44 @@ void driveOutArtificialsRevBV(internal::LUTableau&              tab,
     }
 }
 
+// ── BV dual simplex loop (warm-start repair) ─────────────────────────────────
+
+LPStatus runDualRevBV(internal::LUTableau&                       tab,
+                       const internal::LPStandardFormBV&          sfbv,
+                       uint32_t                                   maxIter,
+                       double                                     timeLimitS,
+                       std::chrono::steady_clock::time_point      startTime,
+                       uint32_t&                                  iters) {
+    const uint32_t timePeriod =
+        tab.cfg.reinversionPeriod > 0 ? tab.cfg.reinversionPeriod : 64u;
+
+    if (std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count()
+            >= timeLimitS)
+        return LPStatus::TimeLimit;
+
+    while (true) {
+        if (maxIter > 0 && iters >= maxIter) return LPStatus::MaxIter;
+
+        auto [leavingRow, exitsToUB] = tab.selectLeavingDualBV();
+        if (leavingRow == tab.m) return LPStatus::Optimal;
+
+        std::size_t entering = tab.selectEnteringDualBV(leavingRow, exitsToUB);
+        if (entering == tab.n) return LPStatus::Infeasible;
+
+        auto eta = tab.enteringColumn(entering);
+        tab.pivotBV(leavingRow, entering, exitsToUB, eta);
+        ++iters;
+
+        if (iters % timePeriod == 0) {
+            if (tab.cfg.reinversionPeriod > 0)
+                if (!tab.reinvertBV(sfbv)) return LPStatus::NumericalFailure;
+            if (std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - startTime).count() >= timeLimitS)
+                return LPStatus::TimeLimit;
+        }
+    }
+}
+
 // ── BV simplex loop ───────────────────────────────────────────────────────────
 
 LPStatus runSimplexRevBV(internal::LUTableau&                       tab,
@@ -244,7 +282,10 @@ LPDetailedResult extractRevBV(const internal::LUTableau&        tab,
     det.basis.basicCols.assign(tab.basicCols.begin(), tab.basicCols.end());
     det.basis.colKind   = sfbv.colKind;
     det.basis.colOrigin = sfbv.colOrigin;
-    det.basis.atUBCache = tab.atUB;
+    // Trim to sfbv.nCols: on the cold path tab.n = nNew (augmented with artificials),
+    // which are always AT_LB and must be stripped so the size matches sfbv.nCols.
+    det.basis.atUBCache.assign(tab.atUB.begin(),
+                                tab.atUB.begin() + static_cast<std::ptrdiff_t>(sfbv.nCols));
 
     if (computeCutData) {
         const auto& types  = model.getCold().types;
@@ -265,6 +306,11 @@ LPDetailedResult extractRevBV(const internal::LUTableau&        tab,
             fr.origVarId = varId;
             fr.fracVal   = frac;
             auto trow    = tab.tableauRow(r);
+            // LUTableau::tableauRow returns original B⁻¹a_j for all columns.
+            // generateGMICuts expects complemented values for AT_UB columns
+            // (i.e., -t_orig[j]), matching SimplexTableauBV's explicit tableau.
+            for (std::size_t j2 = 0; j2 < nSFBV; ++j2)
+                if (tab.atUB[j2]) trow[j2] = -trow[j2];
             fr.tabRow.assign(trow.begin(), trow.begin() + static_cast<std::ptrdiff_t>(nSFBV));
             det.fractionalRows.push_back(std::move(fr));
         }
@@ -300,7 +346,8 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
                                  double                                timeLimitS,
                                  std::chrono::steady_clock::time_point startTime,
                                  bool                                  computeCutData,
-                                 const SimplexConfig&                  cfg) {
+                                 const SimplexConfig&                  cfg,
+                                 const BasisRecord&                    warmBasis) {
     // Early infeasibility: empty domain
     {
         const auto& hot = model.getHot();
@@ -314,13 +361,62 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
         }
     }
 
-    // 1. Compact standard form (no UB rows)
-    LPStandardFormBV sfbv = toStandardFormBV(model);
+    // Standard form — shared_ptr so sfbvCache can propagate the A matrix O(1).
+    const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
+    auto sfbvPtr = std::make_shared<LPStandardFormBV>();
+    if (hasWarm && warmBasis.sfbvCache) {
+        *sfbvPtr = *warmBasis.sfbvCache;        // shallow: A shared_ptr copied O(1)
+        if (!toStandardFormBoundsOnlyBV(*sfbvPtr, model))
+            *sfbvPtr = toStandardFormBV(model);
+    } else {
+        *sfbvPtr = toStandardFormBV(model);
+    }
+    LPStandardFormBV& sfbv = *sfbvPtr;
 
-    // 2. Phase I: augment with artificials
-    AugmentedFormBV aug = buildPhaseOneBV(sfbv, model);
     LUTableau tab;
     tab.cfg = cfg;
+
+    // ── Warm-start path ───────────────────────────────────────────────────────
+    // Skip Phase I: initialise from the parent's basis (basicCols + atUBCache)
+    // and run BV dual simplex to restore primal feasibility.
+    if (hasWarm &&
+        warmBasis.basicCols.size() == sfbv.nRows &&
+        warmBasis.atUBCache.size() == sfbv.nCols) {
+
+        // Use initBV (canonical full-init path) then re-apply complement states.
+        // initBV sets m, n, colUB, resizes all vectors and calls doReinvert.
+        std::vector<uint32_t> basisCopy = warmBasis.basicCols;
+        if (tab.initBV(sfbv, std::move(basisCopy))) {
+            for (std::size_t j = 0; j < sfbv.nCols; ++j)
+                if (warmBasis.atUBCache[j]) tab.complement(j);
+            bool dualFeasible = true;
+            for (std::size_t j = 0; j < sfbv.nCols; ++j) {
+                if (tab.rc[j] < -tab.cfg.optimalityTol) { dualFeasible = false; break; }
+            }
+
+            if (dualFeasible) {
+                uint32_t iters = 0;
+                LPStatus status = runDualRevBV(tab, sfbv, maxIter, timeLimitS, startTime, iters);
+
+                LPDetailedResult det = extractRevBV(tab, sfbv, model, status, {}, computeCutData);
+                det.iterationsUsed = iters;
+                det.usedWarmStart  = true;
+
+                if (status == LPStatus::Optimal) {
+                    det.basis.sfbvCache = sfbvPtr;
+                    det.basis.atUBCache = tab.atUB;
+                }
+                return det;
+            }
+        }
+        // Warm basis is dual infeasible or singular — reset for cold start.
+        tab = LUTableau{};
+        tab.cfg = cfg;
+    }
+
+    // ── Cold-start path: Phase I + Phase II ───────────────────────────────────
+
+    AugmentedFormBV aug = buildPhaseOneBV(sfbv, model);
     [[maybe_unused]] bool initOk = tab.initBV(aug.sfbv, aug.initialBasis);
     assert(initOk && "identity-like artificial basis: cannot be singular");
 
@@ -341,10 +437,9 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
         return det;
     }
 
-    // 3. Drive remaining artificials out (degenerate exit)
     driveOutArtificialsRevBV(tab, sfbv);
 
-    // 4. Phase II: switch to real objective, restrict entering to original cols.
+    // Phase II: switch to real objective, restrict entering to original cols.
     // Update aug.sfbv.c so reinvertBV(aug.sfbv) uses Phase II costs, not Phase I.
     {
         aug.sfbv.c.assign(aug.sfbv.nCols, 0.0);
@@ -353,7 +448,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
         tab.repriceBV(aug.sfbv.c, sfbv.nCols);
     }
 
-    // Pass aug.sfbv (nCols = nNew) to reinvertBV to keep tab.n stable
+    // Pass aug.sfbv (nCols = nNew) to reinvertBV to keep tab.n stable.
     LPStatus p2 = runSimplexRevBV(tab, aug.sfbv, maxIter, timeLimitS, startTime, iters);
 
     if (p2 == LPStatus::NumericalFailure) {
@@ -365,6 +460,12 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
     LPDetailedResult det = extractRevBV(tab, sfbv, model, p2, aug.equalArtCol, computeCutData);
     det.iterationsUsed = iters;
     if (p2 == LPStatus::Unbounded) det.result.primalValues.clear();
+
+    if (p2 == LPStatus::Optimal) {
+        det.basis.sfbvCache = sfbvPtr;
+        // extractRevBV already trimmed atUBCache to sfbv.nCols; no re-assignment needed.
+    }
+
     return det;
 }
 
