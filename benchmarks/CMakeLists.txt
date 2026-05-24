@@ -12,6 +12,7 @@ FetchContent_MakeAvailable(googlebenchmark)
 add_executable(BaguetteBench
     bench_lp_methods.cpp
     bench_milp.cpp
+    bench_milp_large.cpp
     bench_flow.cpp
     bench_network_simplex.cpp
     bench_presolve.cpp
