@@ -103,6 +103,14 @@ struct BBOptions {
     /// Default 500. Set to 0 for unlimited (not recommended on large trees).
     uint32_t maxTotalCuts = 500;
 
+    /// Maximum GMI cuts generated at the root node specifically.
+    /// 0 (default) = use maxCutsPerNode (same as all other nodes).
+    /// Set to a larger value (e.g. maxTotalCuts / 10) to allow more aggressive
+    /// cut generation at the root: each root cut is globally valid and tightens
+    /// the bound for the entire B&B tree.
+    /// Has no effect when enableCuts is false.
+    uint32_t maxRootCuts = 0;
+
     /// LP method used at the root node.
     /// Auto (default): falls back to lpOpts.method.
     /// Use a stronger method here (e.g. MehrotraIPM) when a tighter root bound

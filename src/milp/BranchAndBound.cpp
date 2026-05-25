@@ -481,8 +481,12 @@ MILPResult solveMILP(const Model&            modelRef,
         // Skip if the global budget (maxTotalCuts) is exhausted.
         const bool budgetOk = opts.maxTotalCuts == 0 || cutsAdded < opts.maxTotalCuts;
         if (opts.enableCuts && !lp.fractionalRows.empty() && budgetOk) {
-            // Effective per-node limit: respect both maxCutsPerNode and global budget.
-            uint32_t perNode = opts.maxCutsPerNode;
+            // At the root use maxRootCuts (default: maxTotalCuts/10); elsewhere
+            // use maxCutsPerNode.  Then cap both against the remaining global budget.
+            const bool isRootCut = (node.depth == 0);
+            uint32_t perNode = (isRootCut && opts.maxRootCuts > 0)
+                                   ? opts.maxRootCuts
+                                   : opts.maxCutsPerNode;
             if (opts.maxTotalCuts > 0) {
                 const uint32_t remaining = opts.maxTotalCuts - cutsAdded;
                 if (perNode == 0 || perNode > remaining) perNode = remaining;
