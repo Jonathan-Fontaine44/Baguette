@@ -428,7 +428,14 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── First LP solve ─────────────────────────────────────────────────────
         if (opts.collectStats) ++stats_acc.lpSolvesTotal;
+        // Effective root method: rootMethod if set, else lpOpts.method.
+        // Effective node method: nodeMethod if set, else effective root method.
+        const LPMethod effRoot = (opts.rootMethod != LPMethod::Auto)
+                                     ? opts.rootMethod : opts.lpOpts.method;
+        const LPMethod effNode = (opts.nodeMethod != LPMethod::Auto)
+                                     ? opts.nodeMethod : effRoot;
         LPOptions lpOpts           = opts.lpOpts;
+        lpOpts.method              = (node.depth == 0) ? effRoot : effNode;
         lpOpts.timeLimitS          = opts.timeLimitS;
         lpOpts.startTime           = startTime;
         lpOpts.warmBasis           = node.basis;
@@ -510,6 +517,7 @@ MILPResult solveMILP(const Model&            modelRef,
                 // cut addition degrades warm-start reuse for all queued siblings.
                 if (opts.collectStats) ++stats_acc.lpSolvesTotal;
                 LPOptions lpOptsCold       = opts.lpOpts;
+                lpOptsCold.method          = (node.depth == 0) ? effRoot : effNode;
                 lpOptsCold.timeLimitS      = opts.timeLimitS;
                 lpOptsCold.startTime       = startTime;
                 lpOptsCold.enablePresolve  = false;

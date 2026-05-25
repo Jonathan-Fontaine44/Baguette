@@ -101,3 +101,20 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
             REQUIRE_THAT(r.objectiveValue, WithinAbs(tc.expectedObj, kTol));
     }
 }
+
+// ── rootMethod / nodeMethod: split LP algorithm between root and nodes ─────────
+// Root uses MehrotraIPM for a tight initial bound; subsequent nodes use
+// DualSimplexBV for fast warm-started solves.  Result must match the
+// uniform-method solve.
+TEST_CASE("BB: rootMethod=MehrotraIPM + nodeMethod=DualSimplexBV on knapsack",
+          "[milp_classic][bb]") {
+    BBOptions opts;
+    opts.rootMethod    = LPMethod::MehrotraIPM;
+    opts.nodeMethod    = LPMethod::DualSimplexBV;
+    opts.timeLimitS    = 10.0;
+
+    MILPResult r = solveMILP(baguette_test::makeKnapsack10(), opts);
+
+    REQUIRE(r.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r.objectiveValue, WithinAbs(106.0, kTol));
+}

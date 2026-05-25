@@ -103,11 +103,24 @@ struct BBOptions {
     /// Default 500. Set to 0 for unlimited (not recommended on large trees).
     uint32_t maxTotalCuts = 500;
 
+    /// LP method used at the root node.
+    /// Auto (default): falls back to lpOpts.method.
+    /// Use a stronger method here (e.g. MehrotraIPM) when a tighter root bound
+    /// matters more than solve speed.
+    LPMethod rootMethod = LPMethod::Auto;
+
+    /// LP method used at all B&B nodes other than the root.
+    /// Auto (default): uses rootMethod (which itself falls back to lpOpts.method).
+    /// Set to DualSimplexBV for fast warm-started node solves after an IPM root.
+    LPMethod nodeMethod = LPMethod::Auto;
+
     /// LP solver options forwarded to every node's LP solve.
     ///
-    /// Configure @p method (algorithm) and @p maxIter (pivot limit) here.
+    /// Configure @p maxIter (pivot limit) and other per-solve settings here.
+    /// @p method is overridden per-node by rootMethod / nodeMethod above.
     /// The following fields are managed internally by solveMILP() and any
     /// user-supplied value is silently overridden:
+    ///   - @p method      ← from rootMethod / nodeMethod
     ///   - @p timeLimitS  ← from BBOptions::timeLimitS
     ///   - @p startTime   ← shared clock set at the B&B root
     ///   - @p warmBasis   ← from the parent node's BasisRecord
