@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "baguette/core/Sense.hpp"
+#include "baguette/cp/constraints/AllDiff.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/model/Model.hpp"
 #include "lp_problems.hpp"
@@ -112,6 +113,173 @@ inline std::vector<TspArc> makeTSPArcs(int n) {
 
 inline baguette::Model makeTSP10() {
     return makeTSP(10, makeTSPArcs(10));
+}
+
+/// Build an n-city TSP model (Single-Commodity Flow formulation).
+///
+/// Variables
+///   x[i][j] ∈ {0,1} (Binary)       — arc i→j  (n*(n-1) arc vars)
+///   g[i][j] ∈ [0,1]  (Continuous)  — normalised flow g = f/(n-1)  (n*(n-1) vars)
+///
+/// Constraints
+///   Degree out = 1 for every city i > 0   (city 0 dropped; implied by in-degree)
+///   Degree in  = 1 for every city i
+///   Flow capacity:     g[i][j] ≤ x[i][j]                       for i ≠ j
+///   Flow conservation: Σⱼ g[i][j] − Σⱼ g[j][i] = −1/(n−1)    for i = 1..n-1
+///     (city 0 is the source; its balance is implied by the remaining n-1 equations)
+///
+/// Normalising f by (n-1) keeps all LP matrix coefficients in {−1, 0, 1}, which
+/// avoids large-coefficient degeneracy that affects some simplex pivoting strategies.
+///
+/// The LP relaxation of SCF has the same bound as DFJ (exponential SEC), which
+/// is strictly tighter than MTZ for most instances.  Both give LP = IP = 10
+/// on the 10-city cyclic instance.
+///
+/// @param n     Number of cities (0..n-1).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+///
+/// @note Complexity
+///   O(n²) binary variables, O(n²) flow variables, O(n²) constraints.
+inline baguette::Model makeTSPFlow(int n, const std::vector<TspArc>& arcs) {
+    using namespace baguette;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
+    Model m;
+
+    // Arc variables x[i][j], i ≠ j.
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    // Normalised flow variables g[i][j] = f[i][j]/(n-1) ∈ [0,1], i ≠ j.
+    std::vector<std::vector<Variable>> g(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) g[i][j] = m.addVar(0.0, 1.0);
+
+    // Objective: min Σ c[i][j] · x[i][j].
+    LinearExpr obj;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) obj += c[i][j] * x[i][j];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    // Degree constraints (city-0 degree-out dropped, same convention as MTZ).
+    for (int i = 0; i < n; ++i) {
+        LinearExpr out, in;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
+        if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
+        m.addLPConstraint(in, Sense::Equal, 1.0);
+    }
+
+    // Flow capacity: g[i][j] ≤ x[i][j]  (all coefficients ±1).
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) {
+                LinearExpr e;
+                e += 1.0 * g[i][j];
+                e += -1.0 * x[i][j];
+                m.addLPConstraint(e, Sense::LessEq, 0.0);
+            }
+
+    // Flow conservation for cities 1..n-1: Σⱼ g[i][j] − Σⱼ g[j][i] = −1/(n−1).
+    // City 0 (source) is implied by the remaining n-1 equations.
+    const double rhs = -1.0 / double(n - 1);
+    for (int i = 1; i < n; ++i) {
+        LinearExpr e;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { e += 1.0 * g[i][j]; e += -1.0 * g[j][i]; }
+        m.addLPConstraint(e, Sense::Equal, rhs);
+    }
+
+    return m;
+}
+
+inline baguette::Model makeTSP10Flow() {
+    return makeTSPFlow(10, makeTSPArcs(10));
+}
+
+/// Build an n-city TSP model (MTZ + AllDiff CP formulation).
+///
+/// Identical to makeTSP() with one addition: a CP AllDiff constraint is posted
+/// on the n-1 position variables u[1..n-1].
+///
+/// In any valid MTZ solution the positions are already distinct by construction,
+/// so AllDiff is redundant for integer feasibility.  It is useful during B&B:
+/// the AllDiff propagator (bounds consistency + Hall intervals) can tighten
+/// position domains early and prune subtour-prone branches before the LP solve.
+///
+/// The LP relaxation is unchanged (CP constraints are not linearised).
+/// LP optimal = 10 for the 10-city cyclic instance.
+///
+/// @param n     Number of cities (0..n-1).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+inline baguette::Model makeTSPMtz(int n, const std::vector<TspArc>& arcs) {
+    using namespace baguette;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
+    Model m;
+
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    std::vector<Variable> u(n);
+    for (int i = 1; i < n; ++i)
+        u[i] = m.addVar(1.0, double(n - 1), VarType::Integer);
+
+    LinearExpr obj;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) obj += c[i][j] * x[i][j];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    for (int i = 0; i < n; ++i) {
+        LinearExpr out, in;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
+        if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
+        m.addLPConstraint(in, Sense::Equal, 1.0);
+    }
+
+    for (int i = 1; i < n; ++i)
+        for (int j = 1; j < n; ++j)
+            if (i != j) {
+                LinearExpr mtz;
+                mtz += 1.0 * u[i];
+                mtz += -1.0 * u[j];
+                mtz += double(n) * x[i][j];
+                m.addLPConstraint(mtz, Sense::LessEq, double(n - 1));
+            }
+
+    // AllDiff on position variables u[1..n-1]: all positions are distinct.
+    m.addCPConstraint(
+        AllDiffConstraint(std::vector<Variable>(u.begin() + 1, u.end())));
+
+    return m;
+}
+
+inline baguette::Model makeTSP10Mtz() {
+    return makeTSPMtz(10, makeTSPArcs(10));
 }
 
 /// One item in a 0/1 knapsack instance.
@@ -270,11 +438,23 @@ inline std::vector<LPTestCase> makeRelaxedMILPTestSuite() {
     using namespace baguette;
 
     return {
-        // ── TSP 10 cities ────────────────────────────────────────────────────
+        // ── TSP 10 cities — MTZ formulation ─────────────────────────────────
         // See makeTSP10() for the full formulation description.
         // LP optimal = 10 (cyclic tour 0→1→…→9→0, all unit-cost adjacent arcs).
-        {"tsp_10_feasible", LPStatus::Optimal, 10.0,
+        {"tsp_10_mtz", LPStatus::Optimal, 10.0,
             []() { return baguette_test::makeTSP10(); }},
+
+        // ── TSP 10 cities — Single-Commodity Flow formulation ────────────────
+        // Same instance, stronger LP relaxation (SCF bound = DFJ bound ≥ MTZ bound).
+        // LP optimal = 10 (cyclic tour is an integer extreme point for both).
+        {"tsp_10_scf", LPStatus::Optimal, 10.0,
+            []() { return baguette_test::makeTSP10Flow(); }},
+
+        // ── TSP 10 cities — MTZ + AllDiff CP ────────────────────────────────
+        // Same MTZ LP relaxation (CP constraints not linearised) + AllDiff on
+        // position variables u[1..9].  LP optimal = 10.
+        {"tsp_10_mtz_alldiff", LPStatus::Optimal, 10.0,
+            []() { return baguette_test::makeTSP10Mtz(); }},
 
         // ── 0/1 Knapsack 10 items ────────────────────────────────────────────
         // LP optimal = 110: fractional fill of item 9 (ratio 1.0) at ½.

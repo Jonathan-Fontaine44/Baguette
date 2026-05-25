@@ -35,6 +35,7 @@ add_library(Baguette
     src/milp/Presolve.cpp
     src/milp/cuts/gmi.cpp
     src/milp/cuts/mir.cpp
+    src/milp/SecCuts.cpp
     src/cp/CPConstraints.cpp
     src/cp/constraints/allDiff.cpp
     src/cp/constraints/cumulative.cpp
@@ -79,6 +80,7 @@ add_executable(BaguetteTests
     tests/lp/test_mehrotra_ipm.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
+    tests/milp/test_sec.cpp
     tests/milp/test_stats.cpp
     tests/milp/test_milp_classic.cpp
     tests/milp/test_presolve_milp.cpp
