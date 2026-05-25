@@ -7,7 +7,6 @@
 
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/BranchAndBound.hpp"
-#include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/model/Model.hpp"
 #include "baguette/model/ModelEnums.hpp"
 #include "lp/MILP_problems.hpp"
@@ -314,8 +313,7 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
 // min 0x + y  s.t. x + y ≥ 3.5,  x ∈ Z[0,3.2],  y ∈ C[0,5].
 //
 // LP optimal: x=3.2 (fractional integer at its UB), y=0.3 (continuous).
-// fractionalRows must contain exactly x; y must not appear.
-// generateGMICuts must produce exactly one cut from the x row.
+// fractionalRows must contain exactly x (integer); y (continuous) must not appear.
 
 TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[cuts]") {
     auto method = GENERATE(LPMethod::Auto,
@@ -330,7 +328,6 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     m.addLPConstraint(1.0 * x + 1.0 * y, Sense::GreaterEq, 3.5);
     m.setObjective(0.0 * x + 1.0 * y, ObjSense::Minimize);
 
-    // Solve relaxation LP
     LPOptions lpOpts;
     lpOpts.computeCutData = true;
     lpOpts.method         = method;
@@ -340,17 +337,11 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         REQUIRE(lp.result.status == LPStatus::Optimal);
-
-        for (FractionalRow fr : lp.fractionalRows) {
-            REQUIRE(fr.origVarId == x.id);
-            REQUIRE(fr.origVarId != y.id);
-        }
-
         REQUIRE(lp.fractionalRows.size() >= 1);
-
-        std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 50, kTol);
-
-        REQUIRE(cuts.size() == 1);
+        for (const FractionalRow& fr : lp.fractionalRows) {
+            REQUIRE(fr.origVarId == x.id);   // only x (integer) appears
+            REQUIRE(fr.origVarId != y.id);   // y (continuous) must not appear
+        }
     }
 }
 
@@ -397,54 +388,6 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
     }
 }
 
-// ── Diagnostic: knapsack-10 GMI cut coefficients ────────────────────────────
-//
-// Solve the LP relaxation of the 10-item knapsack with PrimalSimplexBV,
-// generate GMI cuts, then check cut coefficients and RHS. Then add the cut
-// to the model, re-solve, and verify the LP objective after the cut.
-
-TEST_CASE("Diag: knapsack-10 GMI cut with BV methods", "[bnc][diag]") {
-    auto method = GENERATE(LPMethod::PrimalSimplex, LPMethod::DualSimplex,
-                           LPMethod::PrimalSimplexBV, LPMethod::DualSimplexBV,
-                           LPMethod::RevisedSimplexBV);
-    DYNAMIC_SECTION("method=" << to_string(method)) {
-        Model m = baguette_test::makeKnapsack10();
-
-        LPOptions lpOpts;
-        lpOpts.method         = method;
-        lpOpts.computeCutData = true;
-        lpOpts.timeLimitS     = 1.0;
-        LPDetailedResult lp   = solveLPDetailed(m, lpOpts);
-
-        REQUIRE(lp.result.status == LPStatus::Optimal);
-        REQUIRE_THAT(lp.result.objectiveValue, WithinAbs(110.0, kTol));
-
-        REQUIRE(!lp.fractionalRows.empty());
-
-        std::vector<Cut> cuts = generateGMICuts(lp.fractionalRows, lp.basis, m, 10, kTol);
-        REQUIRE(cuts.size() == 1);
-
-        const Cut& cut = cuts[0];
-
-        // Verify IP optimal satisfies the cut (x[0..7]=1, x[8]=0, x[9]=1).
-        double lhsIP = 0.0;
-        double ipVals[10] = {1,1,1,1,1,1,1,1,0,1};
-        for (std::size_t k = 0; k < cut.expr.size(); ++k)
-            lhsIP += cut.expr.coeffs[k] * ipVals[cut.expr.varIds[k]];
-        
-        REQUIRE(lhsIP >= cut.rhs - kTol);
-
-        // Add the cut and re-solve.
-        m.addLPConstraint(cut.expr, Sense::GreaterEq, cut.rhs);
-        LPOptions lpOpts2;
-        lpOpts2.method = method;
-        lpOpts2.timeLimitS = 1.0;
-        LPDetailedResult lp2 = solveLPDetailed(m, lpOpts2);
-
-        REQUIRE(lp2.result.status == LPStatus::Optimal);
-        REQUIRE(lp2.result.objectiveValue >= 106.0 - kTol);
-    }
-}
 
 // ── Test 10: MILP infeasible even though LP relaxation is feasible ──────────
 //

@@ -33,15 +33,19 @@ add_library(Baguette
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
     src/milp/Presolve.cpp
-    src/milp/CuttingPlanes.cpp
+    src/milp/cuts/gmi.cpp
+    src/milp/cuts/mir.cpp
     src/cp/CPConstraints.cpp
     src/cp/constraints/allDiff.cpp
     src/cp/constraints/cumulative.cpp
 )
 
-target_include_directories(Baguette PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+target_include_directories(Baguette
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
@@ -104,6 +108,8 @@ add_executable(BaguetteInternalTests
     tests/lp/test_standard_form.cpp
     tests/lp/test_dual_sf.cpp
     tests/lp/test_tableau_init.cpp
+    tests/milp/test_gmi.cpp
+    tests/milp/test_mir.cpp
 )
 
 target_link_libraries(BaguetteInternalTests PRIVATE
@@ -113,6 +119,7 @@ target_link_libraries(BaguetteInternalTests PRIVATE
 
 target_include_directories(BaguetteInternalTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
 )
 
 catch_discover_tests(BaguetteInternalTests DISCOVERY_MODE PRE_TEST)

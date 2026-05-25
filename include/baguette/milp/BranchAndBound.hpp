@@ -117,6 +117,13 @@ struct BBOptions {
     /// all subsequent nodes benefit. Default: false.
     bool enableCuts = false;
 
+    /// If true, generate Mixed-Integer Rounding (MIR) cuts from LessEq
+    /// model constraints, and CMIR cuts from GreaterEq constraints via
+    /// complementation.  Cuts are added after GMI (if enabled) and before
+    /// user CutGenerators.  Share the maxCutsPerNode / maxTotalCuts budget
+    /// with GMI.  Default: false.
+    bool enableMIR = false;
+
     /// Maximum number of GMI cuts generated per node. 0 = unlimited.
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;

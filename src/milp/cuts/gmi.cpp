@@ -1,4 +1,4 @@
-#include "baguette/milp/CuttingPlanes.hpp"
+#include "gmi.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -128,7 +128,7 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                         cut.expr.addTerm(Variable{con.lhs.varIds[t]},
                                          sign * gmi * con.lhs.coeffs[t]);
                     }
-                    cut.rhs += sign * gmi * con.rhs; // LessEq: −= gmi*rhs; GEQ: += gmi*rhs
+                    cut.rhs += sign * gmi * con.rhs;
                     break;
                 }
 

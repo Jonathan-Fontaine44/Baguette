@@ -12,7 +12,8 @@
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/Presolve.hpp"
-#include "baguette/milp/CuttingPlanes.hpp"
+#include "milp/cuts/gmi.hpp"
+#include "milp/cuts/mir.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
 namespace baguette {
@@ -534,6 +535,68 @@ MILPResult solveMILP(const Model&            modelRef,
                 if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                     if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
                     continue;
+                }
+            }
+        }
+
+        // ── MIR / CMIR cuts ───────────────────────────────────────────────────
+        if (opts.enableMIR && lp.result.status == LPStatus::Optimal) {
+            const bool budgetOk = opts.maxTotalCuts == 0 || cutsAdded < opts.maxTotalCuts;
+            if (budgetOk) {
+                uint32_t remaining = (opts.maxTotalCuts > 0)
+                                         ? opts.maxTotalCuts - cutsAdded : 0;
+                uint32_t perNode = (opts.maxCutsPerNode > 0)
+                                       ? opts.maxCutsPerNode : 0;
+                uint32_t cap = (remaining > 0 && (perNode == 0 || perNode > remaining))
+                                   ? remaining : perNode;
+
+                std::vector<Cut> mirCuts = generateMIRCuts(lp, model, cap, opts.intFeasTol);
+                const uint32_t mirCap = (cap > 0 && mirCuts.size() > cap)
+                                            ? cap : static_cast<uint32_t>(mirCuts.size());
+                mirCuts.resize(mirCap);
+
+                if (cap > mirCap) {
+                    uint32_t cmirCap = cap - mirCap;
+                    auto cmir = generateCMIRCuts(lp, model, cmirCap, opts.intFeasTol);
+                    for (auto& c : cmir) mirCuts.push_back(std::move(c));
+                    if (mirCuts.size() > cap) mirCuts.resize(cap);
+                }
+
+                if (!mirCuts.empty()) {
+                    for (const Cut& c : mirCuts)
+                        model.addLPConstraint(c.expr, c.sense, c.rhs);
+                    cutsAdded += static_cast<uint32_t>(mirCuts.size());
+
+                    if (opts.collectStats) {
+                        ++stats_acc.nodesWithCuts;
+                        const auto d = static_cast<uint32_t>(node.depth);
+                        if (d >= stats_acc.cutsPerDepth.size())
+                            stats_acc.cutsPerDepth.resize(d + 1, 0);
+                        stats_acc.cutsPerDepth[d] += static_cast<uint32_t>(mirCuts.size());
+                    }
+
+                    if (opts.collectStats) ++stats_acc.lpSolvesTotal;
+                    LPOptions lpOptsCold      = opts.lpOpts;
+                    lpOptsCold.method         = (node.depth == 0) ? effRoot : effNode;
+                    lpOptsCold.timeLimitS     = opts.timeLimitS;
+                    lpOptsCold.startTime      = startTime;
+                    lpOptsCold.enablePresolve = false;
+                    lp = solveLPDetailed(model, lpOptsCold);
+
+                    switch (lp.result.status) {
+                        case LPStatus::Infeasible:
+                            if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                            continue;
+                        case LPStatus::Unbounded:        unboundedHit = true; goto done;
+                        case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
+                        case LPStatus::NumericalFailure: continue;
+                        case LPStatus::MaxIter:          continue;
+                        case LPStatus::Optimal:          break;
+                    }
+                    if (canPrune(effectiveBound(lp.result.objectiveValue))) {
+                        if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+                        continue;
+                    }
                 }
             }
         }
