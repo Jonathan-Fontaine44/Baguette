@@ -171,7 +171,7 @@ std::size_t SimplexTableauBV::selectEntering() const {
         return best;
     }
     for (std::size_t j = 0; j < limit; ++j)
-        if (rc[j] < -baguette::lp_optimality_tol)
+        if (rc[j] < -cfg.optimalityTol)
             return j;
     return n;
 }

@@ -247,9 +247,9 @@ void recomputePotentials(Net& g) {
 
 // ── Entering arc selection ────────────────────────────────────────────────────
 
-int selectEntering(const Net& g) {
+int selectEntering(const Net& g, double optTol) {
     int    best     = kNoArc;
-    double bestViol = lp_optimality_tol;
+    double bestViol = optTol;
     for (int a = 0; a < g.nArcs; ++a) {
         if (g.state[a] == NS::T) continue;
         double rc = g.cost[a] - g.pi[g.tail[a]] + g.pi[g.head[a]];
@@ -378,13 +378,13 @@ void applyPivot(Net& g, int entering, const PivotInfo& p) {
 
 // ── Infeasibility check ───────────────────────────────────────────────────────
 
-bool hasArtificialFlow(const Net& g) {
+bool hasArtificialFlow(const Net& g, double feasTol) {
     for (int i = 0; i < g.nNodes; ++i) {
         int a = g.nReal + i;
         double f = 0.0;
         if      (g.state[a] == NS::T) f = g.flow[a];
         else if (g.state[a] == NS::U) f = g.cap[a];
-        if (f > lp_feasibility_tol) return true;
+        if (f > feasTol) return true;
     }
     return false;
 }
@@ -441,12 +441,15 @@ LPDetailedResult extractResult(const Net& g, const Model& model, LPStatus status
 LPDetailedResult runNetworkSimplex(const Model&                          model,
                                    uint32_t                              maxIter,
                                    double                                timeLimitS,
-                                   std::chrono::steady_clock::time_point startTime) {
+                                   std::chrono::steady_clock::time_point startTime,
+                                   const internal::SimplexConfig&        cfg) {
+    const double feasTol = cfg.feasibilityTol;
+    const double optTol  = cfg.optimalityTol;
     // Early infeasibility: empty domain
     {
         const auto& hot = model.getHot();
         for (std::size_t j = 0; j < model.numVars(); ++j) {
-            if (hot.lb[j] > hot.ub[j] + lp_feasibility_tol) {
+            if (hot.lb[j] > hot.ub[j] + feasTol) {
                 LPDetailedResult det;
                 det.result.status      = LPStatus::Infeasible;
                 det.farkas.infeasVarId = (int32_t)j;
@@ -478,9 +481,9 @@ LPDetailedResult runNetworkSimplex(const Model&                          model,
             return det;
         }
 
-        int entering = selectEntering(g);
+        int entering = selectEntering(g, optTol);
         if (entering == kNoArc) {
-            LPStatus st = hasArtificialFlow(g) ? LPStatus::Infeasible : LPStatus::Optimal;
+            LPStatus st = hasArtificialFlow(g, feasTol) ? LPStatus::Infeasible : LPStatus::Optimal;
             if (st == LPStatus::Infeasible) {
                 LPDetailedResult det;
                 det.result.status  = LPStatus::Infeasible;
@@ -515,8 +518,8 @@ LPDetailedResult solveNetworkSimplex(const Model&                          model
                                      double                                timeLimitS,
                                      std::chrono::steady_clock::time_point startTime,
                                      bool /*computeCutData*/,
-                                     const SimplexConfig&                  /*cfg*/) {
-    return runNetworkSimplex(model, maxIter, timeLimitS, startTime);
+                                     const SimplexConfig&                  cfg) {
+    return runNetworkSimplex(model, maxIter, timeLimitS, startTime, cfg);
 }
 
 } // namespace internal

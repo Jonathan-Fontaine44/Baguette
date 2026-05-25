@@ -18,9 +18,9 @@ struct Domain {
     bool isEmpty() const { return lb > ub; }
 
     /// @return `true` if the variable is fixed to a single value.
-    /// Uses `lp_feasibility_tol` to account for ULP-level drift introduced by
+    /// Uses @p tol to account for ULP-level drift introduced by
     /// floor/ceil operations in B&B bound tightening.
-    bool isFixed() const { return std::abs(ub - lb) <= lp_feasibility_tol; }
+    bool isFixed(double tol = lp_feasibility_tol) const { return std::abs(ub - lb) <= tol; }
 
     /// @return `true` if @p v belongs to `[lb, ub]`.
     bool contains(double v) const { return lb <= v && v <= ub; }

@@ -138,6 +138,7 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
 PresolveResult presolveTBInPlace(Model& model, uint32_t maxPasses,
                                  double timeLimitS,
                                  std::chrono::steady_clock::time_point startTime) {
+    const double tol = lp_feasibility_tol;
     PresolveResult result;
     bool infeasible = false;
 
@@ -159,7 +160,7 @@ PresolveResult presolveTBInPlace(Model& model, uint32_t maxPasses,
 
     const auto& hot = model.getHot();
     for (std::size_t i = 0; i < model.numVars(); ++i) {
-        if (hot.ub[i] - hot.lb[i] <= lp_feasibility_tol)
+        if (hot.ub[i] - hot.lb[i] <= tol)
             ++result.fixedVars;
     }
 
