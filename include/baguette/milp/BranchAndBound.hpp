@@ -72,13 +72,19 @@ struct BBOptions {
     double intFeasTol = 1e-6;
 
     /// Absolute MIP gap tolerance. A node is pruned when its LP bound cannot
-    /// improve the incumbent by more than mipGapAbs:
-    ///   Minimize: prune if lpBound ≥ incumbent − mipGapAbs
-    ///   Maximize: prune if lpBound ≤ incumbent + mipGapAbs
-    /// Propagated to every LP bound comparison against the incumbent so that
-    /// near-optimal nodes are not explored unnecessarily.
-    /// The returned solution may be suboptimal by at most mipGapAbs.
+    /// improve the incumbent by more than max(mipGapAbs, mipGapRel*|incumbent|).
+    ///   Minimize: prune if lpBound ≥ incumbent − gap
+    ///   Maximize: prune if lpBound ≤ incumbent + gap
+    /// Default 1e-6. For an exact proof-logged solver, keep at 1e-6 and set
+    /// mipGapRel = 0.0 (default).
     double mipGapAbs = 1e-6;
+
+    /// Relative MIP gap tolerance. The effective gap used for pruning is
+    ///   gap = max(mipGapAbs, mipGapRel × |incumbent|)
+    /// Default 0.0 — exact solver: only mipGapAbs applies. Set to e.g. 1e-4
+    /// (0.01 %) for large-objective problems where a small absolute error is
+    /// acceptable. Only applied when a finite incumbent exists.
+    double mipGapRel = 0.0;
 
     /// If true, generate Gomory Mixed-Integer (GMI) cuts at each node where
     /// the LP relaxation is fractional and the dual simplex solved optimally.
@@ -90,11 +96,12 @@ struct BBOptions {
     /// Has no effect when enableCuts is false.
     uint32_t maxCutsPerNode = 10;
 
-    /// Maximum total number of GMI cuts added across all nodes. 0 = unlimited.
+    /// Maximum total number of GMI cuts added across all nodes.
     /// When the budget is exhausted, cut generation stops for all subsequent nodes.
     /// Prevents unbounded LP growth: with maxCutsPerNode=10 and a 10 000-node tree,
     /// the model can otherwise accumulate up to 100 000 extra rows.
-    uint32_t maxTotalCuts = 0;
+    /// Default 500. Set to 0 for unlimited (not recommended on large trees).
+    uint32_t maxTotalCuts = 500;
 
     /// LP solver options forwarded to every node's LP solve.
     ///

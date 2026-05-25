@@ -46,7 +46,8 @@ enum class LPMethod {
                     ///< Combines the O(m²) memory footprint of RevisedSimplex with the
                     ///< UB-row elimination of BV methods: m = nOrigRows, no explicit UB
                     ///< rows. Periodic LU reinversion every reinversion_period pivots.
-                    ///< Sensitivity analysis and warm-start not supported.
+                    ///< Sensitivity analysis not supported.
+                    ///< Warm-start via BasisRecord supported (BV dual simplex, v0.6.3+).
     NetworkSimplex, ///< Primal network simplex for min-cost flow LPs.
                     ///< Detects node-arc incidence structure (equality constraints,
                     ///< ±1 coefficients, each variable in exactly 2 rows). If detected,

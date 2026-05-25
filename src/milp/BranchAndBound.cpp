@@ -238,9 +238,15 @@ MILPResult solveMILP(const Model&            modelRef,
     };
 
     // ── Pruning predicate ──────────────────────────────────────────────────────
+    // gap = max(mipGapAbs, mipGapRel × |incumbent|).
+    // The relative term is only applied when both mipGapRel > 0 and the
+    // incumbent is finite (avoids 0 × ∞ = NaN before the first incumbent).
     auto canPrune = [&](double lpBound) -> bool {
-        return minimize ? (lpBound >= incumbent - opts.mipGapAbs)
-                        : (lpBound <= incumbent + opts.mipGapAbs);
+        const double gap = (opts.mipGapRel > 0.0 && std::isfinite(incumbent))
+            ? std::max(opts.mipGapAbs, opts.mipGapRel * std::abs(incumbent))
+            : opts.mipGapAbs;
+        return minimize ? (lpBound >= incumbent - gap)
+                        : (lpBound <= incumbent + gap);
     };
 
     // ── Node queue comparator (BestBound / post-plunge mode) ──────────────────
@@ -567,8 +573,11 @@ MILPResult solveMILP(const Model&            modelRef,
         const double curLb = model.getHot().lb[static_cast<uint32_t>(branchId)];
         const double curUb = model.getHot().ub[static_cast<uint32_t>(branchId)];
 
-        // Left child:  x_j ≤ floor(x_j)
-        if (!canPrune(bound)) {
+        // Left child:  x_j ≤ floor(x_j)  [or xj − 1 for CP branch]
+        // Guard: floorX >= curLb ensures the domain [curLb, floorX] is non-empty.
+        // Always satisfied for LP-fractional branches (xj is interior); needed for
+        // CP branches where xj may equal curLb, making floorX = xj − 1 < curLb.
+        if (!canPrune(bound) && floorX >= curLb) {
             auto chg    = std::make_shared<ChangesNode>();
             chg->parent = node.changesHead;
             chg->change = {static_cast<uint32_t>(branchId), curLb, floorX};
@@ -583,8 +592,9 @@ MILPResult solveMILP(const Model&            modelRef,
             pushNode(std::move(left));
         }
 
-        // Right child: x_j ≥ ceil(x_j)
-        if (!canPrune(bound)) {
+        // Right child: x_j ≥ ceil(x_j)  [or xj + 1 for CP branch]
+        // Guard: ceilX <= curUb ensures the domain [ceilX, curUb] is non-empty.
+        if (!canPrune(bound) && ceilX <= curUb) {
             auto chg    = std::make_shared<ChangesNode>();
             chg->parent = node.changesHead;
             chg->change = {static_cast<uint32_t>(branchId), ceilX, curUb};
