@@ -45,7 +45,7 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 ///                    that the presolve and the B&B tree use the same definition
 ///                    of "integer-feasible".
 ///
-/// @par Complexity O(C × N + P × (C × N + V)) where C = constraint count,
+/// @note Complexity O(C × N + P × (C × N + V)) where C = constraint count,
 ///   N = max variables per constraint, P = outer iterations,
 ///   V = integer variable count.  The leading C × N term is the one-time
 ///   PR1 RHS scan; P × (...) is the iterative LP + rounding loop.

@@ -51,7 +51,7 @@ struct SimplexTableau {
     /// dual extraction.  Set by preparePhaseTwo(); cleared by reinvert() when
     /// reinversion drops the artificial columns (sfOrig.nCols < n).
     /// pivot() updates these columns in addition to the [0, nActive) range.
-    /// @par Complexity O(|artColsForDual|) extra work per pivot.
+    /// @note Complexity O(|artColsForDual|) extra work per pivot.
     std::vector<uint32_t> artColsForDual;
 
     /// Per-solve numerical configuration. Set before init() so that all member

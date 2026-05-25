@@ -3,6 +3,7 @@
 // Each model uses proper integer/binary variable types; the LP solver ignores
 // integrality and solves the continuous relaxation.
 
+#include <algorithm>
 #include <functional>
 #include <limits>
 #include <string>
@@ -15,109 +16,158 @@
 
 namespace baguette_test {
 
-/// LP relaxation of the 10-city TSP (MTZ formulation).
+/// One arc in a sparse distance matrix.
+struct TspArc { int from, to; double dist; };
+
+/// Build an n-city TSP model (MTZ formulation) from a sparse distance matrix.
 ///
 /// Variables
-///   x[i][j] ∈ {0,1} (Binary)   — arc i→j  (90 arc vars)
-///   u[i]    ∈ [1,9] (Integer)  — position in tour, i = 1..9 (9 vars)
+///   x[i][j] ∈ {0,1} (Binary)      — arc i→j  (n*(n-1) arc vars)
+///   u[i]    ∈ [1,n-1] (Integer)   — MTZ position, i = 1..n-1  (n-1 vars)
 ///
 /// Constraints
-///   Degree in/out = 1 for every city           (19 constraints — depot outflow dropped)
-///   MTZ: u[i] − u[j] + n·x[i][j] ≤ n−1        (72 constraints)
+///   Degree out = 1 for every city i > 0   (n-1 constraints; city 0 dropped to
+///   Degree in  = 1 for every city i        avoid rank deficiency)
+///   MTZ: u[i] − u[j] + n·x[i][j] ≤ n−1   for i,j ∈ {1,…,n−1}, i ≠ j
 ///
-/// Costs: 1 for the two cycle-adjacent arcs of each city, n=10 otherwise.
-/// LP optimal = TSP optimal = 10  (the cyclic tour 0→1→…→9→0 is an integer
-/// extreme point of the MTZ LP polytope, so LP and IP coincide here).
-inline baguette::Model makeTSP10() {
+/// Absent arcs receive cost bigM = n × max_dist + 1 so they are never chosen
+/// in an optimal integer tour while keeping the model always feasible.
+///
+/// @param n     Number of cities (0..n-1).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+///
+/// @note Complexity
+///   O(n²) variables, O(n²) constraints (MTZ), O(|arcs|) cost setup.
+inline baguette::Model makeTSP(int n, const std::vector<TspArc>& arcs) {
     using namespace baguette;
-    const int n = 10;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    // Dense cost matrix: absent arcs default to bigM.
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
     Model m;
 
-    // Arc variables x[i][j], i ≠ j: binary, relaxed to [0,1] by the LP solver.
-    Variable xv[10][10] = {};
+    // Arc variables x[i][j], i ≠ j.
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
     for (int i = 0; i < n; ++i)
         for (int j = 0; j < n; ++j)
-            if (i != j) xv[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
 
-    // Position variables u[1]..u[9] in [1, n-1]: integer.
-    // uv[k] corresponds to city k+1.
-    Variable uv[9] = {};
-    for (int k = 0; k < n - 1; ++k)
-        uv[k] = m.addVar(1.0, double(n - 1), VarType::Integer);
+    // MTZ position variables u[1..n-1] ∈ [1, n-1].
+    std::vector<Variable> u(n);
+    for (int i = 1; i < n; ++i)
+        u[i] = m.addVar(1.0, double(n - 1), VarType::Integer);
 
     // Objective: min Σ c[i][j] · x[i][j].
-    // Cost = 1 for cycle-adjacent arcs (j == i±1 mod n), n otherwise.
     LinearExpr obj;
     for (int i = 0; i < n; ++i)
         for (int j = 0; j < n; ++j)
-            if (i != j) {
-                const double c =
-                    (j == (i + 1) % n || j == (i + n - 1) % n) ? 1.0 : double(n);
-                obj += c * xv[i][j];
-            }
+            if (i != j) obj += c[i][j] * x[i][j];
     m.setObjective(obj, ObjSense::Minimize);
 
-    // Degree constraints: exactly one outgoing and one incoming arc per city.
-    // The degree-out constraint for city 0 is dropped: it is implied by the
-    // other 9 degree-out constraints + all 10 degree-in constraints
-    // (Σ outflows = Σ inflows = n), so including it makes the equality
-    // system rank-deficient.
+    // Degree constraints. City 0 degree-out dropped (rank deficiency).
     for (int i = 0; i < n; ++i) {
         LinearExpr out, in;
         for (int j = 0; j < n; ++j)
-            if (j != i) { out += 1.0 * xv[i][j]; in += 1.0 * xv[j][i]; }
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
         if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
         m.addLPConstraint(in, Sense::Equal, 1.0);
     }
 
-    // MTZ subtour elimination: u[i] − u[j] + n·x[i][j] ≤ n−1
-    // for i, j ∈ {1,…,n−1}, i ≠ j.  City 0 is the depot (no u variable).
+    // MTZ subtour elimination: u[i] − u[j] + n·x[i][j] ≤ n−1.
     for (int i = 1; i < n; ++i)
         for (int j = 1; j < n; ++j)
             if (i != j) {
                 LinearExpr mtz;
-                mtz += 1.0 * uv[i - 1];
-                mtz += -1.0 * uv[j - 1];
-                mtz += double(n) * xv[i][j];
+                mtz += 1.0 * u[i];
+                mtz += -1.0 * u[j];
+                mtz += double(n) * x[i][j];
                 m.addLPConstraint(mtz, Sense::LessEq, double(n - 1));
             }
 
     return m;
 }
 
-/// LP relaxation of a 10-item 0/1 knapsack.
+/// Sparse distance matrix for the 10-city cyclic TSP.
 ///
-/// Variables: x[i] ∈ {0,1} (Binary), relaxed to [0,1] by the LP solver.
-/// Constraint: Σ w[i]·x[i] ≤ capacity.
-/// Objective: max Σ p[i]·x[i].
-///
-/// Items sorted by decreasing p/w ratio [5.0, 4.5, 4.0, …, 1.0, 1.0].
-/// capacity=50 → LP optimal = 110 (item 9 taken at fraction ½).
-/// capacity=5, minLoad=6 → infeasible (5 < 6, no x ∈ [0,1]^10 satisfies both).
-inline baguette::Model makeKnapsack10(double capacity = 50.0, double minLoad = 0.0) {
-    using namespace baguette;
-    constexpr double weights[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    constexpr double profits[10] = {5, 9, 12, 14, 15, 15, 14, 12, 9, 10};
+/// Only the 20 cycle-adjacent arcs (i → i±1 mod 10) are listed, each with
+/// cost 1.  Absent arcs receive bigM = 10 × 1 + 1 = 11 inside makeTSP().
+/// LP optimal = TSP optimal = 10  (the cyclic tour 0→1→…→9→0 is an integer
+/// extreme point of the MTZ LP polytope, so LP and IP coincide here).
+inline std::vector<TspArc> makeTSPArcs(int n) {
+    std::vector<TspArc> arcs;
+    arcs.reserve(2 * n);
+    for (int i = 0; i < n; ++i) {
+        arcs.push_back({i, (i + 1) % n, 1.0});
+        arcs.push_back({i, (i + n - 1) % n, 1.0});
+    }
+    return arcs;
+}
 
+inline baguette::Model makeTSP10() {
+    return makeTSP(10, makeTSPArcs(10));
+}
+
+/// One item in a 0/1 knapsack instance.
+struct KnapsackItem { double weight, profit; };
+
+/// Build a 0/1 knapsack model from a list of items.
+///
+/// Variables:  x[i] ∈ {0,1} (Binary)
+/// Constraint: Σ w[i]·x[i] ≤ capacity   (and ≥ minLoad when minLoad > 0)
+/// Objective:  max Σ p[i]·x[i]
+///
+/// @par Complexity
+///   O(|items|) variables and constraints.
+inline baguette::Model makeKnapsack(const std::vector<KnapsackItem>& items,
+                                    double capacity, double minLoad = 0.0) {
+    using namespace baguette;
     Model m;
-    Variable x[10];
-    for (int i = 0; i < 10; ++i)
-        x[i] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    std::vector<Variable> x;
+    x.reserve(items.size());
+    for (std::size_t i = 0; i < items.size(); ++i)
+        x.push_back(m.addVar(0.0, 1.0, VarType::Binary));
 
     LinearExpr cap;
-    for (int i = 0; i < 10; ++i) cap += weights[i] * x[i];
+    for (std::size_t i = 0; i < items.size(); ++i) cap += items[i].weight * x[i];
     m.addLPConstraint(cap, Sense::LessEq, capacity);
     if (minLoad > 0.0)
         m.addLPConstraint(cap, Sense::GreaterEq, minLoad);
 
     LinearExpr obj;
-    for (int i = 0; i < 10; ++i) obj += profits[i] * x[i];
+    for (std::size_t i = 0; i < items.size(); ++i) obj += items[i].profit * x[i];
     m.setObjective(obj, ObjSense::Maximize);
 
     return m;
 }
 
-/// LP relaxation of a 10-job 2-machine job shop (flow shop: M0 → M1 for all jobs).
+/// Items for the 10-item knapsack instance.
+///
+/// Sorted by decreasing p/w ratio [5.0, 4.5, 4.0, …, 1.0, 1.0].
+/// capacity=50 → LP optimal = 110 (item 9 taken at fraction ½).
+/// capacity=5, minLoad=6 → infeasible (5 < 6, no x ∈ [0,1]^10 satisfies both).
+inline std::vector<KnapsackItem> makeKnapsack10Items() {
+    return {
+        {1, 5}, {2, 9}, {3, 12}, {4, 14}, {5, 15},
+        {6,15}, {7,14}, {8, 12}, {9,  9}, {10,10},
+    };
+}
+
+inline baguette::Model makeKnapsack10(double capacity = 50.0, double minLoad = 0.0) {
+    return makeKnapsack(makeKnapsack10Items(), capacity, minLoad);
+}
+
+/// One job in a 2-machine flow shop: processing times on machine 0 then machine 1.
+struct JobShopJob { double p0, p1; };
+
+/// Build a 2-machine flow shop model (M0 → M1 for all jobs).
 ///
 /// Variables:
 ///   S[j][m] ∈ [0, M]     — start time of job j on machine m (continuous)
@@ -130,73 +180,87 @@ inline baguette::Model makeKnapsack10(double capacity = 50.0, double minLoad = 0
 ///   Disj. (B):   S[j][m] − S[k][m] + M·y[j][k][m]       ≥ p[k][m]       ∀ j<k, m
 ///   Makespan:    C_max   − S[j][1]                        ≥ p[j][1]       ∀ j
 ///
-/// Processing times chosen so p[j][0]+p[j][1]=5 for every job.
-/// cmaxUb=40 → LP optimal = 5 (y=½ makes big-M constraints trivially slack).
-/// cmaxUb=4  → infeasible (C_max ≥ 5 from precedence contradicts C_max ≤ 4).
-inline baguette::Model makeJobShop10(double cmaxUb = 40.0) {
+/// Big-M is computed as Σ(p[j][0] + p[j][1]) — the tightest valid upper bound.
+///
+/// @par Complexity
+///   O(n) start-time vars, O(n²) sequencing vars and disjunctive constraints.
+inline baguette::Model makeJobShop(const std::vector<JobShopJob>& jobs, double cmaxUb) {
     using namespace baguette;
-    constexpr int     nJobs      = 10;
-    constexpr double  p[nJobs][2] = {
-        {3,2},{2,3},{4,1},{1,4},{3,2},{2,3},{4,1},{1,4},{3,2},{2,3}
-    };
-    // M = Σ p[j][0] + Σ p[j][1] = 40: conservative big-M.
-    constexpr double M = 40.0;
+    const int n = static_cast<int>(jobs.size());
+
+    double bigM = 0.0;
+    for (const auto& j : jobs) bigM += j.p0 + j.p1;
 
     Model m;
 
-    // Start-time variables S[j][m] ∈ [0, M].
-    Variable S[nJobs][2];
-    for (int j = 0; j < nJobs; ++j)
+    // Start-time variables S[j][m] ∈ [0, bigM].
+    std::vector<std::array<Variable, 2>> S(n);
+    for (int j = 0; j < n; ++j)
         for (int mm = 0; mm < 2; ++mm)
-            S[j][mm] = m.addVar(0.0, M);
+            S[j][mm] = m.addVar(0.0, bigM);
 
-    // Sequencing variables y[j][k][m] ∈ {0,1}, for j < k only.
-    Variable y[nJobs][nJobs][2] = {};
-    for (int j = 0; j < nJobs; ++j)
-        for (int k = j + 1; k < nJobs; ++k)
+    // Sequencing variables y[j][k][m] ∈ {0,1}, j < k.
+    std::vector<std::vector<std::array<Variable, 2>>> y(
+        n, std::vector<std::array<Variable, 2>>(n));
+    for (int j = 0; j < n; ++j)
+        for (int k = j + 1; k < n; ++k)
             for (int mm = 0; mm < 2; ++mm)
                 y[j][k][mm] = m.addVar(0.0, 1.0, VarType::Binary);
 
-    // Makespan variable — upper bound is the parameter (40 = feasible, 4 = infeasible).
     Variable Cmax = m.addVar(0.0, cmaxUb);
 
     // Precedence: S[j][1] - S[j][0] >= p[j][0].
-    for (int j = 0; j < nJobs; ++j) {
+    for (int j = 0; j < n; ++j) {
         LinearExpr e;
         e += 1.0 * S[j][1];
         e += -1.0 * S[j][0];
-        m.addLPConstraint(e, Sense::GreaterEq, p[j][0]);
+        m.addLPConstraint(e, Sense::GreaterEq, jobs[j].p0);
     }
 
-    // Disjunctive: no two jobs overlap on the same machine.
-    for (int j = 0; j < nJobs; ++j)
-        for (int k = j + 1; k < nJobs; ++k)
+    // Disjunctive constraints.
+    for (int j = 0; j < n; ++j)
+        for (int k = j + 1; k < n; ++k)
             for (int mm = 0; mm < 2; ++mm) {
-                // (A) j before k: S[k][m] - S[j][m] - M*y >= p[j][m] - M
+                const double pj = mm == 0 ? jobs[j].p0 : jobs[j].p1;
+                const double pk = mm == 0 ? jobs[k].p0 : jobs[k].p1;
+                // (A) j before k
                 LinearExpr a;
                 a += 1.0 * S[k][mm];
                 a += -1.0 * S[j][mm];
-                a += -M * y[j][k][mm];
-                m.addLPConstraint(a, Sense::GreaterEq, p[j][mm] - M);
-
-                // (B) k before j: S[j][m] - S[k][m] + M*y >= p[k][m]
+                a += -bigM * y[j][k][mm];
+                m.addLPConstraint(a, Sense::GreaterEq, pj - bigM);
+                // (B) k before j
                 LinearExpr b;
                 b += 1.0 * S[j][mm];
                 b += -1.0 * S[k][mm];
-                b += M * y[j][k][mm];
-                m.addLPConstraint(b, Sense::GreaterEq, p[k][mm]);
+                b += bigM * y[j][k][mm];
+                m.addLPConstraint(b, Sense::GreaterEq, pk);
             }
 
     // Makespan: C_max - S[j][1] >= p[j][1].
-    for (int j = 0; j < nJobs; ++j) {
+    for (int j = 0; j < n; ++j) {
         LinearExpr e;
         e += 1.0 * Cmax;
         e += -1.0 * S[j][1];
-        m.addLPConstraint(e, Sense::GreaterEq, p[j][1]);
+        m.addLPConstraint(e, Sense::GreaterEq, jobs[j].p1);
     }
 
     m.setObjective(1.0 * Cmax, ObjSense::Minimize);
     return m;
+}
+
+/// Jobs for the 10-job flow shop instance (p[j][0]+p[j][1]=5 for every job).
+///
+/// cmaxUb=40 → LP optimal = 5 (y=½ makes big-M constraints trivially slack).
+/// cmaxUb=4  → infeasible (C_max ≥ 5 from precedence contradicts C_max ≤ 4).
+inline std::vector<JobShopJob> makeJobShop10Jobs() {
+    return {
+        {3,2},{2,3},{4,1},{1,4},{3,2},{2,3},{4,1},{1,4},{3,2},{2,3}
+    };
+}
+
+inline baguette::Model makeJobShop10(double cmaxUb = 40.0) {
+    return makeJobShop(makeJobShop10Jobs(), cmaxUb);
 }
 
 } // namespace baguette_test

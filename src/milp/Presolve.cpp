@@ -68,7 +68,7 @@ MILPPresolveResult presolveMILPInPlace(
     // For ∑ aᵢ xᵢ ≤ b where all xᵢ are Integer/Binary and all aᵢ are integer-
     // valued, the LHS is always integer at any feasible point, so ⌊b⌋ is a
     // valid tighter RHS (analogously ⌈b⌉ for ≥).  Reported in res.rhsRounded.
-    // @par Complexity O(C × N) over all constraints × variables per constraint.
+    // @note Complexity O(C × N) over all constraints × variables per constraint.
     [&]() {
         const auto& types = model.getCold().types;
         const auto& cons  = model.getLPConstraints();
