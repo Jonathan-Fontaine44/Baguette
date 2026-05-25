@@ -2,9 +2,12 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <limits>
+#include <vector>
 
 #include "baguette/lp/LPSolver.hpp"
+#include "baguette/milp/CuttingPlanes.hpp"
 #include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
 
@@ -40,6 +43,28 @@ enum class NodeSelection {
     /// Combines fast incumbent finding (DFS) with tight bound convergence (BestBound).
     HybridPlunge,
 };
+
+/// User-supplied cut generator callback.
+///
+/// Called at each B&B node where the LP relaxation is Optimal, after the
+/// built-in GMI generator (if enabled).  The callback receives the full LP
+/// result and a read-only view of the current node model (with tightened
+/// variable bounds applied).
+///
+/// Return zero or more cuts to add permanently to the model.  Each cut may
+/// use any Sense (GreaterEq, LessEq, Equal).  Returning an empty vector is
+/// valid and incurs no overhead beyond the call itself.
+///
+/// @note The model passed to the callback reflects current node bounds
+///   (set via restoreBounds before the LP solve) but not necessarily the
+///   root bounds — variable lb/ub have been tightened by branching.
+/// @note Cuts are added to the global model copy shared across all nodes.
+///   They are globally valid (must hold for every feasible integer point)
+///   and remain in the model for all subsequent nodes.
+/// @note The callback is not called when the LP is Infeasible, Unbounded,
+///   or has hit a limit — only on Optimal results.
+using CutGenerator =
+    std::function<std::vector<Cut>(const LPDetailedResult&, const Model&)>;
 
 /// Options for solveMILP().
 struct BBOptions {
@@ -110,6 +135,23 @@ struct BBOptions {
     /// the bound for the entire B&B tree.
     /// Has no effect when enableCuts is false.
     uint32_t maxRootCuts = 0;
+
+    /// User-supplied cut generators, called at each node after GMI (if enabled).
+    /// Each generator receives the current LP result and model; it returns a
+    /// (possibly empty) list of globally-valid cuts to add permanently.
+    ///
+    /// Cuts from all generators are collected, capped against maxTotalCuts
+    /// (shared with GMI), added to the model, and trigger one cold LP re-solve
+    /// (same as GMI).  Generators are called in order; all generators that fit
+    /// within the remaining budget are invoked before the re-solve.
+    ///
+    /// The LP is solved with computeCutData = true whenever at least one
+    /// generator is registered, so generators can inspect fractionalRows.
+    ///
+    /// @note Cuts must be globally valid (hold for every feasible integer point),
+    ///   not just for the current node.  Adding locally-valid cuts corrupts the
+    ///   search and produces incorrect results.
+    std::vector<CutGenerator> cutGenerators;
 
     /// LP method used at the root node.
     /// Auto (default): falls back to lpOpts.method.

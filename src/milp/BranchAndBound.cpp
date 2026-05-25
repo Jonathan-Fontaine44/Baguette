@@ -432,7 +432,7 @@ MILPResult solveMILP(const Model&            modelRef,
         lpOpts.timeLimitS          = opts.timeLimitS;
         lpOpts.startTime           = startTime;
         lpOpts.warmBasis           = node.basis;
-        lpOpts.computeCutData      = opts.enableCuts;
+        lpOpts.computeCutData      = opts.enableCuts || !opts.cutGenerators.empty();
         lpOpts.enablePresolve      = false; // root presolve was already applied
         LPDetailedResult lp = solveLPDetailed(model, lpOpts);
 
@@ -490,7 +490,7 @@ MILPResult solveMILP(const Model&            modelRef,
 
             if (!cuts.empty()) {
                 for (const Cut& c : cuts)
-                    model.addLPConstraint(c.expr, Sense::GreaterEq, c.rhs);
+                    model.addLPConstraint(c.expr, c.sense, c.rhs);
                 cutsAdded += static_cast<uint32_t>(cuts.size());
 
                 if (opts.collectStats) {
@@ -534,6 +534,64 @@ MILPResult solveMILP(const Model&            modelRef,
                 if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                     if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
                     continue;
+                }
+            }
+        }
+
+        // ── User cut generators ────────────────────────────────────────────────
+        // Called after GMI (if any) on Optimal LPs, independent of enableCuts.
+        // All generators are queried first; their cuts are added in one batch
+        // and trigger a single cold LP re-solve.
+        if (!opts.cutGenerators.empty() && lp.result.status == LPStatus::Optimal) {
+            const bool budgetOk = opts.maxTotalCuts == 0 || cutsAdded < opts.maxTotalCuts;
+            if (budgetOk) {
+                std::vector<Cut> userCuts;
+                for (const auto& gen : opts.cutGenerators) {
+                    auto batch = gen(lp, model);
+                    for (auto& c : batch)
+                        userCuts.push_back(std::move(c));
+                }
+                // Cap against remaining global cut budget.
+                if (opts.maxTotalCuts > 0) {
+                    const uint32_t remaining = opts.maxTotalCuts - cutsAdded;
+                    if (userCuts.size() > remaining)
+                        userCuts.resize(remaining);
+                }
+                if (!userCuts.empty()) {
+                    for (const Cut& c : userCuts)
+                        model.addLPConstraint(c.expr, c.sense, c.rhs);
+                    cutsAdded += static_cast<uint32_t>(userCuts.size());
+
+                    if (opts.collectStats) {
+                        ++stats_acc.nodesWithCuts;
+                        const auto d = static_cast<uint32_t>(node.depth);
+                        if (d >= stats_acc.cutsPerDepth.size())
+                            stats_acc.cutsPerDepth.resize(d + 1, 0);
+                        stats_acc.cutsPerDepth[d] += static_cast<uint32_t>(userCuts.size());
+                    }
+
+                    if (opts.collectStats) ++stats_acc.lpSolvesTotal;
+                    LPOptions lpOptsCold      = opts.lpOpts;
+                    lpOptsCold.method         = (node.depth == 0) ? effRoot : effNode;
+                    lpOptsCold.timeLimitS     = opts.timeLimitS;
+                    lpOptsCold.startTime      = startTime;
+                    lpOptsCold.enablePresolve = false;
+                    lp = solveLPDetailed(model, lpOptsCold);
+
+                    switch (lp.result.status) {
+                        case LPStatus::Infeasible:
+                            if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                            continue;
+                        case LPStatus::Unbounded:        unboundedHit = true; goto done;
+                        case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
+                        case LPStatus::NumericalFailure: continue;
+                        case LPStatus::MaxIter:          continue;
+                        case LPStatus::Optimal:          break;
+                    }
+                    if (canPrune(effectiveBound(lp.result.objectiveValue))) {
+                        if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+                        continue;
+                    }
                 }
             }
         }

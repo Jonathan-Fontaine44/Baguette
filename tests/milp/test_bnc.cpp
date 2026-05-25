@@ -485,6 +485,78 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
     }
 }
 
+// ── User CutGenerator: gap closed at root without GMI ───────────────────────
+//
+// min x + y   s.t. 2x + 2y ≥ 7,  x, y ∈ Z[0,5].
+// LP: x+y = 3.5.  IP: x+y = 4.
+//
+// The user generator injects x+y ≥ 4 the first time it sees a fractional LP.
+// This closes the LP-IP gap at the root → Optimal in 1 node, cutsAdded = 1.
+// GMI is disabled so the generator is solely responsible for the cut.
+
+TEST_CASE("BnC: user CutGenerator closes gap at root (no GMI)", "[bnc][cuts][callback]") {
+    Model m;
+    Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
+    m.addLPConstraint(2.0 * x + 2.0 * y, Sense::GreaterEq, 7.0);
+    m.setObjective(1.0 * x + 1.0 * y, ObjSense::Minimize);
+
+    bool fired = false;
+    CutGenerator gen = [&](const LPDetailedResult& lp, const Model&) -> std::vector<Cut> {
+        const double sum = lp.result.primalValues[x.id] + lp.result.primalValues[y.id];
+        if (fired || sum > 4.0 - kTol) return {};
+        fired = true;
+        Cut c;
+        c.expr  = 1.0 * x + 1.0 * y;
+        c.sense = Sense::GreaterEq;
+        c.rhs   = 4.0;
+        return {c};
+    };
+
+    BBOptions opts;
+    opts.enableCuts     = false;   // GMI disabled — only user generator
+    opts.collectStats   = true;
+    opts.cutGenerators  = {gen};
+    opts.enablePresolve = false;
+    opts.timeLimitS     = 5.0;
+
+    MILPResult r = solveMILP(m, opts);
+
+    REQUIRE(r.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r.objectiveValue, WithinAbs(4.0, kTol));
+    REQUIRE(r.stats->nodesExplored == 1);  // gap closed at root, no branching
+    REQUIRE(r.stats->cutsAdded == 1);
+}
+
+// ── User CutGenerator: empty generator has no effect ────────────────────────
+//
+// A generator that always returns {} must leave the B&B result unchanged.
+
+TEST_CASE("BnC: empty user CutGenerator has no effect", "[bnc][cuts][callback]") {
+    Model m;
+    Variable x = m.addVar(0.0, 5.0, VarType::Integer, "x");
+    Variable y = m.addVar(0.0, 5.0, VarType::Integer, "y");
+    m.addLPConstraint(3.0 * x + 2.0 * y, Sense::LessEq, 7.0);
+    m.setObjective(5.0 * x + 4.0 * y, ObjSense::Maximize);
+
+    BBOptions base;
+    base.enableCuts     = false;
+    base.enablePresolve = false;
+    base.timeLimitS     = 5.0;
+
+    BBOptions withEmptyGen = base;
+    withEmptyGen.cutGenerators = {
+        [](const LPDetailedResult&, const Model&) { return std::vector<Cut>{}; }
+    };
+
+    MILPResult r1 = solveMILP(m, base);
+    MILPResult r2 = solveMILP(m, withEmptyGen);
+
+    REQUIRE(r1.status == MILPStatus::Optimal);
+    REQUIRE(r2.status == MILPStatus::Optimal);
+    REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
+}
+
 // ── D4: maxTotalCuts caps total GMI cuts across all nodes ────────────────────
 //
 // min x + y,  2x + 2y >= 7,  x,y ∈ Z[0,5].
