@@ -294,28 +294,30 @@ MILPResult solveMILP(const Model&            modelRef,
 
     // ── Root bounds cache + dirty-variable tracking ────────────────────────────
     // Root bounds are the model's initial bounds (before any branching).
-    // dirtyVars tracks which variables currently differ from rootLb/rootUb so
-    // that restoreBounds only touches O(prev_depth + curr_depth) variables
-    // instead of O(n) for every node.
+    // dirtyVars lists variables that currently differ from rootLb/rootUb.
+    // isDirty[id] is the O(1) membership guard that prevents duplicates without
+    // sorting: restoreBounds is O(d) and CP merge is O(|changed|).
     const std::vector<double> rootLb = model.getHot().lb;
     const std::vector<double> rootUb = model.getHot().ub;
-    std::vector<uint32_t>     dirtyVars; // varIds that currently differ from root bounds
+    std::vector<uint32_t>     dirtyVars;
+    std::vector<bool>         isDirty(model.numTotalVars(), false);
 
     // ── Restore model bounds from a node's accumulated delta trail ─────────────
     auto restoreBounds = [&](const Node& node) {
-        for (uint32_t id : dirtyVars)
+        for (uint32_t id : dirtyVars) {
             model.setVarBounds(Variable{id}, rootLb[id], rootUb[id]);
+            isDirty[id] = false;
+        }
         dirtyVars.clear();
         // Collect path leaf→root, apply root→leaf so the deepest change wins.
         std::vector<const BoundChange*> path;
         for (const ChangesNode* p = node.changesHead.get(); p; p = p->parent.get())
             path.push_back(&p->change);
         for (auto it = path.rbegin(); it != path.rend(); ++it) {
-            model.setVarBounds(Variable{(*it)->varId}, (*it)->newLb, (*it)->newUb);
-            dirtyVars.push_back((*it)->varId);
+            const uint32_t id = (*it)->varId;
+            model.setVarBounds(Variable{id}, (*it)->newLb, (*it)->newUb);
+            if (!isDirty[id]) { isDirty[id] = true; dirtyVars.push_back(id); }
         }
-        std::sort(dirtyVars.begin(), dirtyVars.end());
-        dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()), dirtyVars.end());
     };
 
     // ── Root node ──────────────────────────────────────────────────────────────
@@ -368,19 +370,10 @@ MILPResult solveMILP(const Model&            modelRef,
                 PropagationResult pr = propagateCP(cp, model);
                 anyChanged = !pr.changedVarIds.empty() && opts.cpPropagateToFixpoint;
 
-                // Merge CP-tightened vars into dirtyVars so the next restoreBounds()
-                // resets them. pr.changedVarIds is already sorted; dirtyVars is sorted
-                // after restoreBounds, so an inplace_merge avoids a full re-sort.
-                if (!pr.changedVarIds.empty()) {
-                    const std::size_t oldSize = dirtyVars.size();
-                    dirtyVars.insert(dirtyVars.end(),
-                                     pr.changedVarIds.begin(), pr.changedVarIds.end());
-                    std::inplace_merge(dirtyVars.begin(),
-                                       dirtyVars.begin() + static_cast<std::ptrdiff_t>(oldSize),
-                                       dirtyVars.end());
-                    dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
-                                    dirtyVars.end());
-                }
+                // Add CP-tightened vars to dirtyVars so restoreBounds() resets them.
+                // isDirty guards against duplicates in O(1) per var — no sort needed.
+                for (uint32_t id : pr.changedVarIds)
+                    if (!isDirty[id]) { isDirty[id] = true; dirtyVars.push_back(id); }
                 if (pr.status == CPStatus::Infeasible) {
                     cpInfeasible = true;
                     break;
