@@ -79,6 +79,7 @@ add_executable(BaguetteTests
     tests/milp/test_milp_classic.cpp
     tests/milp/test_presolve_milp.cpp
     tests/cp/test_cp.cpp
+    tests/cp/test_sudoku.cpp
     tests/cp/constraints/test_allDiff.cpp
     tests/cp/constraints/test_cumulative.cpp
 )

@@ -139,6 +139,19 @@ struct BBOptions {
     /// postsolveElim() restores the full solution after B&B terminates.
     /// Default true.
     bool enableElimination = true;
+
+    /// If true, iterate CP propagation at each B&B node until no further bounds
+    /// change (fixpoint). If false (default), a single propagation pass is done.
+    ///
+    /// Fixpoint iteration cascades bound changes across constraints: tightening one
+    /// variable re-triggers all constraints sharing that variable, potentially fixing
+    /// more cells without branching. This is critical for pure-CP models (e.g.,
+    /// Sudoku with AllDiff only) where a single pass propagates too little.
+    ///
+    /// Cost: O(C × K) per fixpoint iteration, where C = number of CP constraints
+    /// and K = constraint size. The loop terminates in at most O(V) iterations
+    /// (each iteration must fix at least one variable bound to continue).
+    bool cpPropagateToFixpoint = true;
 };
 
 /// Shared clock type (same as LPSolver).

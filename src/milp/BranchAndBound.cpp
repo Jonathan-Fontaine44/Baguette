@@ -33,12 +33,22 @@ struct BoundChange {
 // Children share the parent's prefix; only their own BoundChange is appended.
 // O(1) child creation; O(depth) pointer traversal in restoreBounds (no copy).
 struct ChangesNode {
-    std::shared_ptr<const ChangesNode> parent;
+    std::shared_ptr<ChangesNode> parent;
     BoundChange change;
+
+    ~ChangesNode() {
+        // Iterative cleanup prevents stack overflow on deep B&B trees where the
+        // recursive default destructor would overflow the call stack.
+        auto p = std::move(parent);
+        while (p && p.use_count() == 1) {
+            auto next = std::move(p->parent);
+            p = std::move(next);
+        }
+    }
 };
 
 struct Node {
-    std::shared_ptr<const ChangesNode> changesHead; // nullptr = root (no changes)
+    std::shared_ptr<ChangesNode> changesHead; // nullptr = root (no changes)
     BasisRecord                        basis;
     double                             lpBound;
     int                                depth;
@@ -352,21 +362,31 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── CP propagation (before LP: tighten bounds, prune without LP solve) ──
         if (!cp.empty()) {
-            PropagationResult pr = propagateCP(cp, model);
-            // Merge CP-tightened vars into dirtyVars so the next restoreBounds()
-            // resets them. pr.changedVarIds is already sorted; dirtyVars is sorted
-            // after restoreBounds, so an inplace_merge avoids a full re-sort.
-            if (!pr.changedVarIds.empty()) {
-                const std::size_t oldSize = dirtyVars.size();
-                dirtyVars.insert(dirtyVars.end(),
-                                 pr.changedVarIds.begin(), pr.changedVarIds.end());
-                std::inplace_merge(dirtyVars.begin(),
-                                   dirtyVars.begin() + static_cast<std::ptrdiff_t>(oldSize),
-                                   dirtyVars.end());
-                dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
-                                dirtyVars.end());
+            bool cpInfeasible = false;
+            bool anyChanged   = true;
+            while (anyChanged) {
+                PropagationResult pr = propagateCP(cp, model);
+                anyChanged = !pr.changedVarIds.empty() && opts.cpPropagateToFixpoint;
+
+                // Merge CP-tightened vars into dirtyVars so the next restoreBounds()
+                // resets them. pr.changedVarIds is already sorted; dirtyVars is sorted
+                // after restoreBounds, so an inplace_merge avoids a full re-sort.
+                if (!pr.changedVarIds.empty()) {
+                    const std::size_t oldSize = dirtyVars.size();
+                    dirtyVars.insert(dirtyVars.end(),
+                                     pr.changedVarIds.begin(), pr.changedVarIds.end());
+                    std::inplace_merge(dirtyVars.begin(),
+                                       dirtyVars.begin() + static_cast<std::ptrdiff_t>(oldSize),
+                                       dirtyVars.end());
+                    dirtyVars.erase(std::unique(dirtyVars.begin(), dirtyVars.end()),
+                                    dirtyVars.end());
+                }
+                if (pr.status == CPStatus::Infeasible) {
+                    cpInfeasible = true;
+                    break;
+                }
             }
-            if (pr.status == CPStatus::Infeasible) {
+            if (cpInfeasible) {
                 if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
                 continue; // node pruned by CP — no LP solve needed
             }
@@ -540,7 +560,20 @@ MILPResult solveMILP(const Model&            modelRef,
         if (branchId == -1 && !cp.empty()) {
             const uint32_t vid = cpViolatedVar(cp, fullSol, opts.intFeasTol);
             if (vid != std::numeric_limits<uint32_t>::max()) {
-                branchId = static_cast<int>(vid);
+                // First-fail: among all unfixed integer variables, branch on the one
+                // with the smallest remaining domain (ub − lb). This is the standard
+                // MRV heuristic for pure CP problems: tight domains prune faster.
+                const auto& hot     = model.getHot();
+                int         bestVar = static_cast<int>(vid);
+                double      bestSz  = hot.ub[vid] - hot.lb[vid];
+                for (uint32_t id : intIds) {
+                    double sz = hot.ub[id] - hot.lb[id];
+                    if (sz > opts.intFeasTol && sz < bestSz) {
+                        bestSz  = sz;
+                        bestVar = static_cast<int>(id);
+                    }
+                }
+                branchId = bestVar;
                 cpBranch = true; // branch to exclude the conflicting integer value
             }
         }
@@ -562,21 +595,25 @@ MILPResult solveMILP(const Model&            modelRef,
 
         // ── Branch ────────────────────────────────────────────────────────────
         const double xj = fullSol[static_cast<uint32_t>(branchId)];
-        // LP-fractional branch: split at floor/ceil of the fractional value.
-        // CP-violated branch: xj is integer — exclude it by branching at xj±1.
-        const double floorX = cpBranch ? (xj - 1.0) : std::floor(xj);
-        const double ceilX  = cpBranch ? (xj + 1.0) : std::ceil(xj);
-        const double fracXj = cpBranch ? 0.5 : (xj - std::floor(xj));
-        const double bound  = effectiveBound(lp.result.objectiveValue);
 
         // Read the variable's current bounds from the model (already restored for this node).
         const double curLb = model.getHot().lb[static_cast<uint32_t>(branchId)];
         const double curUb = model.getHot().ub[static_cast<uint32_t>(branchId)];
 
-        // Left child:  x_j ≤ floor(x_j)  [or xj − 1 for CP branch]
+        // LP-fractional branch: split at floor/ceil of the LP value.
+        // CP-violated branch: xj is integer but CP-infeasible. Use domain bisection
+        // (mid = floor((lb+ub)/2)) instead of value-exclusion (xj±1): value-exclusion
+        // degenerates when the LP is trivial (no constraints, xj==curLb always), because
+        // floorX = xj-1 < curLb makes the left child always empty, collapsing the tree
+        // into a linear chain that terminates as Infeasible without exploring the domain.
+        const double mid    = std::floor((curLb + curUb) / 2.0);
+        const double floorX = cpBranch ? mid         : std::floor(xj);
+        const double ceilX  = cpBranch ? (mid + 1.0) : std::ceil(xj);
+        const double fracXj = cpBranch ? 0.5 : (xj - std::floor(xj));
+        const double bound  = effectiveBound(lp.result.objectiveValue);
+
+        // Left child:  x_j ≤ floor(x_j)  [or domain lower half for CP branch]
         // Guard: floorX >= curLb ensures the domain [curLb, floorX] is non-empty.
-        // Always satisfied for LP-fractional branches (xj is interior); needed for
-        // CP branches where xj may equal curLb, making floorX = xj − 1 < curLb.
         if (!canPrune(bound) && floorX >= curLb) {
             auto chg    = std::make_shared<ChangesNode>();
             chg->parent = node.changesHead;
@@ -592,7 +629,7 @@ MILPResult solveMILP(const Model&            modelRef,
             pushNode(std::move(left));
         }
 
-        // Right child: x_j ≥ ceil(x_j)  [or xj + 1 for CP branch]
+        // Right child: x_j ≥ ceil(x_j)  [or domain upper half for CP branch]
         // Guard: ceilX <= curUb ensures the domain [ceilX, curUb] is non-empty.
         if (!canPrune(bound) && ceilX <= curUb) {
             auto chg    = std::make_shared<ChangesNode>();
