@@ -27,3 +27,9 @@ target_link_libraries(BaguetteBench PRIVATE
 target_include_directories(BaguetteBench PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests
 )
+
+add_executable(BaguetteTSPBench bench_tsp_formulations.cpp)
+target_link_libraries(BaguetteTSPBench PRIVATE Baguette)
+target_include_directories(BaguetteTSPBench PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests
+)

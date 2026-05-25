@@ -282,6 +282,267 @@ inline baguette::Model makeTSP10Mtz() {
     return makeTSPMtz(10, makeTSPArcs(10));
 }
 
+// ── Lifted MTZ (Desrochers-Laporte, 1991) ─────────────────────────────────────
+
+/// Build an n-city TSP model (Lifted MTZ / Desrochers-Laporte formulation).
+///
+/// Same variables as makeTSP() (arc binaries + integer position vars u[1..n-1]).
+/// Subtour elimination is replaced by the DL strengthened constraint:
+///
+///   u[i] − u[j] + (n−1)·x[i][j] + (n−3)·x[j][i] ≤ n−2   ∀ i,j ∈ {1..n-1}, i≠j
+///
+/// This is derived by exploiting that x[i][j]=1 forces u[j]=u[i]+1 (immediate
+/// successor), so the coefficient of x[j][i] can be tightened from 0 to n-3
+/// compared to the pair of standard MTZ constraints.
+///
+/// LP bound: MTZ < LMTZ < SCF = DFJ.
+/// LP optimal = 10 on the 10-city cyclic instance (same as MTZ and SCF).
+///
+/// @param n     Number of cities (0..n-1).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+///
+/// @note Complexity O(n²) variables and constraints — identical to MTZ.
+inline baguette::Model makeTSPLifted(int n, const std::vector<TspArc>& arcs) {
+    using namespace baguette;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
+    Model m;
+
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    std::vector<Variable> u(n);
+    for (int i = 1; i < n; ++i)
+        u[i] = m.addVar(1.0, double(n - 1), VarType::Integer);
+
+    LinearExpr obj;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) obj += c[i][j] * x[i][j];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    for (int i = 0; i < n; ++i) {
+        LinearExpr out, in;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
+        if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
+        m.addLPConstraint(in, Sense::Equal, 1.0);
+    }
+
+    // DL subtour elimination: u[i]−u[j]+(n−1)·x[i][j]+(n−3)·x[j][i] ≤ n−2.
+    // For n=3 the (n-3)=0 term vanishes and DL coincides with MTZ.
+    for (int i = 1; i < n; ++i)
+        for (int j = 1; j < n; ++j)
+            if (i != j) {
+                LinearExpr e;
+                e += 1.0 * u[i];
+                e += -1.0 * u[j];
+                e += double(n - 1) * x[i][j];
+                if (n >= 4) e += double(n - 3) * x[j][i];
+                m.addLPConstraint(e, Sense::LessEq, double(n - 2));
+            }
+
+    return m;
+}
+
+inline baguette::Model makeTSP10Lifted() {
+    return makeTSPLifted(10, makeTSPArcs(10));
+}
+
+// ── Multi-Commodity Flow (MCF) ─────────────────────────────────────────────────
+
+/// Build an n-city TSP model (Multi-Commodity Flow formulation).
+///
+/// For each destination city k ∈ {1..n-1}, city 0 routes one unit of
+/// commodity k through the tour network to city k.
+///
+/// Variables
+///   x[i][j]  ∈ {0,1} (Binary)     — arc i→j   (n*(n-1) arc vars)
+///   h[k][i][j] ∈ [0,1] (Continuous) — flow of commodity k on arc i→j
+///                                      (n*(n-1)*(n-1) flow vars)
+///
+/// Constraints
+///   Degree out = 1, degree in = 1  (same as MTZ, city-0 out dropped)
+///   Capacity:     h[k][i][j] ≤ x[i][j]                       ∀ k, (i,j)
+///   Conservation: Σⱼ h[k][i][j] − Σⱼ h[k][j][i] = b[k][i]  ∀ k, i≠0
+///     where b[k][i] = −1 if i=k (sink), 0 otherwise (transit)
+///     (source city 0 balance is implied by the remaining n-1 equations)
+///
+/// LP bound = DFJ bound (strictly tighter than SCF for general instances).
+/// LP optimal = 10 on the 10-city cyclic instance.
+///
+/// @param n     Number of cities (0..n-1).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+///
+/// @note Complexity O(n³) flow variables and O(n³) capacity constraints.
+///   Practical for n ≤ ~15; the cyclic 10-city instance has 810 flow vars.
+inline baguette::Model makeTSPMCF(int n, const std::vector<TspArc>& arcs) {
+    using namespace baguette;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
+    Model m;
+
+    // Arc variables x[i][j], i ≠ j.
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    // Flow variables h[k][i][j] ∈ [0,1] for commodity k=1..n-1, arc (i,j), i≠j.
+    // Indexed as h[k-1][i][j] (k shifted to 0-based).
+    std::vector<std::vector<std::vector<Variable>>> h(
+        n - 1, std::vector<std::vector<Variable>>(n, std::vector<Variable>(n)));
+    for (int k = 1; k < n; ++k)
+        for (int i = 0; i < n; ++i)
+            for (int j = 0; j < n; ++j)
+                if (i != j) h[k - 1][i][j] = m.addVar(0.0, 1.0);
+
+    // Objective.
+    LinearExpr obj;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) obj += c[i][j] * x[i][j];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    // Degree constraints (city-0 degree-out dropped).
+    for (int i = 0; i < n; ++i) {
+        LinearExpr out, in;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
+        if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
+        m.addLPConstraint(in, Sense::Equal, 1.0);
+    }
+
+    // Capacity: h[k][i][j] ≤ x[i][j] for each commodity k and arc (i,j).
+    for (int k = 1; k < n; ++k)
+        for (int i = 0; i < n; ++i)
+            for (int j = 0; j < n; ++j)
+                if (i != j) {
+                    LinearExpr e;
+                    e += 1.0 * h[k - 1][i][j];
+                    e += -1.0 * x[i][j];
+                    m.addLPConstraint(e, Sense::LessEq, 0.0);
+                }
+
+    // Flow conservation for cities i=1..n-1 (source city 0 is implied).
+    // b[k][i] = -1 if i=k (sink), 0 otherwise (transit).
+    for (int k = 1; k < n; ++k)
+        for (int i = 1; i < n; ++i) {
+            LinearExpr e;
+            for (int j = 0; j < n; ++j)
+                if (j != i) { e += 1.0 * h[k - 1][i][j]; e += -1.0 * h[k - 1][j][i]; }
+            m.addLPConstraint(e, Sense::Equal, (i == k) ? -1.0 : 0.0);
+        }
+
+    return m;
+}
+
+inline baguette::Model makeTSP10MCF() {
+    return makeTSPMCF(10, makeTSPArcs(10));
+}
+
+// ── DFJ with explicit SEC (Dantzig-Fulkerson-Johnson, 1954) ───────────────────
+
+/// Build an n-city TSP model (DFJ formulation with all SEC enumerated).
+///
+/// All Subtour Elimination Constraints are added explicitly by iterating over
+/// every proper subset S ⊆ {0..n-1} with 2 ≤ |S| ≤ n-2:
+///
+///   Σᵢ∈S Σⱼ∈S x[i][j]  ≤  |S| − 1
+///
+/// This gives the tightest possible LP relaxation (DFJ LP bound = convex hull
+/// of Hamiltonian tours for complete graphs).  It is impractical for large n
+/// but provides a clean reference formulation for small instances.
+///
+/// LP optimal = 10 on the 10-city cyclic instance (~1000 SEC constraints).
+///
+/// @param n     Number of cities (0..n-1). Must satisfy n ≤ 20 (2^n subsets).
+/// @param arcs  Sparse distance entries; self-loops are ignored.
+///
+/// @note Complexity  O(2^n × n) constraint generation; O(2^n × n²) LP size.
+///   Practical for n ≤ 18. For n=10: ~1000 SEC rows; LP is still fast.
+inline baguette::Model makeTSPDFJ(int n, const std::vector<TspArc>& arcs) {
+    using namespace baguette;
+
+    double maxDist = 0.0;
+    for (const auto& a : arcs)
+        if (a.from != a.to) maxDist = std::max(maxDist, a.dist);
+    const double bigM = double(n) * maxDist;
+
+    std::vector<std::vector<double>> c(n, std::vector<double>(n, bigM));
+    for (const auto& a : arcs)
+        if (a.from != a.to) c[a.from][a.to] = a.dist;
+
+    Model m;
+
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(n));
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    LinearExpr obj;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i != j) obj += c[i][j] * x[i][j];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    // Degree constraints (city-0 degree-out dropped).
+    for (int i = 0; i < n; ++i) {
+        LinearExpr out, in;
+        for (int j = 0; j < n; ++j)
+            if (j != i) { out += 1.0 * x[i][j]; in += 1.0 * x[j][i]; }
+        if (i > 0) m.addLPConstraint(out, Sense::Equal, 1.0);
+        m.addLPConstraint(in, Sense::Equal, 1.0);
+    }
+
+    // Explicit SEC for every proper subset S with 2 ≤ |S| ≤ n-2.
+    // Enumerate using bitmask; bit k = 1 means city k ∈ S.
+    const int full = (1 << n) - 1;
+    for (int mask = 3; mask <= full - 1; ++mask) {
+        // Compute |S| via Kernighan bit count.
+        int sz = 0;
+        for (int t = mask; t; t &= t - 1) ++sz;
+        if (sz < 2 || sz > n - 2) continue;
+
+        // By symmetry S and V\S yield the same cut; only enumerate one half.
+        if (mask > (full ^ mask)) continue;
+
+        LinearExpr sec;
+        for (int i = 0; i < n; ++i) {
+            if (!(mask >> i & 1)) continue;
+            for (int j = 0; j < n; ++j) {
+                if (j == i || !(mask >> j & 1)) continue;
+                sec += 1.0 * x[i][j];
+            }
+        }
+        m.addLPConstraint(sec, Sense::LessEq, double(sz - 1));
+    }
+
+    return m;
+}
+
+inline baguette::Model makeTSP10DFJ() {
+    return makeTSPDFJ(10, makeTSPArcs(10));
+}
+
 /// One item in a 0/1 knapsack instance.
 struct KnapsackItem { double weight, profit; };
 
