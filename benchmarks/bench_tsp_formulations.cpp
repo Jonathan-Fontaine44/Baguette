@@ -43,6 +43,7 @@
 #include <iostream>
 #include <limits>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -159,11 +160,12 @@ static double rootLP(const Model& m) {
 
 static Model buildDirected(const std::string& tag, int n,
                             const std::vector<TspArc>& arcs) {
-    if      (tag == "MTZ")  return makeTSP(n, arcs);
-    else if (tag == "LMTZ") return makeTSPLifted(n, arcs);
-    else if (tag == "SCF")  return makeTSPFlow(n, arcs);
-    else if (tag == "MCF")  return makeTSPMCF(n, arcs);
-    else                    return makeTSPDFJ(n, arcs);
+    if      (tag == "MTZ")   return makeTSP(n, arcs);
+    else if (tag == "MTZAD") return makeTSPMtz(n, arcs);
+    else if (tag == "LMTZ")  return makeTSPLifted(n, arcs);
+    else if (tag == "SCF")   return makeTSPFlow(n, arcs);
+    else if (tag == "MCF")   return makeTSPMCF(n, arcs);
+    else                     return makeTSPDFJ(n, arcs);
 }
 
 static RunResult runDirected(const std::string& tag, int n, uint64_t seed,
@@ -297,7 +299,20 @@ static void printGroupHeader(int n, uint64_t seed) {
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-int main() {
+// Returns true if `name` should run given the user-supplied filter set.
+// An empty filter means "run everything".
+static bool shouldRun(const std::string& name,
+                      const std::set<std::string>& filter) {
+    return filter.empty() || filter.count(name);
+}
+
+int main(int argc, char* argv[]) {
+    // Optional CLI filter: list formulation names to run (e.g. MTZ MTZAD SEC).
+    // GMI variants are spelled "MTZ+GMI", "MTZAD+GMI", "LMTZ+GMI", "SCF+GMI".
+    // If no arguments are given, all formulations are run.
+    std::set<std::string> filter;
+    for (int i = 1; i < argc; ++i) filter.insert(argv[i]);
+
     std::cout << "=== TSP Formulation Comparison Benchmark ===\n";
     std::cout << "Time limit: " << kTimeLimitS << " s  |  LP: DualSimplexBV  "
               << "|  Presolve: OFF  |  Branch: MostFractional  "
@@ -305,7 +320,13 @@ int main() {
     std::cout << "Directed (+GMI: up to " << kMaxGMICuts << " GMI cuts, "
               << kMaxGMIPerNode << "/node)\n";
     std::cout << "MCF and DFJ only run for n ≤ 10 (O(n³) / O(2^n) formulations)\n";
+    std::cout << "MTZAD: MTZ + AllDiff CP constraint on position variables\n";
     std::cout << "SEC: undirected degree-2 + Stoer-Wagner cut generator (no GMI)\n";
+    if (!filter.empty()) {
+        std::cout << "Filter: ";
+        for (const auto& f : filter) std::cout << f << " ";
+        std::cout << '\n';
+    }
 
     for (int n : kSizes) {
         for (uint64_t seed : kSeeds) {
@@ -314,21 +335,27 @@ int main() {
             printGroupHeader(n, seed);
 
             // ── Directed, pure B&B ──────────────────────────────────────────
-            for (const char* tag : {"MTZ", "LMTZ", "SCF"})
-                printRow(runDirected(tag, n, seed, cities, false));
+            for (const char* tag : {"MTZ", "MTZAD", "LMTZ", "SCF"})
+                if (shouldRun(tag, filter))
+                    printRow(runDirected(tag, n, seed, cities, false));
             if (n <= 10) {
-                printRow(runDirected("MCF", n, seed, cities, false));
-                printRow(runDirected("DFJ", n, seed, cities, false));
+                for (const char* tag : {"MCF", "DFJ"})
+                    if (shouldRun(tag, filter))
+                        printRow(runDirected(tag, n, seed, cities, false));
             }
 
             // ── Directed, B&B + GMI ─────────────────────────────────────────
-            printSeparator(' ');  // visual gap before GMI group
-            for (const char* tag : {"MTZ", "LMTZ", "SCF"})
-                printRow(runDirected(tag, n, seed, cities, true));
+            printSeparator(' ');
+            for (const char* tag : {"MTZ", "MTZAD", "LMTZ", "SCF"}) {
+                std::string gmiTag = std::string(tag) + "+GMI";
+                if (shouldRun(gmiTag, filter))
+                    printRow(runDirected(tag, n, seed, cities, true));
+            }
 
             // ── Undirected + SEC cuts ───────────────────────────────────────
             printSeparator(' ');
-            printRow(runSEC(n, seed, cities));
+            if (shouldRun("SEC", filter))
+                printRow(runSEC(n, seed, cities));
         }
     }
 
