@@ -76,6 +76,9 @@ struct MILPPresolveResult {
     uint32_t rhsRounded       = 0;     ///< Constraint RHS values rounded (floor for ≤, ceil for ≥).
     uint32_t fixedVars        = 0;     ///< Variables with lb == ub at termination.
     uint32_t passesRun        = 0;     ///< LP propagation passes executed.
+    uint32_t varsProbed       = 0;     ///< Binary variables probed (levels 3 and 6).
+    uint32_t varsProbedFixed  = 0;     ///< Variables fixed as a result of probing.
+    uint32_t impliedRowsAdded = 0;     ///< Binary implication rows added to the model (level 5).
 };
 
 /// Result returned by solveMILP().

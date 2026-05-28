@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -16,7 +16,7 @@ using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-6;
 
-// ── Test 1: enableCuts=false → cutsAdded=0 ──────────────────────────────────
+// â”€â”€ Test 1: enableCuts=false â†’ cutsAdded=0 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Verify that when cut generation is disabled, no cuts are recorded.
 
@@ -37,7 +37,7 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     opts.enableCuts       = false;
     opts.collectStats     = true;
     opts.lpOpts.method    = method;
-    opts.enablePresolve   = false;
+    opts.presolveLevel   =  0;
     opts.timeLimitS       = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -49,9 +49,9 @@ TEST_CASE("BnC: enableCuts=false -> cutsAdded=0", "[bnc]") {
     }
 }
 
-// ── Test 2: B&C gives same answer as B&B ────────────────────────────────────
+// â”€â”€ Test 2: B&C gives same answer as B&B â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// max 5x + 4y  s.t. 3x + 2y ≤ 7, x,y ∈ Z≥0.
+// max 5x + 4y  s.t. 3x + 2y â‰¤ 7, x,y âˆˆ Zâ‰¥0.
 // IP optimal: x=1, y=2, obj=13.
 // With cuts enabled the result must be identical.
 
@@ -71,14 +71,14 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
     BBOptions noCuts;
     noCuts.enableCuts        = false;
     noCuts.lpOpts.method     = method;
-    noCuts.enablePresolve    = false;
+    noCuts.presolveLevel    =  0;
     noCuts.timeLimitS       = 1.0;
 
     BBOptions withCuts;
     withCuts.enableCuts      = true;
     withCuts.maxCutsPerNode  = 10;
     withCuts.lpOpts.method   = method;
-    withCuts.enablePresolve  = false;
+    withCuts.presolveLevel  =  0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
         MILPResult r1 = solveMILP(m, noCuts);
@@ -92,13 +92,13 @@ TEST_CASE("BnC: same optimal as pure B&B (knapsack, maximize)", "[bnc][cuts]") {
     }
 }
 
-// ── Test 3: GMI cut closes LP-IP gap at root ─────────────────────────────────
+// â”€â”€ Test 3: GMI cut closes LP-IP gap at root â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x + y   s.t. 2x + 2y ≥ 7,  x, y ∈ Z,  0 ≤ x,y ≤ 5.
+// min x + y   s.t. 2x + 2y â‰¥ 7,  x, y âˆˆ Z,  0 â‰¤ x,y â‰¤ 5.
 //
 // LP relaxation optimal: x+y = 3.5 (e.g. x=3.5, y=0), obj=3.5.
-// GMI cut from the fractional row: -2x - 2y ≥ -8, i.e. x+y ≤ 4.
-// After adding the cut the LP optimal is x+y=4 (integer) → solved at the root.
+// GMI cut from the fractional row: -2x - 2y â‰¥ -8, i.e. x+y â‰¤ 4.
+// After adding the cut the LP optimal is x+y=4 (integer) â†’ solved at the root.
 //
 // IP optimal: x+y=4, obj=4 (e.g. x=4, y=0 or x=0, y=4).
 
@@ -119,7 +119,7 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     noCuts.enableCuts        = false;
     noCuts.collectStats      = true;
     noCuts.lpOpts.method     = method;
-    noCuts.enablePresolve    = false;
+    noCuts.presolveLevel    =  0;
     noCuts.timeLimitS       = 1.0;
 
     BBOptions withCuts;
@@ -127,7 +127,7 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     withCuts.maxCutsPerNode  = 10;
     withCuts.collectStats    = true;
     withCuts.lpOpts.method   = method;
-    withCuts.enablePresolve  = false;
+    withCuts.presolveLevel  =  0;
     withCuts.timeLimitS       = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -151,7 +151,7 @@ TEST_CASE("BnC: GMI cut closes gap at root", "[bnc][cuts]") {
     }
 }
 
-// ── Test 4: PseudoCost branching gives correct answer ────────────────────────
+// â”€â”€ Test 4: PseudoCost branching gives correct answer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Use the knapsack from Test 2. PseudoCost must agree with MostFractional.
 
@@ -172,14 +172,14 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     mf.branchStrat      = BranchStrategy::MostFractional;
     mf.enableCuts       = false;
     mf.lpOpts.method    = method;
-    mf.enablePresolve   = false;
+    mf.presolveLevel   =  0;
     mf.timeLimitS       = 1.0;
 
     BBOptions pc;
     pc.branchStrat      = BranchStrategy::PseudoCost;
     pc.enableCuts       = false;
     pc.lpOpts.method    = method;
-    pc.enablePresolve   = false;
+    pc.presolveLevel   =  0;
     pc.timeLimitS       = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -192,7 +192,7 @@ TEST_CASE("BnC: PseudoCost branching gives same optimal as MostFractional", "[bn
     }
 }
 
-// ── Test 5: PseudoCost + cuts give correct answer ────────────────────────────
+// â”€â”€ Test 5: PseudoCost + cuts give correct answer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Combine PseudoCost branching with GMI cut generation.
 // The result must equal the known IP optimum.
@@ -215,7 +215,7 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
     opts.enableCuts       = true;
     opts.maxCutsPerNode   = 5;
     opts.lpOpts.method    = method;
-    opts.enablePresolve   = false;
+    opts.presolveLevel   =  0;
     opts.timeLimitS       = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -226,9 +226,9 @@ TEST_CASE("BnC: PseudoCost + cuts give correct answer", "[bnc][cuts]") {
     }
 }
 
-// ── Test 6: B&C infeasible MILP ─────────────────────────────────────────────
+// â”€â”€ Test 6: B&C infeasible MILP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// LP-infeasible problem → MILP infeasible even with cuts enabled.
+// LP-infeasible problem â†’ MILP infeasible even with cuts enabled.
 
 TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
@@ -247,7 +247,7 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     opts.enableCuts      = true;
     opts.collectStats    = true;
     opts.lpOpts.method   = method;
-    opts.enablePresolve  = false;
+    opts.presolveLevel  =  0;
     opts.timeLimitS       = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -259,14 +259,14 @@ TEST_CASE("BnC: infeasible problem stays infeasible with cuts", "[bnc][cuts]") {
     }
 }
 
-// ── Test 7: B&C 3-variable problem ──────────────────────────────────────────
+// â”€â”€ Test 7: B&C 3-variable problem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // max 5x + 4y + 3z
-// s.t. 2x + y + z ≤ 6
-//      x + 2y + z ≤ 6
-//      x, y, z ∈ Z, 0 ≤ x,y,z ≤ 5
+// s.t. 2x + y + z â‰¤ 6
+//      x + 2y + z â‰¤ 6
+//      x, y, z âˆˆ Z, 0 â‰¤ x,y,z â‰¤ 5
 //
-// IP optimal: (2,2,0) → obj=18.
+// IP optimal: (2,2,0) â†’ obj=18.
 
 TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
@@ -286,7 +286,7 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     BBOptions noCuts;
     noCuts.enableCuts      = false;
     noCuts.lpOpts.method   = method;
-    noCuts.enablePresolve  = false;
+    noCuts.presolveLevel  =  0;
     noCuts.timeLimitS      = 1.0;
 
     BBOptions withCuts;
@@ -294,7 +294,7 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     withCuts.maxCutsPerNode  = 10;
     withCuts.branchStrat     = BranchStrategy::PseudoCost;
     withCuts.lpOpts.method   = method;
-    withCuts.enablePresolve  = false;
+    withCuts.presolveLevel  =  0;
     withCuts.timeLimitS      = 1.0;
 
     DYNAMIC_SECTION("method=" << to_string(method)) {
@@ -308,9 +308,9 @@ TEST_CASE("BnC: 3-variable MILP correct with cuts", "[bnc][cuts]") {
     }
 }
 
-// ── Test 8: computeCutData reports fractional integers only ─────────────────
+// â”€â”€ Test 8: computeCutData reports fractional integers only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min 0x + y  s.t. x + y ≥ 3.5,  x ∈ Z[0,3.2],  y ∈ C[0,5].
+// min 0x + y  s.t. x + y â‰¥ 3.5,  x âˆˆ Z[0,3.2],  y âˆˆ C[0,5].
 //
 // LP optimal: x=3.2 (fractional integer at its UB), y=0.3 (continuous).
 // fractionalRows must contain exactly x (integer); y (continuous) must not appear.
@@ -345,13 +345,13 @@ TEST_CASE("CutData: ignore continuous variables, detect fractional integer", "[c
     }
 }
 
-// ── Test 9: B&C cuts bind on integer variables in a mixed MILP ──────────────
+// â”€â”€ Test 9: B&C cuts bind on integer variables in a mixed MILP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x + y + 0.1z + 0.1w  s.t. 2x + 2y + z + w ≥ 7.5,
-//   x,y ∈ Z[0,10],  z,w ∈ C[0,2].
+// min x + y + 0.1z + 0.1w  s.t. 2x + 2y + z + w â‰¥ 7.5,
+//   x,y âˆˆ Z[0,10],  z,w âˆˆ C[0,2].
 //
-// z,w capped at 2 (max contribution 4 < 7.5), so 2x + 2y ≥ 3.5 is required.
-// LP leaves x or y fractional → at least one GMI cut is added.
+// z,w capped at 2 (max contribution 4 < 7.5), so 2x + 2y â‰¥ 3.5 is required.
+// LP leaves x or y fractional â†’ at least one GMI cut is added.
 // IP solution must satisfy integrality for x and y.
 
 TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]") {
@@ -389,12 +389,12 @@ TEST_CASE("BnC: cuts affect only integer variables (mixed MILP)", "[bnc][cuts]")
 }
 
 
-// ── Test 10: MILP infeasible even though LP relaxation is feasible ──────────
+// â”€â”€ Test 10: MILP infeasible even though LP relaxation is feasible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x  s.t. x = 0.5,  x ∈ Z[0,1].
+// min x  s.t. x = 0.5,  x âˆˆ Z[0,1].
 //
-// LP optimal: x=0.5 (feasible). Branching: x≤0 violates x=0.5; x≥1 violates x=0.5.
-// Both children are LP-infeasible → MILP Infeasible.
+// LP optimal: x=0.5 (feasible). Branching: xâ‰¤0 violates x=0.5; xâ‰¥1 violates x=0.5.
+// Both children are LP-infeasible â†’ MILP Infeasible.
 
 TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
     auto method = GENERATE(LPMethod::Auto,
@@ -428,13 +428,13 @@ TEST_CASE("BnC: MILP infeasible but LP feasible", "[bnc][edge][cuts]") {
     }
 }
 
-// ── User CutGenerator: gap closed at root without GMI ───────────────────────
+// â”€â”€ User CutGenerator: gap closed at root without GMI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x + y   s.t. 2x + 2y ≥ 7,  x, y ∈ Z[0,5].
+// min x + y   s.t. 2x + 2y â‰¥ 7,  x, y âˆˆ Z[0,5].
 // LP: x+y = 3.5.  IP: x+y = 4.
 //
-// The user generator injects x+y ≥ 4 the first time it sees a fractional LP.
-// This closes the LP-IP gap at the root → Optimal in 1 node, cutsAdded = 1.
+// The user generator injects x+y â‰¥ 4 the first time it sees a fractional LP.
+// This closes the LP-IP gap at the root â†’ Optimal in 1 node, cutsAdded = 1.
 // GMI is disabled so the generator is solely responsible for the cut.
 
 TEST_CASE("BnC: user CutGenerator closes gap at root (no GMI)", "[bnc][cuts][callback]") {
@@ -457,10 +457,10 @@ TEST_CASE("BnC: user CutGenerator closes gap at root (no GMI)", "[bnc][cuts][cal
     };
 
     BBOptions opts;
-    opts.enableCuts     = false;   // GMI disabled — only user generator
+    opts.enableCuts     = false;   // GMI disabled â€” only user generator
     opts.collectStats   = true;
     opts.cutGenerators  = {gen};
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     opts.timeLimitS     = 5.0;
 
     MILPResult r = solveMILP(m, opts);
@@ -471,7 +471,7 @@ TEST_CASE("BnC: user CutGenerator closes gap at root (no GMI)", "[bnc][cuts][cal
     REQUIRE(r.stats->cutsAdded == 1);
 }
 
-// ── User CutGenerator: empty generator has no effect ────────────────────────
+// â”€â”€ User CutGenerator: empty generator has no effect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // A generator that always returns {} must leave the B&B result unchanged.
 
@@ -484,7 +484,7 @@ TEST_CASE("BnC: empty user CutGenerator has no effect", "[bnc][cuts][callback]")
 
     BBOptions base;
     base.enableCuts     = false;
-    base.enablePresolve = false;
+    base.presolveLevel = 0;
     base.timeLimitS     = 5.0;
 
     BBOptions withEmptyGen = base;
@@ -500,11 +500,11 @@ TEST_CASE("BnC: empty user CutGenerator has no effect", "[bnc][cuts][callback]")
     REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
 }
 
-// ── D4: maxTotalCuts caps total GMI cuts across all nodes ────────────────────
+// â”€â”€ D4: maxTotalCuts caps total GMI cuts across all nodes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x + y,  2x + 2y >= 7,  x,y ∈ Z[0,5].
-// LP relaxation: x+y = 3.5 (fractional) → the solver generates at least 1 cut
-// without a cap.  With maxTotalCuts=1: cutsAdded ≤ 1, result still optimal.
+// min x + y,  2x + 2y >= 7,  x,y âˆˆ Z[0,5].
+// LP relaxation: x+y = 3.5 (fractional) â†’ the solver generates at least 1 cut
+// without a cap.  With maxTotalCuts=1: cutsAdded â‰¤ 1, result still optimal.
 // With maxTotalCuts=0 (unlimited): cutsAdded matches the uncapped run.
 
 TEST_CASE("BnC: maxTotalCuts caps total cuts across all nodes", "[bnc][cuts]") {
@@ -518,7 +518,7 @@ TEST_CASE("BnC: maxTotalCuts caps total cuts across all nodes", "[bnc][cuts]") {
     base.enableCuts      = true;
     base.maxCutsPerNode  = 10;
     base.collectStats    = true;
-    base.enablePresolve  = false;
+    base.presolveLevel  =  0;
     base.lpOpts.method   = LPMethod::DualSimplexBV;
     base.lpOpts.timeLimitS = 1.0;
 
@@ -530,7 +530,7 @@ TEST_CASE("BnC: maxTotalCuts caps total cuts across all nodes", "[bnc][cuts]") {
     REQUIRE_THAT(rUnlimited.objectiveValue, WithinAbs(4.0, kTol));
     REQUIRE(rUnlimited.stats->cutsAdded >= 1);
 
-    // Capped at 1: still optimal, total cuts ≤ 1.
+    // Capped at 1: still optimal, total cuts â‰¤ 1.
     BBOptions capped = base;
     capped.maxTotalCuts = 1;
     MILPResult rCapped = solveMILP(m, capped);

@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "baguette/lp/LPSolver.hpp"
@@ -11,26 +11,26 @@ using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol  = 1e-9;
 
-// ── Test 1: single binary variable, Maximize ──────────────────────────────────
+// â”€â”€ Test 1: single binary variable, Maximize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// max x,  x ∈ {0,1}
-// LP relaxation optimal: x = 1 (already integer) → 1 node.
+// max x,  x âˆˆ {0,1}
+// LP relaxation optimal: x = 1 (already integer) â†’ 1 node.
 
 TEST_CASE("BB: single binary variable, maximize", "[bb]") {
     Model m;
     Variable x = m.addVar(0.0, 1.0, VarType::Binary, "x");
     m.setObjective(1.0 * x, ObjSense::Maximize);
 
-    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
+    MILPResult r = solveMILP(m, BBOptions{.presolveLevel = 0});
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(1.0, kTol));
     REQUIRE_THAT(r.primalValues[x.id], WithinAbs(1.0, kTol));
 }
 
-// ── Test 2: single binary variable, Minimize ──────────────────────────────────
+// â”€â”€ Test 2: single binary variable, Minimize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x,  x ∈ {0,1}
+// min x,  x âˆˆ {0,1}
 // Optimal: x = 0, obj = 0.
 
 TEST_CASE("BB: single binary variable, minimize", "[bb]") {
@@ -38,26 +38,26 @@ TEST_CASE("BB: single binary variable, minimize", "[bb]") {
     Variable x = m.addVar(0.0, 1.0, VarType::Binary, "x");
     m.setObjective(1.0 * x, ObjSense::Minimize);
 
-    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
+    MILPResult r = solveMILP(m, BBOptions{.presolveLevel = 0});
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE_THAT(r.objectiveValue, WithinAbs(0.0, kTol));
     REQUIRE_THAT(r.primalValues[x.id], WithinAbs(0.0, kTol));
 }
 
-// ── Test 3: knapsack requiring branching ──────────────────────────────────────
+// â”€â”€ Test 3: knapsack requiring branching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // max 5x + 4y
-// s.t. 3x + 2y ≤ 7
-//      x, y ∈ Z, 0 ≤ x,y ≤ 5
+// s.t. 3x + 2y â‰¤ 7
+//      x, y âˆˆ Z, 0 â‰¤ x,y â‰¤ 5
 //
 // LP relaxation optimum: (x,y) = (0, 3.5), obj = 14 (fractional).
 // B&B tree:
-//   Root LP: (0, 3.5) → branch on y.
-//   Left  (y≤3): LP (1/3, 3), obj ≈ 13.67 → branch on x.
-//     Left-Left  (x≤0, y≤3): LP (0, 3), obj = 12. Integer! Incumbent = 12.
-//     Left-Right (x≥1, y≤3): LP (1, 2), obj = 13. Integer! Incumbent = 13.
-//   Right (y≥4): 3x + 8 ≤ 7 → 3x ≤ -1 → infeasible. Pruned.
+//   Root LP: (0, 3.5) â†’ branch on y.
+//   Left  (yâ‰¤3): LP (1/3, 3), obj â‰ˆ 13.67 â†’ branch on x.
+//     Left-Left  (xâ‰¤0, yâ‰¤3): LP (0, 3), obj = 12. Integer! Incumbent = 12.
+//     Left-Right (xâ‰¥1, yâ‰¤3): LP (1, 2), obj = 13. Integer! Incumbent = 13.
+//   Right (yâ‰¥4): 3x + 8 â‰¤ 7 â†’ 3x â‰¤ -1 â†’ infeasible. Pruned.
 // Optimal: x=1, y=2, obj=13.
 
 TEST_CASE("BB: knapsack with branching, maximize", "[bb]") {
@@ -69,7 +69,7 @@ TEST_CASE("BB: knapsack with branching, maximize", "[bb]") {
 
     BBOptions opts;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -80,11 +80,11 @@ TEST_CASE("BB: knapsack with branching, maximize", "[bb]") {
     REQUIRE(r.stats->nodesExplored >= 3);
 }
 
-// ── Test 4: MILP infeasible by LP relaxation ──────────────────────────────────
+// â”€â”€ Test 4: MILP infeasible by LP relaxation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // min x + y
-// s.t. x + y ≤ -1   (infeasible for x,y ≥ 0)
-//      x, y ∈ Z+
+// s.t. x + y â‰¤ -1   (infeasible for x,y â‰¥ 0)
+//      x, y âˆˆ Z+
 
 TEST_CASE("BB: LP relaxation infeasible -> MILP infeasible", "[bb]") {
     Model m;
@@ -97,25 +97,25 @@ TEST_CASE("BB: LP relaxation infeasible -> MILP infeasible", "[bb]") {
 
     REQUIRE(lpResult.status == LPStatus::Infeasible);
 
-    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
+    MILPResult r = solveMILP(m, BBOptions{.presolveLevel = 0});
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.primalValues.empty());
 }
 
-// ── Test 5: MILP infeasible by integer constraints (LP relaxation feasible) ───
+// â”€â”€ Test 5: MILP infeasible by integer constraints (LP relaxation feasible) â”€â”€â”€
 //
 // min x
-// s.t. x ≥ 0.3
-//      x ≤ 0.7
-//      x ∈ Z, 0 ≤ x ≤ 10
+// s.t. x â‰¥ 0.3
+//      x â‰¤ 0.7
+//      x âˆˆ Z, 0 â‰¤ x â‰¤ 10
 //
 // LP relaxation: x = 0.3, feasible.
-// Integer solutions in [0.3, 0.7]: none (floor=0 violates x≥0.3, ceil=1 violates x≤0.7).
+// Integer solutions in [0.3, 0.7]: none (floor=0 violates xâ‰¥0.3, ceil=1 violates xâ‰¤0.7).
 // B&B tree:
-//   Root LP: x = 0.3 → fractional → branch on x.
-//   Left  (x ≤ 0): x ≥ 0.3 and x ≤ 0 → infeasible. Pruned.
-//   Right (x ≥ 1): x ≤ 0.7 and x ≥ 1 → infeasible. Pruned.
+//   Root LP: x = 0.3 â†’ fractional â†’ branch on x.
+//   Left  (x â‰¤ 0): x â‰¥ 0.3 and x â‰¤ 0 â†’ infeasible. Pruned.
+//   Right (x â‰¥ 1): x â‰¤ 0.7 and x â‰¥ 1 â†’ infeasible. Pruned.
 // Result: Infeasible.
 
 TEST_CASE("BB: integer infeasible (LP relaxation feasible)", "[bb]") {
@@ -129,16 +129,16 @@ TEST_CASE("BB: integer infeasible (LP relaxation feasible)", "[bb]") {
 
     REQUIRE(lpResult.status == LPStatus::Optimal);
 
-    MILPResult r = solveMILP(m, BBOptions{.enablePresolve = false});
+    MILPResult r = solveMILP(m, BBOptions{.presolveLevel = 0});
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.primalValues.empty());
 }
 
-// ── Test 6: pure LP (no integer variables) ────────────────────────────────────
+// â”€â”€ Test 6: pure LP (no integer variables) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // min -x
-// s.t. x ≤ 3  (all continuous)
+// s.t. x â‰¤ 3  (all continuous)
 // Optimal: x = 3, obj = -3.  Should be solved in exactly 1 node.
 
 TEST_CASE("BB: pure LP (no integer variables)", "[bb]") {
@@ -148,7 +148,7 @@ TEST_CASE("BB: pure LP (no integer variables)", "[bb]") {
 
     BBOptions opts;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -157,7 +157,7 @@ TEST_CASE("BB: pure LP (no integer variables)", "[bb]") {
     REQUIRE(r.stats->nodesExplored == 1);
 }
 
-// ── Test 7: depth-first gives same optimal as best-bound ─────────────────────
+// â”€â”€ Test 7: depth-first gives same optimal as best-bound â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
     Model m;
@@ -168,11 +168,11 @@ TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
 
     BBOptions bestBoundOpts;
     bestBoundOpts.nodeSelect     = NodeSelection::BestBound;
-    bestBoundOpts.enablePresolve = false;
+    bestBoundOpts.presolveLevel = 0;
 
     BBOptions depthFirstOpts;
     depthFirstOpts.nodeSelect     = NodeSelection::DepthFirst;
-    depthFirstOpts.enablePresolve = false;
+    depthFirstOpts.presolveLevel = 0;
 
     MILPResult r1 = solveMILP(m, bestBoundOpts);
     MILPResult r2 = solveMILP(m, depthFirstOpts);
@@ -184,7 +184,7 @@ TEST_CASE("BB: depth-first gives same optimal as best-bound", "[bb]") {
     REQUIRE_THAT(r1.primalValues[y.id], WithinAbs(r2.primalValues[y.id], kTol));
 }
 
-// ── Test 8: node limit stops search ───────────────────────────────────────────
+// â”€â”€ Test 8: node limit stops search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
     Model m;
@@ -196,22 +196,22 @@ TEST_CASE("BB: maxNodes=1 stops after root", "[bb]") {
     BBOptions opts;
     opts.maxNodes       = 1;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
 
     MILPResult r = solveMILP(m, opts);
 
-    // Root LP is fractional → no integer solution found in 1 node.
+    // Root LP is fractional â†’ no integer solution found in 1 node.
     REQUIRE(r.status == MILPStatus::MaxNodes);
     REQUIRE(r.stats->nodesExplored == 1);
     REQUIRE(r.primalValues.empty());
 }
 
-// ── Test 9: delta-trail restore — deep tree, BestBound vs DepthFirst ────────
+// â”€â”€ Test 9: delta-trail restore â€” deep tree, BestBound vs DepthFirst â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // max 3x + 5y + 2z + 4w
-//   s.t. 2x + 3y + z + 2w ≤ 10
-//        x + 2y + 3z + w  ≤ 10
-//        x,y,z,w ∈ Z[0,4]
+//   s.t. 2x + 3y + z + 2w â‰¤ 10
+//        x + 2y + 3z + w  â‰¤ 10
+//        x,y,z,w âˆˆ Z[0,4]
 //
 // Both BestBound (non-LIFO jumps between nodes) and DepthFirst (deep path then
 // backtrack) exercise the delta-trail restore at multiple depths. They must
@@ -230,9 +230,9 @@ TEST_CASE("BB: delta-trail restore correct for deep tree (BestBound vs DepthFirs
 
     BBOptions bb, df;
     bb.nodeSelect     = NodeSelection::BestBound;
-    bb.enablePresolve = false;
+    bb.presolveLevel = 0;
     df.nodeSelect     = NodeSelection::DepthFirst;
-    df.enablePresolve = false;
+    df.presolveLevel = 0;
 
     MILPResult r1 = solveMILP(m, bb);
     MILPResult r2 = solveMILP(m, df);
@@ -242,9 +242,9 @@ TEST_CASE("BB: delta-trail restore correct for deep tree (BestBound vs DepthFirs
     REQUIRE_THAT(r1.objectiveValue, WithinAbs(r2.objectiveValue, kTol));
 }
 
-// ── Test 10: HybridPlunge finds same optimal as BestBound ────────────────────
+// â”€â”€ Test 10: HybridPlunge finds same optimal as BestBound â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// max 5x + 4y  s.t. 3x + 2y ≤ 7,  x,y ∈ Z[0,5].  IP optimal: obj=13.
+// max 5x + 4y  s.t. 3x + 2y â‰¤ 7,  x,y âˆˆ Z[0,5].  IP optimal: obj=13.
 //
 // HybridPlunge plunges DFS to the first incumbent, then heapifies the queue
 // and finishes in BestBound mode. The optimal must match pure BestBound and
@@ -259,11 +259,11 @@ TEST_CASE("BB: HybridPlunge finds same optimal as BestBound and DepthFirst", "[b
 
     BBOptions bb, df, hp;
     bb.nodeSelect     = NodeSelection::BestBound;
-    bb.enablePresolve = false;
+    bb.presolveLevel = 0;
     df.nodeSelect     = NodeSelection::DepthFirst;
-    df.enablePresolve = false;
+    df.presolveLevel = 0;
     hp.nodeSelect     = NodeSelection::HybridPlunge;
-    hp.enablePresolve = false;
+    hp.presolveLevel = 0;
 
     MILPResult r1 = solveMILP(m, bb);
     MILPResult r2 = solveMILP(m, df);

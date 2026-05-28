@@ -552,7 +552,7 @@ struct KnapsackItem { double weight, profit; };
 /// Constraint: Σ w[i]·x[i] ≤ capacity   (and ≥ minLoad when minLoad > 0)
 /// Objective:  max Σ p[i]·x[i]
 ///
-/// @par Complexity
+/// @note Complexity
 ///   O(|items|) variables and constraints.
 inline baguette::Model makeKnapsack(const std::vector<KnapsackItem>& items,
                                     double capacity, double minLoad = 0.0) {
@@ -611,7 +611,7 @@ struct JobShopJob { double p0, p1; };
 ///
 /// Big-M is computed as Σ(p[j][0] + p[j][1]) — the tightest valid upper bound.
 ///
-/// @par Complexity
+/// @note Complexity
 ///   O(n) start-time vars, O(n²) sequencing vars and disjunctive constraints.
 inline baguette::Model makeJobShop(const std::vector<JobShopJob>& jobs, double cmaxUb) {
     using namespace baguette;

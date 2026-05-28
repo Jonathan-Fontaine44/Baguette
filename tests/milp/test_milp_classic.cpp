@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -26,7 +26,7 @@ struct MILPTestCase {
 static std::vector<MILPTestCase> makeMILPTestSuite() {
     return {
         // TSP-10 MTZ: LP relaxation optimal = MILP optimal (cyclic tour is an
-        // integer extreme point of the polytope) → B&B terminates at the root.
+        // integer extreme point of the polytope) â†’ B&B terminates at the root.
         {"tsp_10", MILPStatus::Optimal, 10.0,
             []() { return baguette_test::makeTSP10(); }},
 
@@ -35,24 +35,24 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
         {"knapsack_10", MILPStatus::Optimal, 106.0,
             []() { return baguette_test::makeKnapsack10(); }},
 
-        // Knapsack: capacity=5 < minLoad=6 → infeasible at the LP root.
+        // Knapsack: capacity=5 < minLoad=6 â†’ infeasible at the LP root.
         {"knapsack_10_infeasible", MILPStatus::Infeasible, 0.0,
             []() { return baguette_test::makeKnapsack10(5.0, 6.0); }},
 
-        // Job shop 10×2: MILP optimal = 26 (Johnson's rule on the two-machine
+        // Job shop 10Ã—2: MILP optimal = 26 (Johnson's rule on the two-machine
         // flow shop). The big-M LP relaxation gives a very weak bound (5), so
         // B&B may need many nodes; marked large to accept TimeLimit.
         {"jobshop_10x2", MILPStatus::Optimal, 26.0,
             []() { return baguette_test::makeJobShop10(); }, true},
 
-        // Job shop: C_max ≤ 4 contradicts C_max ≥ 5 (from precedence) →
+        // Job shop: C_max â‰¤ 4 contradicts C_max â‰¥ 5 (from precedence) â†’
         // infeasible at the LP root.
         {"jobshop_10x2_infeasible", MILPStatus::Infeasible, 0.0,
             []() { return baguette_test::makeJobShop10(4.0); }},
     };
 }
 
-// ── Presolve coherence: presolve must not mark feasible problems as infeasible ──
+// â”€â”€ Presolve coherence: presolve must not mark feasible problems as infeasible â”€â”€
 TEST_CASE("Classic MILP x presolve coherence", "[milp_classic][presolve]") {
     static const auto suite = makeMILPTestSuite();
     auto i = GENERATE(range(std::size_t{0}, suite.size()));
@@ -87,7 +87,7 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
         BBOptions opts;
         opts.lpOpts.method  = lpMethod;
         opts.enableCuts     = enableCuts;
-        opts.enablePresolve = true;
+        opts.presolveLevel = 1;
         opts.enableElimination = true;
         opts.timeLimitS     = 10.0;
         if (tc.large) opts.timeLimitS = 1.0;
@@ -102,7 +102,7 @@ TEST_CASE("Classic MILP x LP-method x B&B/B&C", "[milp_classic]") {
     }
 }
 
-// ── rootMethod / nodeMethod: split LP algorithm between root and nodes ─────────
+// â”€â”€ rootMethod / nodeMethod: split LP algorithm between root and nodes â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Root uses MehrotraIPM for a tight initial bound; subsequent nodes use
 // DualSimplexBV for fast warm-started solves.  Result must match the
 // uniform-method solve.

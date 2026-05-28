@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_adapters.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <cmath>
@@ -8,6 +10,7 @@
 #include "baguette/milp/Presolve.hpp"
 #include "baguette/model/Model.hpp"
 #include "baguette/model/ModelEnums.hpp"
+#include "lp/MILP_problems.hpp"
 
 using namespace baguette;
 using Catch::Matchers::WithinAbs;
@@ -231,7 +234,7 @@ TEST_CASE("presolveMILP: milpPresolveMaxCycles limits outer iterations", "[preso
     // maxCycles=1: b.ub only tightened to 50 (a.ub not yet rounded when C1 runs).
     {
         Model mCopy = m;
-        MILPPresolveResult res = presolveMILPInPlace(mCopy, /*maxCycles=*/1);
+        MILPPresolveResult res = presolveMILPInPlace(mCopy, MILPPresolveOpts{.maxCycles = 1});
         REQUIRE_FALSE(res.infeasible);
         REQUIRE(res.rhsRounded      == 0); // all RHS already integer
         REQUIRE(res.boundsTightened == 2); // b.ub 100→50.5, a.ub 100→4.5
@@ -244,7 +247,7 @@ TEST_CASE("presolveMILP: milpPresolveMaxCycles limits outer iterations", "[preso
     // maxCycles=2: b.ub fully tightened to 2 using rounded a.ub=4.
     {
         Model mCopy = m;
-        MILPPresolveResult res = presolveMILPInPlace(mCopy, /*maxCycles=*/2);
+        MILPPresolveResult res = presolveMILPInPlace(mCopy, MILPPresolveOpts{.maxCycles = 2});
         REQUIRE_FALSE(res.infeasible);
         REQUIRE(res.boundsTightened == 3); // +1: b.ub 50→2.5 in cycle 2
         REQUIRE(res.boundsRounded   == 3); // +1: b.ub 2.5→2  in cycle 2
@@ -372,4 +375,51 @@ TEST_CASE("presolveMILP: PR1 binary variable eligible for rounding", "[presolve]
     MILPPresolveResult res = presolveMILPInPlace(m);
 
     REQUIRE(res.rhsRounded == 1); // 1.5 → floor(1.5) = 1
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Integration: all presolve levels yield the correct optimal
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Knapsack-10: optimal = 106 across levels 0-6 ─────────────────────────────
+//
+// 10-item 0/1 knapsack (capacity 50, optimal profit 106).
+// LP relaxation takes item 8 at fraction 1/2 → B&B required for levels 0-1.
+// Higher levels may tighten bounds or fix variables before branching.
+// All levels must reach the same optimal.
+
+TEST_CASE("presolveMILP: knapsack-10 optimal across all presolve levels", "[presolve][milp][levels]") {
+    const auto level = GENERATE(0u, 1u, 2u, 3u, 4u, 5u, 6u);
+
+    DYNAMIC_SECTION("presolveLevel=" << level) {
+        BBOptions opts;
+        opts.presolveLevel = level;
+        opts.timeLimitS    = 60.0;
+
+        MILPResult r = solveMILP(baguette_test::makeKnapsack10(), opts);
+
+        REQUIRE(r.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r.objectiveValue, WithinAbs(106.0, kTol));
+    }
+}
+
+// ── TSP-10 (MTZ): optimal = 10 across levels 0-6 ─────────────────────────────
+//
+// 10-city cyclic TSP (MTZ formulation, cycle 0→1→…→9→0, cost 1 per arc).
+// LP relaxation is already integer at the cyclic tour → B&B terminates at root.
+// Presolve may tighten MTZ position variables; correctness must be preserved.
+
+TEST_CASE("presolveMILP: TSP-10 optimal across all presolve levels", "[presolve][milp][levels]") {
+    const auto level = GENERATE(0u, 1u, 2u, 3u, 4u, 5u, 6u);
+
+    DYNAMIC_SECTION("presolveLevel=" << level) {
+        BBOptions opts;
+        opts.presolveLevel = level;
+        opts.timeLimitS    = 60.0;
+
+        MILPResult r = solveMILP(baguette_test::makeTSP10(), opts);
+
+        REQUIRE(r.status == MILPStatus::Optimal);
+        REQUIRE_THAT(r.objectiveValue, WithinAbs(10.0, kTol));
+    }
 }

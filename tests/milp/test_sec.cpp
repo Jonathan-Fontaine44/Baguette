@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "baguette/lp/LPSolver.hpp"
@@ -16,9 +16,9 @@ static constexpr double kTol = 1e-6;
 //
 // Edge costs: 0 within each triangle ({0,1,2} and {3,4,5}), 100 across.
 // LP relaxation (degree constraints only, no SEC) is integral:
-//   x01=x02=x12=x34=x35=x45=1, all cross-edges=0  →  cost 0.
+//   x01=x02=x12=x34=x35=x45=1, all cross-edges=0  â†’  cost 0.
 // This violates SEC for S={0,1,2}: x01+x02+x12=3 > |S|-1=2.
-// Optimal Hamiltonian tour cost: 2 cross-edges × 100 = 200.
+// Optimal Hamiltonian tour cost: 2 cross-edges Ã— 100 = 200.
 
 static void buildTSP6(Model& m, std::vector<std::vector<Variable>>& xv) {
     const int n = 6;
@@ -39,7 +39,7 @@ static void buildTSP6(Model& m, std::vector<std::vector<Variable>>& xv) {
             xv[i][j] = xv[j][i] = v;
         }
 
-    // Degree constraints: Σⱼ xᵢⱼ = 2 for each city i.
+    // Degree constraints: Î£â±¼ xáµ¢â±¼ = 2 for each city i.
     for (int i = 0; i < n; i++) {
         LinearExpr deg;
         for (int j = 0; j < n; j++) {
@@ -56,10 +56,10 @@ static void buildTSP6(Model& m, std::vector<std::vector<Variable>>& xv) {
     m.setObjective(obj, ObjSense::Minimize);
 }
 
-// ── SEC: Stoer-Wagner separation detects violated subtour ─────────────────────
+// â”€â”€ SEC: Stoer-Wagner separation detects violated subtour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // LP relaxation gives x01=x02=x12=x34=x35=x45=1 (two triangles, cost 0).
-// SEC for S={0,1,2}: x01+x02+x12=3 > 2 → violated.
+// SEC for S={0,1,2}: x01+x02+x12=3 > 2 â†’ violated.
 // After adding the SEC, the LP optimal must rise above 0.
 
 TEST_CASE("SEC: generator detects violated subtour in 6-city two-triangle LP", "[sec]") {
@@ -115,7 +115,7 @@ TEST_CASE("SEC: generator detects violated subtour in 6-city two-triangle LP", "
     REQUIRE(lp2.result.objectiveValue > kTol);
 }
 
-// ── SEC via CutGenerator in B&B finds optimal Hamiltonian tour ────────────────
+// â”€â”€ SEC via CutGenerator in B&B finds optimal Hamiltonian tour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Full B&B on the 6-city TSP.  Without SEC the LP bound is 0 (two triangles).
 // With the CutGenerator the solver adds SECs at the root and converges to the
@@ -131,7 +131,7 @@ TEST_CASE("SEC: B&B with makeSecGenerator finds optimal Hamiltonian tour", "[sec
     opts.enableCuts      = false;
     opts.enableMIR       = false;
     opts.collectStats    = true;
-    opts.enablePresolve  = false;
+    opts.presolveLevel  = 0;
     opts.enableElimination = false;
     opts.timeLimitS      = 10.0;
     opts.cutGenerators.push_back(makeSecGenerator(n, xv));

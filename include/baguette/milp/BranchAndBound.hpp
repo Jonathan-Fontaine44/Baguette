@@ -189,26 +189,45 @@ struct BBOptions {
     /// production runs.  Enable for cut-effectiveness and warm-start diagnosis.
     bool collectStats = false;
 
-    /// If true, apply bound-tightening presolve (presolveTB) once before the
-    /// B&B root node. Propagates variable bounds through constraints to narrow
-    /// [lb, ub] intervals. Operates on the working model copy; the original
-    /// model passed to solveMILP() is unchanged.
-    /// Populates MILPResult::presolveStat. Default true.
-    bool enablePresolve = true;
+    /// MILP presolve level applied once before the B&B root node.
+    /// Operates on the working model copy; the original model is unchanged.
+    /// Populates MILPResult::presolveStat.
+    ///
+    /// | Level | Technique                                                    |
+    /// |-------|--------------------------------------------------------------|
+    /// |   0   | None — skip presolve entirely                                |
+    /// |   1   | LP bound-tightening + integrality rounding + PR1 (default)  |
+    /// |   2   | + CP fixpoint propagation at root before the B&B tree        |
+    /// |   3   | + Weak probing (binary fix + propagation + bounds intersect)  |
+    /// |   4   | + Root LP solve (LP infeasibility detection)                  |
+    /// |   5   | + Binary implication rows injected from probing               |
+    /// |   6   | + Strong probing (LP solve per binary fix)                    |
+    ///
+    /// Levels are cumulative: level N implies all levels 1 … N-1.
+    uint32_t presolveLevel = 1;
 
-    /// Maximum number of outer MILP presolve cycles (LP-fixpoint + integrality round).
-    /// Each cycle runs LP bound-tightening to its own fixpoint, then snaps integer
-    /// bounds. Independent of LPOptions::presolveMaxPasses, which controls the LP
-    /// pass count inside each LP solve node.
-    /// 0 = run until fixed point (default).
+    /// Maximum outer MILP presolve cycles (LP-fixpoint + integrality round).
+    /// Independent of LPOptions::presolveMaxPasses (LP pass count per node).
+    /// 0 = run to fixpoint (default).
     uint32_t milpPresolveMaxCycles = 0;
 
     /// If true, apply elimination presolve (presolveElim) after bound tightening.
     /// Removes fixed variables (lb == ub) and always-satisfied constraints before
     /// the B&B loop, reducing the size of every LP solve in the tree.
     /// postsolveElim() restores the full solution after B&B terminates.
-    /// Default true.
+    /// Default true.  Skipped when presolveLevel == 0.
     bool enableElimination = true;
+
+    /// Maximum binary variables probed per probing pass (levels 3 and 6).
+    /// 0 = probe all binary variables in the model.
+    uint32_t probingMaxVars = 50;
+
+    /// Maximum binary implication rows injected into the model (level 5).
+    uint32_t maxImpliedRows = 100;
+
+    /// LP method used for each LP solve in strong probing (level 6).
+    /// DualSimplexBV (default) handles a single bound change cheaply.
+    LPMethod probingLPMethod = LPMethod::DualSimplexBV;
 
     /// If true, iterate CP propagation at each B&B node until no further bounds
     /// change (fixpoint). If false (default), a single propagation pass is done.

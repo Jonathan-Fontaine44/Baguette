@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "baguette/milp/BranchAndBound.hpp"
@@ -10,7 +10,7 @@ using Catch::Matchers::WithinAbs;
 
 static constexpr double kTol = 1e-6;
 
-// ── Test 1: collectStats=false → stats is nullopt ─────────────────────────────
+// â”€â”€ Test 1: collectStats=false â†’ stats is nullopt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 TEST_CASE("Stats: collectStats=false yields nullopt", "[stats]") {
     Model m;
@@ -19,16 +19,16 @@ TEST_CASE("Stats: collectStats=false yields nullopt", "[stats]") {
 
     BBOptions opts;
     opts.collectStats   = false;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
     REQUIRE(!r.stats.has_value());
 }
 
-// ── Test 2: single-node optimal — nodesExplored=1, lpSolvesTotal=1 ───────────
+// â”€â”€ Test 2: single-node optimal â€” nodesExplored=1, lpSolvesTotal=1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// max x, x ∈ {0,1}.  LP relaxation already integer (x=1) → 1 node, 1 LP solve.
+// max x, x âˆˆ {0,1}.  LP relaxation already integer (x=1) â†’ 1 node, 1 LP solve.
 
 TEST_CASE("Stats: single-node optimal - nodesExplored=1 lpSolvesTotal=1", "[stats]") {
     Model m;
@@ -37,7 +37,7 @@ TEST_CASE("Stats: single-node optimal - nodesExplored=1 lpSolvesTotal=1", "[stat
 
     BBOptions opts;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -48,9 +48,9 @@ TEST_CASE("Stats: single-node optimal - nodesExplored=1 lpSolvesTotal=1", "[stat
     REQUIRE(r.stats->cutsPerDepth.empty());
 }
 
-// ── Test 3: LP-infeasible root → nodesPrunedByInfeasibility = 1 ──────────────
+// â”€â”€ Test 3: LP-infeasible root â†’ nodesPrunedByInfeasibility = 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// x + y ≤ -1, x,y ≥ 0  → root LP infeasible → 1 node pruned by infeasibility.
+// x + y â‰¤ -1, x,y â‰¥ 0  â†’ root LP infeasible â†’ 1 node pruned by infeasibility.
 
 TEST_CASE("Stats: LP-infeasible root counts nodesPrunedByInfeasibility", "[stats]") {
     Model m;
@@ -61,20 +61,20 @@ TEST_CASE("Stats: LP-infeasible root counts nodesPrunedByInfeasibility", "[stats
 
     BBOptions opts;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Infeasible);
     REQUIRE(r.stats->nodesPrunedByInfeasibility >= 1);
 }
 
-// ── Test 4: GMI cut at root ───────────────────────────────────────────────────
+// â”€â”€ Test 4: GMI cut at root â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// min x + y  s.t. 2x + 2y ≥ 7,  x,y ∈ Z[0,5].
+// min x + y  s.t. 2x + 2y â‰¥ 7,  x,y âˆˆ Z[0,5].
 // LP relaxation optimal: x + y = 3.5 (fractional).
 // GMI cut closes the gap to 4 (integer) at the root.
-// Expected: 1 node, cutsAdded ≥ 1, nodesWithCuts = 1, lpSolvesTotal = 2,
-//           cutsPerDepth[0] ≥ 1.
+// Expected: 1 node, cutsAdded â‰¥ 1, nodesWithCuts = 1, lpSolvesTotal = 2,
+//           cutsPerDepth[0] â‰¥ 1.
 
 TEST_CASE("Stats: GMI cut at root populates cut stats", "[stats]") {
     Model m;
@@ -87,7 +87,7 @@ TEST_CASE("Stats: GMI cut at root populates cut stats", "[stats]") {
     opts.enableCuts     = true;
     opts.maxCutsPerNode = 10;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);
@@ -100,10 +100,10 @@ TEST_CASE("Stats: GMI cut at root populates cut stats", "[stats]") {
     REQUIRE(r.stats->cutsPerDepth[0] >= 1);
 }
 
-// ── Test 5: branching problem — nodesExplored and lpSolvesTotal ──────────────
+// â”€â”€ Test 5: branching problem â€” nodesExplored and lpSolvesTotal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// max 5x + 4y  s.t. 3x + 2y ≤ 7,  x,y ∈ Z[0,5].  Requires branching.
-// nodesExplored ≥ 3, lpSolvesTotal ≥ nodesExplored (1 LP per node).
+// max 5x + 4y  s.t. 3x + 2y â‰¤ 7,  x,y âˆˆ Z[0,5].  Requires branching.
+// nodesExplored â‰¥ 3, lpSolvesTotal â‰¥ nodesExplored (1 LP per node).
 
 TEST_CASE("Stats: branching problem - lpSolvesTotal >= nodesExplored", "[stats]") {
     Model m;
@@ -115,7 +115,7 @@ TEST_CASE("Stats: branching problem - lpSolvesTotal >= nodesExplored", "[stats]"
     BBOptions opts;
     opts.enableCuts     = false;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     MILPResult r = solveMILP(m, opts);
 
     REQUIRE(r.status == MILPStatus::Optimal);

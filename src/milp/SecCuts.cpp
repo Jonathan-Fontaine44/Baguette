@@ -12,7 +12,7 @@ namespace {
 //
 // Mutates `w` in-place (contractions).  Requires n ≥ 2 and w[i][j] ≥ 0.
 //
-// @par Complexity O(n²)
+// @note Complexity O(n²)
 struct SWResult { double value; std::vector<int> side; };
 
 SWResult stoerWagner(int n, std::vector<std::vector<double>> w) {

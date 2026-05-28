@@ -144,7 +144,7 @@ TEST_CASE("MIR: enableMIR flag activates cuts in B&B", "[mir][bb]") {
     opts.enableCuts     = false;
     opts.enableMIR      = true;
     opts.collectStats   = true;
-    opts.enablePresolve = false;
+    opts.presolveLevel = 0;
     opts.timeLimitS     = 5.0;
 
     MILPResult r = solveMILP(m, opts);

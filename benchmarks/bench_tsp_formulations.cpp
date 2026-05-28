@@ -129,7 +129,7 @@ static BBOptions makeOpts(bool gmi) {
     opts.enableCuts        = gmi;
     opts.enableMIR         = false;
     opts.collectStats      = true;
-    opts.enablePresolve    = gPresolveon;
+    opts.presolveLevel     = gPresolveon ? 1u : 0u;
     opts.enableElimination = gPresolveon;
     opts.timeLimitS        = kTimeLimitS;
     opts.branchStrat       = BranchStrategy::MostFractional;

@@ -310,7 +310,7 @@ TEST_CASE("Presolve: MILP integration - same optimal", "[presolve]") {
     MILPResult rBase = solveMILP(m);
 
     BBOptions optsPS;
-    optsPS.enablePresolve = true;
+    optsPS.presolveLevel = 1;
     optsPS.enableElimination = false;
     MILPResult rPS = solveMILP(m, optsPS);
 
@@ -329,7 +329,7 @@ TEST_CASE("Presolve: MILP presolveStat populated", "[presolve]") {
     m.setObjective(5.0*x + 4.0*y, ObjSense::Maximize);
 
     BBOptions opts;
-    opts.enablePresolve = true;
+    opts.presolveLevel = 1;
     opts.enableElimination = false;
 
     MILPResult r = solveMILP(m, opts);
@@ -349,7 +349,7 @@ TEST_CASE("Presolve: MILP infeasibility detected by presolve", "[presolve]") {
     m.setObjective(1.0*x, ObjSense::Minimize);
 
     BBOptions opts;
-    opts.enablePresolve = true;
+    opts.presolveLevel = 1;
     opts.enableElimination = false;
 
     MILPResult r = solveMILP(m, opts);

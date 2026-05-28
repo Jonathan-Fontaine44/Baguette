@@ -109,7 +109,7 @@ static void runLarge(benchmark::State& state,
     for (auto _ : state) {
         BBOptions opts;
         opts.lpOpts.method  = method;
-        opts.enablePresolve = enablePresolve;
+        opts.presolveLevel  = enablePresolve ? 1u : 0u;
         opts.timeLimitS     = 300.0; // 5-minute wall-clock limit
         opts.collectStats   = true;
         MILPResult r = solveMILP(build(), opts);

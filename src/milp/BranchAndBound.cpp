@@ -176,13 +176,18 @@ MILPResult solveMILP(const Model&            modelRef,
     Model model = modelRef;
 
     // ── MILP presolve (opt-in, applied once at the root) ──────────────────────
-    // Interleaves LP bound-tightening with integer bound rounding — not called
-    // for LP relaxation nodes; only at the B&B root on the integer model.
     std::optional<MILPPresolveResult> presolveStat;
-    if (opts.enablePresolve) {
-        MILPPresolveResult pr = presolveMILPInPlace(model, opts.milpPresolveMaxCycles,
-                                                    opts.intFeasTol,
-                                                    opts.timeLimitS, startTime);
+    if (opts.presolveLevel > 0) {
+        MILPPresolveOpts pOpts;
+        pOpts.level           = opts.presolveLevel;
+        pOpts.maxCycles       = opts.milpPresolveMaxCycles;
+        pOpts.intFeasTol      = opts.intFeasTol;
+        pOpts.timeLimitS      = opts.timeLimitS;
+        pOpts.probingMaxVars  = opts.probingMaxVars;
+        pOpts.maxImpliedRows  = opts.maxImpliedRows;
+        pOpts.probingLPMethod = opts.probingLPMethod;
+        pOpts.lpOpts          = opts.lpOpts;
+        MILPPresolveResult pr = presolveMILPInPlace(model, pOpts, startTime);
         presolveStat = pr;
         if (pr.infeasible) {
             MILPResult result;
@@ -192,9 +197,9 @@ MILPResult solveMILP(const Model&            modelRef,
         }
     }
 
-    // ── Elimination presolve (opt-in; skipped when enablePresolve is false) ───
+    // ── Elimination presolve (opt-in; skipped when presolveLevel is 0) ────────
     EliminationRecord elimRec;
-    const bool elimApplied = opts.enablePresolve && opts.enableElimination;
+    const bool elimApplied = (opts.presolveLevel > 0) && opts.enableElimination;
     if (elimApplied) {
         const CPConstraints cpSaved = model.getCPConstraints();
         model = presolveElim(model, elimRec);

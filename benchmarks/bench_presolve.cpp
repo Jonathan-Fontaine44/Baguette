@@ -1,4 +1,4 @@
-#include <benchmark/benchmark.h>
+﻿#include <benchmark/benchmark.h>
 
 #include "baguette/core/Sense.hpp"
 #include "baguette/lp/LPSolver.hpp"
@@ -11,10 +11,10 @@
 
 using namespace baguette;
 
-// ── Model builders ────────────────────────────────────────────────────────────
+// â”€â”€ Model builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Chain LP: x[i] + x[i+1] <= n-i. presolveTB tightens every upper bound.
-// No variable gets fully fixed → presolveElim removes 0 vars/rows on this model.
+// No variable gets fully fixed â†’ presolveElim removes 0 vars/rows on this model.
 static Model makeChainLP(int n) {
     Model m;
     std::vector<Variable> x;
@@ -77,7 +77,7 @@ static Model makeKnapsackMILP(int n) {
 }
 
 // Elimination LP: n/2 variables pre-fixed (lb==ub==2), n/2 free in [0,5].
-// nFixed/2 constraints involve only fixed variables → all redundant after elim.
+// nFixed/2 constraints involve only fixed variables â†’ all redundant after elim.
 // nFree/2 non-redundant GEQ constraints on the free variables.
 // presolveElim removes nFixed vars and nFixed/2 rows; the LP on the reduced
 // model is half the size.
@@ -91,7 +91,7 @@ static Model makeElimLP(int n) {
     for (int i = 0; i < nFree; ++i)
         free_vars.push_back(m.addVar(0.0, 5.0, "y" + std::to_string(i)));
 
-    // Constraints involving only fixed vars: 2+2=4 <= 100 → always redundant.
+    // Constraints involving only fixed vars: 2+2=4 <= 100 â†’ always redundant.
     for (int i = 0; i < nFixed / 2; ++i)
         m.addLPConstraint(1.0*fixed_vars[i] + 1.0*fixed_vars[(i+1) % nFixed],
                           Sense::LessEq, 100.0);
@@ -108,17 +108,17 @@ static Model makeElimLP(int n) {
     return m;
 }
 
-// ── Helpers: LP option sets ───────────────────────────────────────────────────
+// â”€â”€ Helpers: LP option sets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static LPOptions lpNone()  { LPOptions o; o.enablePresolve = false; o.enableElimination = false; o.timeLimitS = 10.0; return o; }
 static LPOptions lpTB()    { LPOptions o; o.enablePresolve = true;  o.enableElimination = false; o.timeLimitS = 10.0; return o; }
 static LPOptions lpElim()  { LPOptions o; o.enablePresolve = true;  o.enableElimination = true;  o.timeLimitS = 10.0; return o; }
 
-static BBOptions bbNone()  { BBOptions o; o.enablePresolve = false; o.enableElimination = false; o.timeLimitS = 10.0; return o; }
-static BBOptions bbTB()    { BBOptions o; o.enablePresolve = true;  o.enableElimination = false; o.timeLimitS = 10.0; return o; }
-static BBOptions bbElim()  { BBOptions o; o.enablePresolve = true;  o.enableElimination = true;  o.timeLimitS = 10.0; return o; }
+static BBOptions bbNone()  { BBOptions o; o.presolveLevel = 0; o.enableElimination = false; o.timeLimitS = 10.0; return o; }
+static BBOptions bbTB()    { BBOptions o; o.presolveLevel = 1;  o.enableElimination = false; o.timeLimitS = 10.0; return o; }
+static BBOptions bbElim()  { BBOptions o; o.presolveLevel = 1;  o.enableElimination = true;  o.timeLimitS = 10.0; return o; }
 
-// ── presolveTB-only timing ────────────────────────────────────────────────────
+// â”€â”€ presolveTB-only timing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_PresolveOnly_TB_Chain20(benchmark::State& state) {
     for (auto _ : state) {
@@ -162,7 +162,7 @@ static void BM_PresolveOnly_Elim_Chain100(benchmark::State& state) {
 }
 BENCHMARK(BM_PresolveOnly_Elim_Chain100);
 
-// ── LP solve: Chain 20 (NoPresolve / TB / Elim) ───────────────────────────────
+// â”€â”€ LP solve: Chain 20 (NoPresolve / TB / Elim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_LP_Chain20_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -188,9 +188,9 @@ static void BM_LP_Chain20_Elim(benchmark::State& state) {
 }
 BENCHMARK(BM_LP_Chain20_Elim);
 
-// ── LP solve: ElimLP 60 (NoPresolve / TB / Elim) ─────────────────────────────
+// â”€â”€ LP solve: ElimLP 60 (NoPresolve / TB / Elim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // 30 fixed vars + 30 free vars, 15 redundant rows + 15 binding rows.
-// Elim removes 30 vars and 15 rows → solves a 30-var / 15-row LP.
+// Elim removes 30 vars and 15 rows â†’ solves a 30-var / 15-row LP.
 
 static void BM_LP_Elim60_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -216,7 +216,7 @@ static void BM_LP_Elim60_Elim(benchmark::State& state) {
 }
 BENCHMARK(BM_LP_Elim60_Elim);
 
-// ── LP solve: ElimLP 200 (NoPresolve / TB / Elim) ────────────────────────────
+// â”€â”€ LP solve: ElimLP 200 (NoPresolve / TB / Elim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_LP_Elim200_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -242,7 +242,7 @@ static void BM_LP_Elim200_Elim(benchmark::State& state) {
 }
 BENCHMARK(BM_LP_Elim200_Elim);
 
-// ── MILP solve: Knapsack 15 (NoPresolve / TB / Elim) ─────────────────────────
+// â”€â”€ MILP solve: Knapsack 15 (NoPresolve / TB / Elim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_MILP_Knapsack15_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -268,7 +268,7 @@ static void BM_MILP_Knapsack15_Elim(benchmark::State& state) {
 }
 BENCHMARK(BM_MILP_Knapsack15_Elim);
 
-// ── MILP solve: TSP10 (NoPresolve / TB / Elim) ───────────────────────────────
+// â”€â”€ MILP solve: TSP10 (NoPresolve / TB / Elim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_MILP_TSP10_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
@@ -294,7 +294,7 @@ static void BM_MILP_TSP10_Elim(benchmark::State& state) {
 }
 BENCHMARK(BM_MILP_TSP10_Elim);
 
-// ── TSP10: presolve-only timing + variable/row change stats ──────────────────
+// â”€â”€ TSP10: presolve-only timing + variable/row change stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static void BM_PresolveOnly_TB_TSP10(benchmark::State& state) {
     for (auto _ : state) {
@@ -321,11 +321,11 @@ static void BM_PresolveOnly_Elim_TSP10(benchmark::State& state) {
 }
 BENCHMARK(BM_PresolveOnly_Elim_TSP10);
 
-// ── MILPCascade: LP-presolve vs MILP-presolve (presolve-only timing) ─────────
-// Cascade20: 4 groups of 5 vars — two outer MILP iterations.
-// Cascade50: 10 groups  — same cascade, scaled up.
-// LP-only (presolveTBInPlace): reaches ub=3.9, cannot round lb → misses iter 2.
-// MILP     (presolveMILPInPlace): two rounds → tighter [2,3] bounds.
+// â”€â”€ MILPCascade: LP-presolve vs MILP-presolve (presolve-only timing) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Cascade20: 4 groups of 5 vars â€” two outer MILP iterations.
+// Cascade50: 10 groups  â€” same cascade, scaled up.
+// LP-only (presolveTBInPlace): reaches ub=3.9, cannot round lb â†’ misses iter 2.
+// MILP     (presolveMILPInPlace): two rounds â†’ tighter [2,3] bounds.
 
 static void BM_PresolveOnly_LP_Cascade20(benchmark::State& state) {
     for (auto _ : state) {
@@ -373,10 +373,10 @@ static void BM_PresolveOnly_MILP_Cascade50(benchmark::State& state) {
 }
 BENCHMARK(BM_PresolveOnly_MILP_Cascade50);
 
-// ── MILPCascade: full MILP solve (NoPresolve / MILP-presolve) ────────────────
+// â”€â”€ MILPCascade: full MILP solve (NoPresolve / MILP-presolve) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Measures the end-to-end B&B benefit of MILP presolve on the cascade model.
-// NoPresolve: B&B starts with x[i] ∈ [0,10] — wide domains, many branches.
-// MILP-TB:    B&B starts with x[i] ∈ [2,3]  — domains reduced by 87.5%.
+// NoPresolve: B&B starts with x[i] âˆˆ [0,10] â€” wide domains, many branches.
+// MILP-TB:    B&B starts with x[i] âˆˆ [2,3]  â€” domains reduced by 87.5%.
 
 static void BM_MILP_Cascade20_NoPresolve(benchmark::State& state) {
     for (auto _ : state) {
