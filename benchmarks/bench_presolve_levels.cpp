@@ -74,9 +74,23 @@
 //   20. SP2 Root  — presolveMILPInPlace then root LP, SP large.
 //   21. SP2 Solve — full solveMILP, SP large.
 //
+// Part H — Hard asymmetric TSP-10 (MTZ + AllDiff CP formulation)
+//   Same instance as Parts B and C (seed 0xC0FFEE42), with AllDiff posted on
+//   the 9 position variables u[1..9].  LP optimal = 19.15 (unchanged; CP
+//   constraints are not linearised).  IP optimal = 20.
+//
+//   The AllDiff propagator activates at level 2 (CP propagation at fixed point).
+//   This is the only family where L2 is expected to differ from L1: AllDiff
+//   can tighten position domains and propagate to arc fixings, unlike the pure
+//   LP bound-tightening of L1.
+//
+//   22. MTZAD Cost  — presolveMILPInPlace only, hard TSP-10 MTZAD.
+//   23. MTZAD Root  — presolveMILPInPlace then root LP, hard TSP-10 MTZAD.
+//   24. MTZAD Solve — full solveMILP, hard TSP-10 MTZAD.
+//
 // Run with (Release build recommended):
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP --benchmark_format=json
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD --benchmark_format=json
 
 #include <benchmark/benchmark.h>
 
@@ -400,6 +414,19 @@ BENCHMARK(BM_TSP_PresolveLevelSolve)
 //   MTZ (Part B) L6: probed_fixed ≈ 0 (LP relaxation too weak)
 //   SCF (Part C) L6: probed_fixed > 0  (tighter LP detects arc infeasibility)
 //   SCF solve: fewer nodes than MTZ at L4+ (better root LP bound)
+
+static Model makeHardTSPMtz(int n, unsigned seed = 0xC0FFEE42u) {
+    std::vector<baguette_test::TspArc> arcs;
+    arcs.reserve(n * (n - 1));
+    unsigned s = seed;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j) {
+            if (i == j) continue;
+            s = s * 1664525u + 1013904223u;
+            arcs.push_back({i, j, 1.0 + double(s % 10u)});
+        }
+    return baguette_test::makeTSPMtz(n, arcs);
+}
 
 static Model makeHardTSPFlow(int n, unsigned seed = 0xC0FFEE42u) {
     std::vector<baguette_test::TspArc> arcs;
@@ -939,5 +966,109 @@ static void BM_SP2_PresolveLevelSolve(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_SP2_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part H: Hard asymmetric TSP-10 (MTZ + AllDiff CP) ────────────────────────
+//
+// Same instance as Part B (seed 0xC0FFEE42), with an AllDiff constraint on
+// the 9 MTZ position variables u[1..9].  The AllDiff propagator activates at
+// level 2 (CP propagation to fixed point), unlike all previous families where
+// L2 ≈ L1.
+//
+// Hypothesis: at L2, AllDiff bounds-consistency can tighten position domains
+// (u[i] ∈ [1,9] all distinct) without any arc being fixed.  At L3+, when an
+// arc is probed (x[i→j]=0 or 1), the resulting position constraint propagates
+// through AllDiff to tighten other position variables.
+
+// ── Section 22: Presolve-only cost, hard TSP-10 MTZAD (levels 0-6) ───────────
+
+static void BM_MTZAD_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = makeHardTSPMtz(10);
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_MTZAD_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 23: Presolve + root LP, hard TSP-10 MTZAD (levels 0-6) ───────────
+
+static void BM_MTZAD_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = makeHardTSPMtz(10);
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_MTZAD_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 24: Full MILP solve, hard TSP-10 MTZAD (levels 0-6) ──────────────
+
+static void BM_MTZAD_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = makeHardTSPMtz(10);
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_MTZAD_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
