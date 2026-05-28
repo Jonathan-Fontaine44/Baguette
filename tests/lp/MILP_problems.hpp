@@ -924,6 +924,139 @@ inline baguette::Model makeSetPartitioningLarge(unsigned seed = 0xDEADC0DEu) {
     return makeSetPartitioningRandom(30, 90, 5, seed);
 }
 
+/// Build a random 3-colourable graph (3-partite) with AllDiff CP on backbone triangles.
+///
+/// n = 3g vertices: group A={0..g-1}, B={g..2g-1}, C={2g..3g-1}.  k = 3 colours.
+///
+/// Edges:
+///   Backbone: g triangles (i, g+i, 2g+i) — one vertex per group per triangle.
+///   Random:   inter-group, inter-backbone edges at ≈33% density (LCG seed).
+///
+/// Variables:
+///   x[v][c] ∈ {0,1} Binary   — vertex v uses colour c   (n*k vars)
+///   col[v]  ∈ [0,2] Integer  — colour index of v         (n vars)
+///   Symmetry-breaking: col[0]=0, col[g]=1, col[2g]=2 (via addVar bounds).
+///
+/// LP constraints:
+///   Exactness    : Σ_c x[v][c] = 1                       (n)
+///   Edge conflict: x[u][c] + x[v][c] ≤ 1  ∀(u,v)∈E, ∀c  (|E|·k)
+///   Channeling   : col[v] = x[v][1] + 2·x[v][2]          (n)
+///
+/// CP constraints:
+///   AllDiff({col[i], col[g+i], col[2g+i]})  for i = 0..g-1   (g triples)
+///
+/// Objective: min Σ_v col[v].
+///
+/// IP optimal = n: AllDiff on backbone triangles forces each triangle to use
+/// all 3 colours (sum = 0+1+2 = 3); g triangles × 3 = n.  The 3-partition
+/// colouring A→0, B→1, C→2 achieves this bound for any 3-partite edge set.
+///
+/// @note Complexity  O(n·k + |E|·k) variables and constraints.
+inline baguette::Model makeGraphColoring(int n, unsigned seed = 0xC0FFEE42u) {
+    using namespace baguette;
+    const int k = 3;
+    const int g = n / k;   // group size; n must be divisible by 3
+
+    // ── Edge list (encoded as u*n+v with u<v, deduplicated) ──────────────────
+    std::vector<int> edgeCodes;
+
+    // Backbone triangles: (i, g+i, 2g+i) for i=0..g-1
+    for (int i = 0; i < g; ++i) {
+        edgeCodes.push_back(i * n + (g+i));
+        edgeCodes.push_back(i * n + (2*g+i));
+        edgeCodes.push_back((g+i) * n + (2*g+i));
+    }
+
+    // Random inter-group, inter-backbone edges at ~33% density
+    unsigned s = seed;
+    auto lcg = [&]() -> unsigned { return s = s * 1664525u + 1013904223u; };
+    auto tryEdge = [&](int u, int v) {
+        if (lcg() % 3u == 0) {
+            if (u > v) std::swap(u, v);
+            edgeCodes.push_back(u * n + v);
+        }
+    };
+    for (int p = 0; p < g; ++p)
+        for (int q = 0; q < g; ++q) {
+            if (p == q) continue;
+            tryEdge(p,   g+q);
+            tryEdge(p,   2*g+q);
+            tryEdge(g+p, 2*g+q);
+        }
+
+    std::sort(edgeCodes.begin(), edgeCodes.end());
+    edgeCodes.erase(std::unique(edgeCodes.begin(), edgeCodes.end()), edgeCodes.end());
+
+    // ── Model ─────────────────────────────────────────────────────────────────
+    Model m;
+
+    // x[v][c] ∈ {0,1}
+    std::vector<std::vector<Variable>> x(n, std::vector<Variable>(k));
+    for (int v = 0; v < n; ++v)
+        for (int c = 0; c < k; ++c)
+            x[v][c] = m.addVar(0.0, 1.0, VarType::Binary);
+
+    // col[v] ∈ [0, k-1] Integer; symmetry-breaking fixes landmarks
+    std::vector<Variable> col(n);
+    for (int v = 0; v < n; ++v) {
+        double lb = 0.0, ub = double(k - 1);
+        if (v == 0)   { lb = ub = 0.0; }
+        if (v == g)   { lb = ub = 1.0; }
+        if (v == 2*g) { lb = ub = 2.0; }
+        col[v] = m.addVar(lb, ub, VarType::Integer);
+    }
+
+    // Objective: min Σ_v col[v]
+    LinearExpr obj;
+    for (int v = 0; v < n; ++v)
+        obj += 1.0 * col[v];
+    m.setObjective(obj, ObjSense::Minimize);
+
+    // Exactness: Σ_c x[v][c] = 1
+    for (int v = 0; v < n; ++v) {
+        LinearExpr e;
+        for (int c = 0; c < k; ++c)
+            e += 1.0 * x[v][c];
+        m.addLPConstraint(e, Sense::Equal, 1.0);
+    }
+
+    // Edge conflicts: x[u][c] + x[v][c] ≤ 1
+    for (int code : edgeCodes) {
+        int u = code / n, v = code % n;
+        for (int c = 0; c < k; ++c) {
+            LinearExpr e;
+            e += 1.0 * x[u][c];
+            e += 1.0 * x[v][c];
+            m.addLPConstraint(e, Sense::LessEq, 1.0);
+        }
+    }
+
+    // Channeling: col[v] = x[v][1] + 2*x[v][2]  (c=0 contributes 0)
+    for (int v = 0; v < n; ++v) {
+        LinearExpr e;
+        e += -1.0 * col[v];
+        for (int c = 1; c < k; ++c)
+            e += double(c) * x[v][c];
+        m.addLPConstraint(e, Sense::Equal, 0.0);
+    }
+
+    // AllDiff on each backbone triangle
+    for (int i = 0; i < g; ++i)
+        m.addCPConstraint(AllDiffConstraint({col[i], col[g+i], col[2*g+i]}));
+
+    return m;
+}
+
+/// 9-vertex 3-colourable graph (3 backbone triangles), seed 0xC0FFEE42. IP optimal = 9.
+inline baguette::Model makeGraphColoringSmall(unsigned seed = 0xC0FFEE42u) {
+    return makeGraphColoring(9, seed);
+}
+
+/// 18-vertex 3-colourable graph (6 backbone triangles), seed 0xDEADC0DE. IP optimal = 18.
+inline baguette::Model makeGraphColoringLarge(unsigned seed = 0xDEADC0DEu) {
+    return makeGraphColoring(18, seed);
+}
+
 } // namespace baguette_test
 
 /// LP relaxations of classic MILP problems.

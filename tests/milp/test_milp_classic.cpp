@@ -59,6 +59,12 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
         // 20 compound of size 2-4, seed 0xC0FFEE42). IP optimal = 19.
         {"setpart_small", MILPStatus::Optimal, 19.0,
             []() { return baguette_test::makeSetPartitioningSmall(); }},
+
+        // Graph colouring 9 vertices (3-partite, 3 AllDiff backbone triangles,
+        // seed 0xC0FFEE42). IP optimal = 9: AllDiff forces each triangle to use
+        // all 3 colours (0+1+2=3); 3 triangles × 3 = 9.
+        {"graph_coloring_small", MILPStatus::Optimal, 9.0,
+            []() { return baguette_test::makeGraphColoringSmall(); }},
     };
 }
 

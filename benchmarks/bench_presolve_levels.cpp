@@ -88,9 +88,31 @@
 //   23. MTZAD Root  — presolveMILPInPlace then root LP, hard TSP-10 MTZAD.
 //   24. MTZAD Solve — full solveMILP, hard TSP-10 MTZAD.
 //
+// Part I — Graph Colouring small (9 vertices, 3 colours)
+//   3-partite graph, 3 backbone triangles (i, g+i, 2g+i), random inter-backbone
+//   edges at ~33% density (seed 0xC0FFEE42).  36 binary x[v][c] + 9 integer col[v]
+//   = 45 vars.  Symmetry-breaking: col[0]=0, col[3]=1, col[6]=2 (via bounds).
+//   LP optimal < 9, IP optimal = 9.  AllDiff on each backbone triangle.
+//
+//   This is the first family designed for L2 to fire at presolve: after L1 narrows
+//   col domains via the channeling constraints + edge conflicts propagating from the
+//   3 fixed landmarks, AllDiff on the remaining triangles can further narrow colours.
+//
+//   25. GC Cost  — presolveMILPInPlace only, graph colouring small.
+//   26. GC Root  — presolveMILPInPlace then root LP, graph colouring small.
+//   27. GC Solve — full solveMILP, graph colouring small.
+//
+// Part J — Graph Colouring large (18 vertices, 3 colours)
+//   Same construction, n=18, seed 0xDEADC0DE.  54 binary + 18 integer = 72 vars.
+//   IP optimal = 18.
+//
+//   28. GC2 Cost  — presolveMILPInPlace only, graph colouring large.
+//   29. GC2 Root  — presolveMILPInPlace then root LP, graph colouring large.
+//   30. GC2 Solve — full solveMILP, graph colouring large.
+//
 // Run with (Release build recommended):
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD --benchmark_format=json
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD|BM_GC
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD|BM_GC --benchmark_format=json
 
 #include <benchmark/benchmark.h>
 
@@ -1070,5 +1092,208 @@ static void BM_MTZAD_PresolveLevelSolve(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_MTZAD_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part I: Graph Colouring — small (9 vertices, 3 colours) ──────────────────
+//
+// 9 vertices split into 3 groups of 3.  3 backbone triangles + random
+// inter-backbone edges (~33% density, seed 0xC0FFEE42).  45 variables
+// (27 binary x[v][c] + 9 integer col[v]).  3 AllDiff CP constraints (one per
+// backbone triangle).
+//
+// First family designed so that L2 may fire at presolve: L1 propagates the
+// 3 fixed landmarks through channeling and edge conflicts, narrowing col domains;
+// AllDiff on the remaining triangles can then further constrain colours.
+//
+// IP optimal = 9.
+
+// ── Section 25: Presolve-only cost, graph colouring small (levels 0-6) ───────
+
+static void BM_GC_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringSmall();
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_GC_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 26: Presolve + root LP, graph colouring small (levels 0-6) ───────
+
+static void BM_GC_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringSmall();
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_GC_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 27: Full MILP solve, graph colouring small (levels 0-6) ──────────
+
+static void BM_GC_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringSmall();
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_GC_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part J: Graph Colouring — large (18 vertices, 3 colours) ─────────────────
+//
+// Same construction as Part I, n=18, seed 0xDEADC0DE.
+// 72 variables (54 binary + 18 integer), 6 AllDiff constraints.
+// IP optimal = 18.
+
+// ── Section 28: Presolve-only cost, graph colouring large (levels 0-6) ───────
+
+static void BM_GC2_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringLarge();
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_GC2_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 29: Presolve + root LP, graph colouring large (levels 0-6) ───────
+
+static void BM_GC2_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringLarge();
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_GC2_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 30: Full MILP solve, graph colouring large (levels 0-6) ──────────
+
+static void BM_GC2_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeGraphColoringLarge();
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_GC2_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
