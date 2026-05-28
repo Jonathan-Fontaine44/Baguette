@@ -807,6 +807,65 @@ inline baguette::Model makeFacilityLocation15x30(unsigned seed = 0xCAFEBABEu) {
     return makeFacilityLocation(fixedCosts, assignCosts);
 }
 
+// ── Set Partitioning ──────────────────────────────────────────────────────────
+
+/// Build a Set Partitioning model from an explicit column list.
+///
+/// Each column (subset) covers a list of elements; exactly one selected column
+/// must cover each element.  Elements may appear in several columns (redundancy).
+///
+/// Variables:  x[i] ∈ {0,1} (Binary) — select column i
+///
+/// Constraints:
+///   Σ_{i : e ∈ subsets[i]} x[i] = 1   ∀ element e   (partitioning equalities)
+///
+/// Objective:  min Σᵢ costs[i] · x[i]
+///
+/// Probing notes
+///   Setting x[i]=0 removes column i from the coverage of every element it
+///   covers.  For elements now covered by a single remaining column j,
+///   x[j] is forced to 1 (otherwise the equality is violated).  That forcing
+///   can in turn remove other columns from their elements, producing a cascade.
+///   The cascade depth depends on the overlap structure of the column matrix.
+///
+/// @param nElements  Total number of elements (universe size).
+/// @param subsets    subsets[i] = sorted list of elements covered by column i.
+/// @param costs      costs[i]   = objective coefficient of x[i].
+///
+/// @note Complexity O(Σ|subsets[i]|) variables and constraint entries.
+inline baguette::Model makeSetPartitioning(
+        int nElements,
+        const std::vector<std::vector<int>>& subsets,
+        const std::vector<double>& costs) {
+    using namespace baguette;
+    const int nCols = static_cast<int>(subsets.size());
+
+    Model m;
+
+    std::vector<Variable> x(nCols);
+    LinearExpr obj;
+    for (int i = 0; i < nCols; ++i) {
+        x[i] = m.addVar(0.0, 1.0, VarType::Binary);
+        obj += costs[i] * x[i];
+    }
+    m.setObjective(obj, ObjSense::Minimize);
+
+    // Invert subset lists: cover[e] = indices of columns that cover element e.
+    std::vector<std::vector<int>> cover(nElements);
+    for (int i = 0; i < nCols; ++i)
+        for (int e : subsets[i])
+            cover[e].push_back(i);
+
+    // Partitioning: each element covered by exactly one selected column.
+    for (int e = 0; e < nElements; ++e) {
+        LinearExpr row;
+        for (int i : cover[e]) row += 1.0 * x[i];
+        m.addLPConstraint(row, Sense::Equal, 1.0);
+    }
+
+    return m;
+}
+
 } // namespace baguette_test
 
 /// LP relaxations of classic MILP problems.
