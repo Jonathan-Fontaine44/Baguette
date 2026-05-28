@@ -16,6 +16,7 @@ add_executable(BaguetteBench
     bench_flow.cpp
     bench_network_simplex.cpp
     bench_presolve.cpp
+    bench_presolve_levels.cpp
     bench_cp.cpp
 )
 
