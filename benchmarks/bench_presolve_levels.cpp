@@ -54,9 +54,29 @@
 //   14. FL2 Root  — presolveMILPInPlace then root LP, facility location 15×30.
 //   15. FL2 Solve — full solveMILP, facility location 15×30.
 //
+// Part F — Set Partitioning small (10 elements, 30 columns)
+//   10 singletons + 20 compound columns (size 2-4), seed 0xC0FFEE42.
+//   30 binary variables, 10 equality coverage constraints.
+//   LP optimal = 16, IP optimal = 19 (gap = 18.75%).
+//   L5 raises root LP from 16 to 19 (= IP optimal) → first LP bound improvement.
+//
+//   16. SP Cost  — presolveMILPInPlace only, SP small.
+//   17. SP Root  — presolveMILPInPlace then root LP, SP small.
+//   18. SP Solve — full solveMILP, SP small.
+//
+// Part G — Set Partitioning large (30 elements, 90 columns)
+//   30 singletons + 60 compound columns (size 2-5), seed 0xDEADC0DE.
+//   90 binary variables, 30 equality coverage constraints.
+//   LP optimal = 81, IP optimal = 82 (gap = 1.2%).
+//   L1 fixes 3 columns (first fixed>0 across all families).
+//
+//   19. SP2 Cost  — presolveMILPInPlace only, SP large.
+//   20. SP2 Root  — presolveMILPInPlace then root LP, SP large.
+//   21. SP2 Solve — full solveMILP, SP large.
+//
 // Run with (Release build recommended):
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL
-//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL --benchmark_format=json
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP
+//   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP --benchmark_format=json
 
 #include <benchmark/benchmark.h>
 
@@ -717,5 +737,207 @@ static void BM_FL2_PresolveLevelSolve(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_FL2_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part F: Set Partitioning — small (10 elements, 30 columns) ───────────────
+//
+// 10 elements, 30 columns (10 singletons + 20 compound of size 2-4).
+// LP optimal = 16, IP optimal = 19 (gap = 18.75%).
+//
+// Structure: equality coverage constraints (Σ x[i] = 1 per element).
+// Probing hypothesis: fixing x[i]=0 removes coverage from its elements;
+// any element left with a single remaining column forces that column to 1,
+// which in turn removes it from other elements — cascade chain.
+
+// ── Section 16: Presolve-only cost, SP small (levels 0-6) ────────────────────
+
+static void BM_SP_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningSmall();
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_SP_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 17: Presolve + root LP, SP small (levels 0-6) ────────────────────
+
+static void BM_SP_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningSmall();
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_SP_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 18: Full MILP solve, SP small (levels 0-6) ───────────────────────
+
+static void BM_SP_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningSmall();
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_SP_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part G: Set Partitioning — large (30 elements, 90 columns) ───────────────
+//
+// 30 elements, 90 columns (30 singletons + 60 compound of size 2-5).
+// LP optimal = 81, IP optimal = 82 (gap = 1.2%).
+//
+// Larger instance; lower gap means fewer B&B nodes expected.
+// Probing may fix more variables given the larger column-element overlap.
+
+// ── Section 19: Presolve-only cost, SP large (levels 0-6) ────────────────────
+
+static void BM_SP2_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningLarge();
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_SP2_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 20: Presolve + root LP, SP large (levels 0-6) ────────────────────
+
+static void BM_SP2_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningLarge();
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_SP2_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 21: Full MILP solve, SP large (levels 0-6) ───────────────────────
+
+static void BM_SP2_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeSetPartitioningLarge();
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_SP2_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);

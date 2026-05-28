@@ -54,6 +54,11 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
         // 10 clients, LCG costs in [1,10]. IP optimal = 69.
         {"facility_location_5x10", MILPStatus::Optimal, 69.0,
             []() { return baguette_test::makeFacilityLocation5x10(); }},
+
+        // Set Partitioning small: 10 elements, 30 columns (10 singletons +
+        // 20 compound of size 2-4, seed 0xC0FFEE42). IP optimal = 19.
+        {"setpart_small", MILPStatus::Optimal, 19.0,
+            []() { return baguette_test::makeSetPartitioningSmall(); }},
     };
 }
 

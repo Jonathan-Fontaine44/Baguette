@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <functional>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -807,8 +808,6 @@ inline baguette::Model makeFacilityLocation15x30(unsigned seed = 0xCAFEBABEu) {
     return makeFacilityLocation(fixedCosts, assignCosts);
 }
 
-// ── Set Partitioning ──────────────────────────────────────────────────────────
-
 /// Build a Set Partitioning model from an explicit column list.
 ///
 /// Each column (subset) covers a list of elements; exactly one selected column
@@ -866,6 +865,65 @@ inline baguette::Model makeSetPartitioning(
     return m;
 }
 
+/// Build a random Set Partitioning instance with guaranteed feasibility.
+///
+/// The first `nElem` subsets are unit singletons {e} — they always form a valid
+/// partition and provide an IP upper bound.  The remaining `nSubsets − nElem`
+/// subsets are compound columns of size 2..maxSubsetSize, generated via partial
+/// Fisher-Yates on the element list.  Costs are integers in [1, 10] from a
+/// deterministic LCG (seed).
+///
+/// Compound columns let the LP exploit cheaper per-element coverage, so
+/// LP optimal ≤ IP optimal; for typical random instances the gap is > 0.
+///
+/// @param nElem         Universe size.  nSubsets must satisfy nSubsets ≥ nElem.
+/// @param nSubsets      Total columns.
+/// @param maxSubsetSize Maximum elements per compound column (≥ 2).
+/// @param seed          LCG seed for reproducibility.
+///
+/// @note Complexity O(nSubsets × maxSubsetSize) construction.
+inline baguette::Model makeSetPartitioningRandom(
+        int nElem, int nSubsets, int maxSubsetSize, unsigned seed) {
+    unsigned s = seed;
+    auto lcg = [&]() -> unsigned { return s = s * 1664525u + 1013904223u; };
+
+    std::vector<std::vector<int>> subsets(nSubsets);
+    std::vector<double>           costs(nSubsets);
+
+    // Backbone singletons: subset i = {i}, guaranteed feasible partition.
+    for (int i = 0; i < nElem; ++i) {
+        subsets[i] = {i};
+        costs[i] = 1.0 + double(lcg() % 10u);
+    }
+
+    // Compound columns: random subsets of size 2..maxSubsetSize.
+    std::vector<int> perm(nElem);
+    for (int i = nElem; i < nSubsets; ++i) {
+        std::iota(perm.begin(), perm.end(), 0);
+        int sz = 2 + int(lcg() % unsigned(maxSubsetSize - 1));
+        for (int k = 0; k < sz; ++k) {
+            int j = k + int(lcg() % unsigned(nElem - k));
+            std::swap(perm[k], perm[j]);
+            subsets[i].push_back(perm[k]);
+        }
+        costs[i] = 1.0 + double(lcg() % 10u);
+    }
+
+    return makeSetPartitioning(nElem, subsets, costs);
+}
+
+/// 10-element, 30-column set partitioning instance (seed 0xC0FFEE42).
+/// nElem=10, nSubsets=30 (10 singletons + 20 compound), maxSubsetSize=4.
+inline baguette::Model makeSetPartitioningSmall(unsigned seed = 0xC0FFEE42u) {
+    return makeSetPartitioningRandom(10, 30, 4, seed);
+}
+
+/// 30-element, 90-column set partitioning instance (seed 0xDEADC0DE).
+/// nElem=30, nSubsets=90 (30 singletons + 60 compound), maxSubsetSize=5.
+inline baguette::Model makeSetPartitioningLarge(unsigned seed = 0xDEADC0DEu) {
+    return makeSetPartitioningRandom(30, 90, 5, seed);
+}
+
 } // namespace baguette_test
 
 /// LP relaxations of classic MILP problems.
@@ -915,5 +973,11 @@ inline std::vector<LPTestCase> makeRelaxedMILPTestSuite() {
         // IP optimal = 69 (2-3 facilities opened).
         {"facility_location_5x10", LPStatus::Optimal, 67.0,
             []() { return baguette_test::makeFacilityLocation5x10(); }},
+
+        // ── Set Partitioning small (10 elements, 30 columns) ────────────────
+        // 10 singletons + 20 compound columns of size 2-4 (seed 0xC0FFEE42).
+        // LP optimal = 16 (compound columns exploited fractionally).
+        {"setpart_small", LPStatus::Optimal, 16.0,
+            []() { return baguette_test::makeSetPartitioningSmall(); }},
     };
 }
