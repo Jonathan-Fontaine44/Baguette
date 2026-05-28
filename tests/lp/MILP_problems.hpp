@@ -767,13 +767,35 @@ inline baguette::Model makeFacilityLocation(
 /// Assignment costs: integers in [1, 10] from a deterministic LCG (seed 0xDEADBEEF).
 ///
 /// Model size: 55 binary variables (5 + 50), 60 constraints (10 coverage + 50 linking).
-/// The fixed cost (20) is set relative to the average assignment cost (≈5.5) so that
-/// opening 2-3 facilities is typically optimal — the instance requires a non-trivial B&B.
+/// LP optimal = 67, IP optimal = 69.
 ///
 /// @note Complexity
 ///   O(nFac × nCli) variables and constraints.
 inline baguette::Model makeFacilityLocation5x10(unsigned seed = 0xDEADBEEFu) {
     const int nFac = 5, nCli = 10;
+    std::vector<double> fixedCosts(nFac, 20.0);
+    std::vector<std::vector<double>> assignCosts(nFac, std::vector<double>(nCli));
+    unsigned s = seed;
+    for (int i = 0; i < nFac; ++i)
+        for (int j = 0; j < nCli; ++j) {
+            s = s * 1664525u + 1013904223u;
+            assignCosts[i][j] = 1.0 + double(s % 10u);
+        }
+    return makeFacilityLocation(fixedCosts, assignCosts);
+}
+
+/// Build a 15-facility × 30-client UFL instance.
+///
+/// Fixed costs:      f[i] = 20 for all i (uniform, same as 5×10).
+/// Assignment costs: integers in [1, 10] from a deterministic LCG (seed 0xCAFEBABE).
+///
+/// Model size: 465 binary variables (15 + 450), 480 constraints (30 coverage + 450 linking).
+/// Instance is 3× larger than 5×10 and expected to require more B&B nodes.
+///
+/// @note Complexity
+///   O(nFac × nCli) variables and constraints.
+inline baguette::Model makeFacilityLocation15x30(unsigned seed = 0xCAFEBABEu) {
+    const int nFac = 15, nCli = 30;
     std::vector<double> fixedCosts(nFac, 20.0);
     std::vector<std::vector<double>> assignCosts(nFac, std::vector<double>(nCli));
     unsigned s = seed;

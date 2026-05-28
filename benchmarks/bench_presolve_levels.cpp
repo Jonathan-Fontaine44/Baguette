@@ -45,6 +45,15 @@
 //   11. FL Root  — presolveMILPInPlace then root LP, facility location 5×10.
 //   12. FL Solve — full solveMILP, facility location 5×10.
 //
+// Part E — Uncapacitated Facility Location 15×30
+//   15 facilities (fixed cost 20 each), 30 clients, LCG assignment costs [1,10].
+//   465 binary variables (15 y[i] + 450 x[i][j]), 480 LP constraints.
+//   3× larger than Part D — more B&B nodes expected, probed_fixed may emerge.
+//
+//   13. FL2 Cost  — presolveMILPInPlace only, facility location 15×30.
+//   14. FL2 Root  — presolveMILPInPlace then root LP, facility location 15×30.
+//   15. FL2 Solve — full solveMILP, facility location 15×30.
+//
 // Run with (Release build recommended):
 //   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL
 //   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL --benchmark_format=json
@@ -602,5 +611,111 @@ static void BM_FL_PresolveLevelSolve(benchmark::State& state) {
     }
 }
 BENCHMARK(BM_FL_PresolveLevelSolve)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMillisecond);
+
+// ── Part E: Uncapacitated Facility Location 15×30 ────────────────────────────
+//
+// 15 facilities (fixed cost 20 each), 30 clients, LCG costs in [1,10].
+// 465 binary variables (15 y[i] + 450 x[i][j]), 480 LP constraints.
+//
+// Scaling hypothesis: with 15 facilities and 30 clients, the coverage
+// constraints are tighter per facility (2 clients/facility at optimum vs
+// ~6 clients/facility for 5×10).  Probing y[i]=0 eliminates 30 x[i][j],
+// forcing other facilities to absorb those clients — more likely to trigger
+// LP infeasibility or bound propagation than in 5×10.
+//
+// Also tests whether L6 strong probing cost scales quadratically with nFac×nCli
+// (100 LP solves at 5×10 vs potentially the same 50-cap probes but larger LPs).
+
+// ── Section 13: Presolve-only cost, facility location 15×30 (levels 0-6) ─────
+
+static void BM_FL2_PresolveLevelCost(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts opts;
+    opts.level      = level;
+    opts.timeLimitS = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeFacilityLocation15x30();
+        state.ResumeTiming();
+
+        MILPPresolveResult r = presolveMILPInPlace(m, opts);
+        benchmark::DoNotOptimize(r.fixedVars);
+
+        state.counters["tightened"]    = double(r.boundsTightened);
+        state.counters["fixed"]        = double(r.fixedVars);
+        state.counters["probed"]       = double(r.varsProbed);
+        state.counters["probed_fixed"] = double(r.varsProbedFixed);
+        state.counters["implied"]      = double(r.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_FL2_PresolveLevelCost)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 14: Presolve + root LP, facility location 15×30 (levels 0-6) ─────
+
+static void BM_FL2_PresolveAndRootLP(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    MILPPresolveOpts pOpts;
+    pOpts.level      = level;
+    pOpts.timeLimitS = 30.0;
+
+    LPOptions lpOpts;
+    lpOpts.enablePresolve = false;
+    lpOpts.method         = LPMethod::DualSimplexBV;
+    lpOpts.timeLimitS     = 30.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeFacilityLocation15x30();
+        state.ResumeTiming();
+
+        MILPPresolveResult pr = presolveMILPInPlace(m, pOpts);
+        double rootObj = 0.0;
+        if (!pr.infeasible) {
+            LPResult lp = solveLP(m, lpOpts);
+            rootObj = lp.objectiveValue;
+            benchmark::DoNotOptimize(rootObj);
+        }
+
+        state.counters["root_lp_obj"]  = rootObj;
+        state.counters["fixed"]        = double(pr.fixedVars);
+        state.counters["probed_fixed"] = double(pr.varsProbedFixed);
+        state.counters["implied"]      = double(pr.impliedRowsAdded);
+    }
+}
+BENCHMARK(BM_FL2_PresolveAndRootLP)
+    ->DenseRange(0, 6)
+    ->Unit(benchmark::kMicrosecond);
+
+// ── Section 15: Full MILP solve, facility location 15×30 (levels 0-6) ────────
+
+static void BM_FL2_PresolveLevelSolve(benchmark::State& state) {
+    const uint32_t level = static_cast<uint32_t>(state.range(0));
+    BBOptions opts;
+    opts.presolveLevel = level;
+    opts.collectStats  = true;
+    opts.timeLimitS    = 60.0;
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Model m = baguette_test::makeFacilityLocation15x30();
+        state.ResumeTiming();
+
+        MILPResult r = solveMILP(m, opts);
+        benchmark::DoNotOptimize(r.objectiveValue);
+
+        if (r.stats) {
+            state.counters["nodes"]     = double(r.stats->nodesExplored);
+            state.counters["lp_solves"] = double(r.stats->lpSolvesTotal);
+        }
+        state.counters["obj"]    = r.objectiveValue;
+        state.counters["status"] = double(int(r.status));
+    }
+}
+BENCHMARK(BM_FL2_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
