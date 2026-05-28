@@ -49,6 +49,11 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
         // infeasible at the LP root.
         {"jobshop_10x2_infeasible", MILPStatus::Infeasible, 0.0,
             []() { return baguette_test::makeJobShop10(4.0); }},
+
+        // Uncapacitated Facility Location 5x10: 5 facilities (fixed cost 20),
+        // 10 clients, LCG costs in [1,10]. IP optimal = 69.
+        {"facility_location_5x10", MILPStatus::Optimal, 69.0,
+            []() { return baguette_test::makeFacilityLocation5x10(); }},
     };
 }
 

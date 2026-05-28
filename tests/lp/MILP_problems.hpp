@@ -692,6 +692,99 @@ inline baguette::Model makeJobShop10(double cmaxUb = 40.0) {
     return makeJobShop(makeJobShop10Jobs(), cmaxUb);
 }
 
+// ── Uncapacitated Facility Location (UFL) ─────────────────────────────────────
+
+/// Build an Uncapacitated Facility Location model.
+///
+/// Variables:
+///   y[i]    ∈ {0,1} (Binary)   — open facility i             (nFac vars)
+///   x[i][j] ∈ {0,1} (Binary)   — assign client j to i        (nFac × nCli vars)
+///
+/// Constraints:
+///   Coverage: Σᵢ x[i][j] = 1            ∀ j ∈ {0,…,nCli-1}  (nCli equalities)
+///   Linking:  x[i][j] − y[i]   ≤ 0      ∀ i,j               (nFac×nCli constraints)
+///
+/// Objective: min Σᵢ f[i]·y[i] + Σᵢⱼ c[i][j]·x[i][j]
+///
+/// Probing: fixing y[i]=0 forces all nCli linking constraints to set x[i][j]=0,
+/// which in turn tightens the nCli coverage equalities for the remaining facilities.
+/// One probe on y[i] can cascade into O(nCli) binary fixings — unlike TSP where
+/// arc probing never produces LP infeasibility in the MTZ or SCF formulations.
+///
+/// @param fixedCosts   fixedCosts[i] — cost to open facility i  (size nFac)
+/// @param assignCosts  assignCosts[i][j] — cost to serve client j from i  (nFac × nCli)
+///
+/// @note Complexity
+///   O(nFac × nCli) variables and constraints.
+inline baguette::Model makeFacilityLocation(
+        const std::vector<double>& fixedCosts,
+        const std::vector<std::vector<double>>& assignCosts) {
+    using namespace baguette;
+    const int nFac = static_cast<int>(fixedCosts.size());
+    const int nCli = static_cast<int>(assignCosts[0].size());
+
+    Model m;
+
+    // y[i] ∈ {0,1}: open facility i.
+    std::vector<Variable> y(nFac);
+    LinearExpr obj;
+    for (int i = 0; i < nFac; ++i) {
+        y[i] = m.addVar(0.0, 1.0, VarType::Binary);
+        obj += fixedCosts[i] * y[i];
+    }
+
+    // x[i][j] ∈ {0,1}: assign client j to facility i.
+    std::vector<std::vector<Variable>> x(nFac, std::vector<Variable>(nCli));
+    for (int i = 0; i < nFac; ++i)
+        for (int j = 0; j < nCli; ++j) {
+            x[i][j] = m.addVar(0.0, 1.0, VarType::Binary);
+            obj += assignCosts[i][j] * x[i][j];
+        }
+
+    // Coverage: Σᵢ x[i][j] = 1 ∀ j.
+    for (int j = 0; j < nCli; ++j) {
+        LinearExpr cov;
+        for (int i = 0; i < nFac; ++i) cov += 1.0 * x[i][j];
+        m.addLPConstraint(cov, Sense::Equal, 1.0);
+    }
+
+    // Linking: x[i][j] - y[i] ≤ 0 ∀ i,j.
+    for (int i = 0; i < nFac; ++i)
+        for (int j = 0; j < nCli; ++j) {
+            LinearExpr lnk;
+            lnk += 1.0 * x[i][j];
+            lnk += -1.0 * y[i];
+            m.addLPConstraint(lnk, Sense::LessEq, 0.0);
+        }
+
+    m.setObjective(obj, ObjSense::Minimize);
+    return m;
+}
+
+/// Build a 5-facility × 10-client UFL instance.
+///
+/// Fixed costs:      f[i] = 20 for all i (uniform).
+/// Assignment costs: integers in [1, 10] from a deterministic LCG (seed 0xDEADBEEF).
+///
+/// Model size: 55 binary variables (5 + 50), 60 constraints (10 coverage + 50 linking).
+/// The fixed cost (20) is set relative to the average assignment cost (≈5.5) so that
+/// opening 2-3 facilities is typically optimal — the instance requires a non-trivial B&B.
+///
+/// @note Complexity
+///   O(nFac × nCli) variables and constraints.
+inline baguette::Model makeFacilityLocation5x10(unsigned seed = 0xDEADBEEFu) {
+    const int nFac = 5, nCli = 10;
+    std::vector<double> fixedCosts(nFac, 20.0);
+    std::vector<std::vector<double>> assignCosts(nFac, std::vector<double>(nCli));
+    unsigned s = seed;
+    for (int i = 0; i < nFac; ++i)
+        for (int j = 0; j < nCli; ++j) {
+            s = s * 1664525u + 1013904223u;
+            assignCosts[i][j] = 1.0 + double(s % 10u);
+        }
+    return makeFacilityLocation(fixedCosts, assignCosts);
+}
+
 } // namespace baguette_test
 
 /// LP relaxations of classic MILP problems.
@@ -734,5 +827,12 @@ inline std::vector<LPTestCase> makeRelaxedMILPTestSuite() {
         // Infeasible: C_max ≤ 4 (ub) contradicts C_max ≥ p[j][0]+p[j][1]=5.
         {"jobshop_10x2_infeasible", LPStatus::Infeasible, 0.0,
             []() { return baguette_test::makeJobShop10(4.0); }},
+
+        // ── Uncapacitated Facility Location 5×10 ────────────────────────────
+        // 5 facilities (fixed cost 20), 10 clients, LCG costs in [1,10].
+        // LP optimal = 67 (fractional facility opening).
+        // IP optimal = 69 (2-3 facilities opened).
+        {"facility_location_5x10", LPStatus::Optimal, 67.0,
+            []() { return baguette_test::makeFacilityLocation5x10(); }},
     };
 }
