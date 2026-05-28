@@ -122,13 +122,15 @@ struct RunResult {
 // B&B options factory
 // ─────────────────────────────────────────────────────────────────────────────
 
+static bool gPresolveon = false;
+
 static BBOptions makeOpts(bool gmi) {
     BBOptions opts;
     opts.enableCuts        = gmi;
     opts.enableMIR         = false;
     opts.collectStats      = true;
-    opts.enablePresolve    = false;
-    opts.enableElimination = false;
+    opts.enablePresolve    = gPresolveon;
+    opts.enableElimination = gPresolveon;
     opts.timeLimitS        = kTimeLimitS;
     opts.branchStrat       = BranchStrategy::MostFractional;
     opts.nodeSelect        = NodeSelection::HybridPlunge;
@@ -307,15 +309,20 @@ static bool shouldRun(const std::string& name,
 }
 
 int main(int argc, char* argv[]) {
-    // Optional CLI filter: list formulation names to run (e.g. MTZ MTZAD SEC).
-    // GMI variants are spelled "MTZ+GMI", "MTZAD+GMI", "LMTZ+GMI", "SCF+GMI".
-    // If no arguments are given, all formulations are run.
+    // Optional CLI args:
+    //   --presolve          enable MILP presolve + variable elimination
+    //   <FormulationName>   filter to specific formulations (e.g. MTZ "SCF+GMI")
     std::set<std::string> filter;
-    for (int i = 1; i < argc; ++i) filter.insert(argv[i]);
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "--presolve") gPresolveon = true;
+        else                     filter.insert(arg);
+    }
 
     std::cout << "=== TSP Formulation Comparison Benchmark ===\n";
     std::cout << "Time limit: " << kTimeLimitS << " s  |  LP: DualSimplexBV  "
-              << "|  Presolve: OFF  |  Branch: MostFractional  "
+              << "|  Presolve: " << (gPresolveon ? "ON" : "OFF")
+              << "  |  Branch: MostFractional  "
               << "|  Node: HybridPlunge\n";
     std::cout << "Directed (+GMI: up to " << kMaxGMICuts << " GMI cuts, "
               << kMaxGMIPerNode << "/node)\n";
