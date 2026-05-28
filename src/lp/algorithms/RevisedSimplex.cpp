@@ -520,12 +520,14 @@ LPDetailedResult solveRevised(const Model&                          model,
     // 3. Drive remaining artificials out of the basis (degenerate exit)
     driveOutArtificialsRev(tab, sf);
 
-    // 4. Phase II: switch to real objective, restrict entering to original cols
+    // 4. Phase II: switch to real objective, restrict entering to original cols.
+    // Update aug.sf.c in-place so that reinvert(aug.sf) inside runSimplexRev
+    // restores the Phase II objective rather than the Phase I penalties.
     {
-        std::vector<double> c2(aug.sf.nCols, 0.0);
+        std::fill(aug.sf.c.begin(), aug.sf.c.end(), 0.0);
         for (std::size_t j = 0; j < sf.nCols; ++j)
-            c2[j] = sf.c[j];
-        tab.repriceObjective(c2, sf.nCols);
+            aug.sf.c[j] = sf.c[j];
+        tab.repriceObjective(aug.sf.c, sf.nCols);
     }
 
     LPStatus p2Status = runSimplexRev(tab, aug.sf, maxIter, timeLimitS, startTime, iters);
