@@ -35,7 +35,7 @@ namespace baguette {
 /// Usage:
 ///   opts.cutGenerators.push_back(makeSecGenerator(n, edgeVar));
 ///
-/// @note Complexity O(n²) per B&B node (Stoer-Wagner adjacency-matrix).
+/// @note Complexity O(n³) per B&B node (Stoer-Wagner adjacency-matrix; O(n²+m log n) with Fibonacci heap).
 CutGenerator makeSecGenerator(int                                   n,
                                std::vector<std::vector<Variable>>   edgeVar,
                                double                               intFeasTol = 1e-6);

@@ -21,6 +21,10 @@ namespace baguette {
 /// where `f = frac(b')` and `b' = b − Σ aⱼ lbⱼ` is the shifted RHS.
 /// Only cuts that are violated by the current LP solution are returned.
 ///
+/// @note Variables with negative shifted coefficients are skipped (conservative).
+///   Standard MIR would complement them via `x'ⱼ = ubⱼ − xⱼ`, but this requires
+///   finite upper bounds and is not implemented — cuts are valid but potentially weaker.
+///
 /// Internal — activated by BBOptions::enableMIR. Not part of the public API.
 ///
 /// @note Complexity: O(C × K) where C = number of LP constraints and

@@ -40,10 +40,10 @@ struct BBStats {
     /// Total number of B&B nodes explored (including the root).
     uint32_t nodesExplored = 0;
 
-    /// Total number of GMI cuts added to the model across all nodes.
+    /// Total number of cuts added to the model across all nodes (GMI, MIR/CMIR, and user-generated).
     uint32_t cutsAdded = 0;
 
-    /// Nodes that generated at least one GMI cut.
+    /// Nodes that generated at least one cut (GMI, MIR/CMIR, or user-generated).
     uint32_t nodesWithCuts = 0;
 
     /// Nodes pruned because their LP bound could not improve the incumbent.

@@ -12,7 +12,7 @@ namespace {
 //
 // Mutates `w` in-place (contractions).  Requires n ≥ 2 and w[i][j] ≥ 0.
 //
-// @note Complexity O(n²)
+// @note Complexity O(n³) — adjacency-matrix maximum-adjacency ordering; O(n²+m log n) with Fibonacci heap
 struct SWResult { double value; std::vector<int> side; };
 
 SWResult stoerWagner(int n, std::vector<std::vector<double>> w) {
