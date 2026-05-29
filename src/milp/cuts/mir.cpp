@@ -44,7 +44,7 @@ std::vector<Cut> generateMIRCuts(const LPDetailedResult& lp,
         if (con.sense != Sense::LessEq) continue;
 
         const auto& lhs = con.lhs;
-        double bShifted = con.rhs;
+        double bShifted = con.rhsConst;
         bool skip = false;
         for (std::size_t k = 0; k < lhs.size(); ++k) {
             double lb = hot.lb[lhs.varIds[k]];
@@ -105,7 +105,7 @@ std::vector<Cut> generateCMIRCuts(const LPDetailedResult& lp,
         // Complement all vars: x'ⱼ = ubⱼ − xⱼ.
         // b̄ = Σ aⱼ ubⱼ − b; constraint becomes Σ aⱼ x'ⱼ ≤ b̄ (x'ⱼ ≥ 0).
         const auto& lhs = con.lhs;
-        double bBar = -con.rhs;
+        double bBar = -con.rhsConst;
         bool skip = false;
         for (std::size_t k = 0; k < lhs.size(); ++k) {
             double ub = hot.ub[lhs.varIds[k]];

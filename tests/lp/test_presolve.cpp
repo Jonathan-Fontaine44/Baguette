@@ -444,7 +444,7 @@ TEST_CASE("PresolveElim: non-trivial column - RHS adjusted, postsolve correct", 
     REQUIRE(reduced.numVars() == 2);
     REQUIRE(reduced.numConstraints() == 1);
     REQUIRE_THAT(rec.objAdjustment, WithinAbs(6.0, kTol));
-    REQUIRE_THAT(reduced.getLPConstraints()[0].rhs, WithinAbs(13.0, kTol));
+    REQUIRE_THAT(reduced.getLPConstraints()[0].rhsConst, WithinAbs(13.0, kTol));
 
     LPOptions inner;
     inner.enablePresolve    = false;
@@ -479,7 +479,7 @@ TEST_CASE("PresolveElim: non-trivial row - selective elimination", "[presolve][e
     REQUIRE(rec.rowsEliminated == 2);
     REQUIRE(reduced.numVars() == 2);
     REQUIRE(reduced.numConstraints() == 1);
-    REQUIRE_THAT(reduced.getLPConstraints()[0].rhs, WithinAbs(2.0, kTol));
+    REQUIRE_THAT(reduced.getLPConstraints()[0].rhsConst, WithinAbs(2.0, kTol));
 }
 
 // ── presolveElim: non-trivial combined ───────────────────────────────────────────

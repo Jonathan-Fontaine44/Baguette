@@ -43,7 +43,7 @@ TEST_CASE("presolveElim: 2 fixed vars - RHS adjustment and LP solve coherence",
 
     // RHS: 12 - 3 - 2 = 7
     REQUIRE(reduced.getLPConstraints().size() == 1);
-    REQUIRE_THAT(reduced.getLPConstraints()[0].rhs, WithinAbs(7.0, kTol));
+    REQUIRE_THAT(reduced.getLPConstraints()[0].rhsConst, WithinAbs(7.0, kTol));
 
     // Solve reduced LP
     LPOptions lpOpts;
@@ -159,7 +159,7 @@ TEST_CASE("presolveElim+CP: 10 vars, 4 fixed by equality constraints",
         // 4 equality rows become empty after fixing → eliminated; capacity row kept
         REQUIRE(rec.rowsEliminated     == 4);
         REQUIRE(reduced.numConstraints() == 1);
-        REQUIRE_THAT(reduced.getLPConstraints()[0].rhs, WithinAbs(50.0, kTol));
+        REQUIRE_THAT(reduced.getLPConstraints()[0].rhsConst, WithinAbs(50.0, kTol));
 
         // AllDiff in reduced model: 4 ghost vars + 2 LP vars = 6 total
         const auto& builtins = reduced.getCPConstraints().builtins();

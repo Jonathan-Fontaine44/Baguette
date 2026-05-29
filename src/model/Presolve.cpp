@@ -49,12 +49,12 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
         }
 
         if ((con.sense == Sense::LessEq || con.sense == Sense::Equal) &&
-            minInf == 0 && minFin > con.rhs + tol) {
+            minInf == 0 && minFin > con.rhsConst + tol) {
             infeasible = true;
             return false;
         }
         if ((con.sense == Sense::GreaterEq || con.sense == Sense::Equal) &&
-            maxInf == 0 && maxFin < con.rhs - tol) {
+            maxInf == 0 && maxFin < con.rhsConst - tol) {
             infeasible = true;
             return false;
         }
@@ -72,7 +72,7 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
                     const int excl_inf = minInf - (lb == -kInf ? 1 : 0);
                     if (excl_inf == 0) {
                         const double excl  = minFin - (lb == -kInf ? 0.0 : c * lb);
-                        const double newUb = (con.rhs - excl) / c;
+                        const double newUb = (con.rhsConst - excl) / c;
                         if (newUb < ub - tol) {
                             if (newUb < lb - tol) { infeasible = true; return false; }
                             model.setVarBounds(Variable{id}, lb, newUb);
@@ -84,7 +84,7 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
                     const int excl_inf = minInf - (ub == kInf ? 1 : 0);
                     if (excl_inf == 0) {
                         const double excl  = minFin - (ub == kInf ? 0.0 : c * ub);
-                        const double newLb = (con.rhs - excl) / c;
+                        const double newLb = (con.rhsConst - excl) / c;
                         if (newLb > lb + tol) {
                             if (newLb > ub + tol) { infeasible = true; return false; }
                             model.setVarBounds(Variable{id}, newLb, ub);
@@ -103,7 +103,7 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
                     const int excl_inf = maxInf - (ub == kInf ? 1 : 0);
                     if (excl_inf == 0) {
                         const double excl  = maxFin - (ub == kInf ? 0.0 : c * ub);
-                        const double newLb = (con.rhs - excl) / c;
+                        const double newLb = (con.rhsConst - excl) / c;
                         if (newLb > lb2 + tol) {
                             if (newLb > ub2 + tol) { infeasible = true; return false; }
                             model.setVarBounds(Variable{id}, newLb, ub2);
@@ -115,7 +115,7 @@ bool singlePass(Model& model, uint32_t& boundsTightened, bool& infeasible) {
                     const int excl_inf = maxInf - (lb == -kInf ? 1 : 0);
                     if (excl_inf == 0) {
                         const double excl  = maxFin - (lb == -kInf ? 0.0 : c * lb);
-                        const double newUb = (con.rhs - excl) / c;
+                        const double newUb = (con.rhsConst - excl) / c;
                         if (newUb < ub2 - tol) {
                             if (newUb < lb2 - tol) { infeasible = true; return false; }
                             model.setVarBounds(Variable{id}, lb2, newUb);
@@ -226,7 +226,7 @@ Model presolveElim(const Model& orig, EliminationRecord& rec) {
     // ── Step 3: Pre-compute adjusted RHS using the variable→constraint index ─────
     std::vector<double> adjustedRHSVec(nCons);
     for (uint32_t i = 0; i < nCons; ++i)
-        adjustedRHSVec[i] = orig.getLPConstraints()[i].rhs;
+        adjustedRHSVec[i] = orig.getLPConstraints()[i].rhsConst;
 
     for (const auto& [j, val] : rec.fixedVars) {
         for (const VarLPEntry& e : cold.varToLP[j]) {
@@ -237,7 +237,7 @@ Model presolveElim(const Model& orig, EliminationRecord& rec) {
 
     // ── Build reduced constraints, eliminate redundant rows ────────────────────
     for (uint32_t i = 0; i < nCons; ++i) {
-        const Constraint& con = orig.getLPConstraints()[i];
+        const LPConstraint& con = orig.getLPConstraints()[i];
         const double adjustedRHS = adjustedRHSVec[i];
 
         double minFin = 0.0, maxFin = 0.0;

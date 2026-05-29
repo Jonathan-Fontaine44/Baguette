@@ -37,7 +37,7 @@ static bool checkFarkasProperty(const FarkasRay& ray, const Model& model,
 
     for (std::size_t i = 0; i < constraints.size(); ++i) {
         double yi = ray.y[i];
-        double bShifted = constraints[i].rhs;
+        double bShifted = constraints[i].rhsConst;
         for (std::size_t k = 0; k < constraints[i].lhs.varIds.size(); ++k) {
             uint32_t  j   = constraints[i].lhs.varIds[k];
             double    aij = constraints[i].lhs.coeffs[k];

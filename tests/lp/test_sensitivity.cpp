@@ -402,8 +402,8 @@ TEST_CASE("Sensitivity LP-A: current parameter values are inside their ranges") 
     const auto& rhs         = res.sensitivity.rhsRange;
 
     for (std::size_t i = 0; i < constraints.size(); ++i) {
-        CHECK(rhs[i][0] <= constraints[i].rhs + kTol);
-        CHECK(rhs[i][1] >= constraints[i].rhs - kTol);
+        CHECK(rhs[i][0] <= constraints[i].rhsConst + kTol);
+        CHECK(rhs[i][1] >= constraints[i].rhsConst - kTol);
     }
 
     const auto& objCoeffs = m.getHot().obj;
@@ -428,8 +428,8 @@ TEST_CASE("Sensitivity LP-E dual: current parameter values are inside their rang
     const auto& rhs         = res.sensitivity.rhsRange;
 
     for (std::size_t i = 0; i < constraints.size(); ++i) {
-        CHECK(rhs[i][0] <= constraints[i].rhs + kTol);
-        CHECK(rhs[i][1] >= constraints[i].rhs - kTol);
+        CHECK(rhs[i][0] <= constraints[i].rhsConst + kTol);
+        CHECK(rhs[i][1] >= constraints[i].rhsConst - kTol);
     }
 
     const auto& objCoeffs = m.getHot().obj;

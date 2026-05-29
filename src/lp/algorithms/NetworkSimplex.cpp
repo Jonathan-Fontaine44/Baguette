@@ -129,7 +129,7 @@ bool tryBuildNetwork(const Model& model, Net& g) {
 
     // Effective supply (after lb-shift)
     std::vector<double> supply(m);
-    for (int i = 0; i < m; ++i) supply[i] = constraints[i].rhs;
+    for (int i = 0; i < m; ++i) supply[i] = constraints[i].rhsConst;
     for (int j = 0; j < n; ++j) {
         double sh = g.varShift[j];
         if (sh != 0.0) {

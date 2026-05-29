@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -39,9 +40,20 @@ public:
     /// @throws std::invalid_argument if lb > ub.
     Variable addVar(double lb, double ub, VarType type, std::string label = "");
 
-    /// Add a linear constraint: `lhs sense rhs`.
+    /// Add a constraint and return its ConstraintId for later inspection.
+    ///
+    /// The original form (possibly two-sided) is stored and returned by
+    /// getLPConstraint().  A normalized copy (rhs variable terms moved to lhs)
+    /// is stored for the solver and returned by getLPConstraints().
+    ///
+    /// @throws std::out_of_range if any variable in @p c does not belong to this Model.
+    ConstraintId addLPConstraint(LPConstraint c);
+
+    /// Convenience overload — equivalent to addLPConstraint(lhs sense rhsConst).
     /// @throws std::out_of_range if any variable in @p lhs does not belong to this Model.
-    void addLPConstraint(LinearExpr lhs, Sense sense, double rhs);
+    ConstraintId addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
+        return addLPConstraint(LPConstraint{std::move(lhs), sense, {}, rhs});
+    }
 
     /// Set the objective function and optimization direction.
     ///
@@ -122,14 +134,30 @@ public:
     /// @return Total variable count including ghost (CP-only) variables.
     std::size_t numTotalVars()   const { return hot.lb.size(); }
     /// @return Number of constraints added via addLPConstraint().
-    std::size_t numConstraints() const { return constraints.size(); }
+    std::size_t numConstraints() const { return constraints_.size(); }
 
     /// @return Hot data (bounds, objective coefficients) for solver access.
-    const ModelHot&               getHot()          const { return hot; }
+    const ModelHot&  getHot()  const { return hot; }
     /// @return Cold data (labels, types) for model inspection and output.
-    const ModelCold&              getCold()         const { return cold; }
-    /// @return All constraints added via addLPConstraint().
-    const std::vector<Constraint>& getLPConstraints() const { return constraints; }
+    const ModelCold& getCold() const { return cold; }
+
+    /// @return All constraints in normalized form (rhs always empty, lhs.constant == 0).
+    ///
+    /// This is the solver-facing view: every element satisfies isNormalized().
+    /// Do **not** use this for user-level debugging — the original two-sided form
+    /// may have been simplified.  Use getLPConstraint(id) for the original.
+    const std::vector<LPConstraint>& getLPConstraints() const { return constraints_; }
+
+    /// @return The original constraint as submitted by the user (possibly two-sided).
+    ///
+    /// Preserves the form passed to addLPConstraint() for debugging: if the user
+    /// wrote `expr1 >= expr2`, this returns that two-sided form.
+    /// @throws std::out_of_range if @p id is invalid.
+    LPConstraint getLPConstraint(ConstraintId id) const {
+        if (id >= originals_.size())
+            throw std::out_of_range("getLPConstraint: invalid ConstraintId");
+        return originals_[id];
+    }
     /// @return Optimization direction (Minimize or Maximize).
     ObjSense                      getObjSense()     const { return objSense; }
     /// @return Constant offset of the objective (from the constant term of setObjective()).
@@ -147,7 +175,8 @@ private:
     ModelHot      hot;
     ModelCold     cold;
     CPConstraints cpConstraints;
-    std::vector<Constraint> constraints;
+    std::vector<LPConstraint> constraints_; ///< Normalized forms — solver view.
+    std::vector<LPConstraint> originals_;   ///< Original forms — user debug view.
     ObjSense objSense      = ObjSense::Minimize;
     double   objConstant   = 0.0;
     uint32_t ghostVarCount = 0;

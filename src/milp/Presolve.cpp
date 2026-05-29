@@ -112,7 +112,7 @@ MILPPresolveResult presolveMILPInPlace(
     {
         const auto& cons = model.getLPConstraints();
         for (uint32_t ci = 0; ci < static_cast<uint32_t>(cons.size()); ++ci) {
-            const Constraint& con = cons[ci];
+            const LPConstraint& con = cons[ci];
             if (con.sense == Sense::Equal) continue;
             if (con.lhs.varIds.empty()) continue;
             bool eligible = true;
@@ -124,7 +124,7 @@ MILPPresolveResult presolveMILPInPlace(
                 }
             }
             if (!eligible) continue;
-            const double rhs    = con.rhs;
+            const double rhs    = con.rhsConst;
             const double newRhs = (con.sense == Sense::LessEq)
                 ? std::floor(rhs + kIntTol) : std::ceil(rhs - kIntTol);
             if (std::abs(newRhs - rhs) > kIntTol) {

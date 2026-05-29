@@ -71,6 +71,13 @@ struct LinearExpr {
     /// @note Complexity: O(n), where n = `size()`.
     /// @return Reference to `*this`.
     LinearExpr& operator/=(double factor);
+
+    /// Append @p var with coefficient +1 in-place.
+    /// @note Complexity: O(n).
+    LinearExpr& operator+=(Variable rhs) { addTerm(rhs,  1.0); return *this; }
+    /// Subtract @p var (coefficient −1) in-place.
+    /// @note Complexity: O(n).
+    LinearExpr& operator-=(Variable rhs) { addTerm(rhs, -1.0); return *this; }
 };
 
 /// Create a single-term expression `coeff * var`.
@@ -80,6 +87,34 @@ LinearExpr operator*(Variable var, double coeff);
 
 /// Create a single-term expression `(1/coeff) * var`.
 LinearExpr operator/(Variable var, double coeff);
+
+// ── Variable arithmetic helpers ───────────────────────────────────────────────
+// Inline: cold-loop helpers; declared after operator*(double,Variable).
+
+/// Build expression `lhs + rhs` (both with coefficient 1).
+/// @note Complexity: O(1).
+inline LinearExpr operator+(Variable lhs, Variable rhs) {
+    LinearExpr e; e.addTerm(lhs, 1.0); e.addTerm(rhs, 1.0); return e;
+}
+/// Build expression `lhs - rhs`.
+/// @note Complexity: O(1).
+inline LinearExpr operator-(Variable lhs, Variable rhs) {
+    LinearExpr e; e.addTerm(lhs, 1.0); e.addTerm(rhs, -1.0); return e;
+}
+/// Append @p rhs with coefficient 1 to @p lhs.
+/// @note Complexity: O(n).
+inline LinearExpr operator+(LinearExpr lhs, Variable rhs) { lhs.addTerm(rhs,  1.0); return lhs; }
+/// Subtract @p rhs (coefficient 1) from @p lhs.
+/// @note Complexity: O(n).
+inline LinearExpr operator-(LinearExpr lhs, Variable rhs) { lhs.addTerm(rhs, -1.0); return lhs; }
+/// Prepend @p lhs (coefficient 1) to @p rhs expression.
+/// @note Complexity: O(n).
+inline LinearExpr operator+(Variable lhs, LinearExpr rhs) { rhs.addTerm(lhs, 1.0);  return rhs; }
+/// Build `lhs − rhs_expr`.
+/// @note Complexity: O(n).
+inline LinearExpr operator-(Variable lhs, const LinearExpr& rhs) {
+    LinearExpr e = rhs; e.scale(-1.0); e.addTerm(lhs, 1.0); return e;
+}
 
 /// Merge two expressions into a new one.
 /// Terms present in both are summed; terms with a zero result are dropped.

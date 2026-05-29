@@ -96,7 +96,7 @@ SensitivityResult extractSensitivity(const internal::SimplexTableau& tab,
         }
 
         // Translate from standard-form Δ to model-space b[i] range.
-        const double modelRHS = constraints[i].rhs;
+        const double modelRHS = constraints[i].rhsConst;
         if (!sf.rowNegated[i])
             sens.rhsRange[i] = {modelRHS + deltaLo, modelRHS + deltaHi};
         else

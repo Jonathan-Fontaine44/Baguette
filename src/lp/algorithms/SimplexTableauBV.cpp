@@ -347,7 +347,7 @@ SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
             }
         }
 
-        const double modelRHS = constraints[i].rhs;
+        const double modelRHS = constraints[i].rhsConst;
         if (!sfbv.rowNegated[i])
             sens.rhsRange[i] = {modelRHS + deltaLo, modelRHS + deltaHi};
         else

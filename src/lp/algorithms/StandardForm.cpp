@@ -109,7 +109,7 @@ LPStandardForm toStandardForm(const Model& model) {
             : sf.nCols; // sentinel: Equal rows have no slack
         sf.rowSlackCol[i] = static_cast<uint32_t>(slackCol);
 
-        double rhs = con.rhs;
+        double rhs = con.rhsConst;
         for (std::size_t k = 0; k < con.lhs.size(); ++k) {
             uint32_t varId = con.lhs.varIds[k];
             if (varId >= nOrig)
@@ -320,7 +320,7 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
     // Reject if any row's sign would need to flip (A row negation not performed here).
     for (std::size_t i = 0; i < nOrigRows; ++i) {
         const auto& con = constraints[i];
-        double rhs = con.rhs;
+        double rhs = con.rhsConst;
         for (std::size_t k = 0; k < con.lhs.size(); ++k)
             rhs -= con.lhs.coeffs[k] * sf.varShiftVal[con.lhs.varIds[k]];
 
@@ -384,7 +384,7 @@ bool toStandardFormBoundsOnlyBV(LPStandardFormBV& sfbv, const Model& model) {
     // Reject if any row's sign would need to flip (A row negation not performed here).
     for (std::size_t i = 0; i < nOrigRows; ++i) {
         const auto& con = constraints[i];
-        double rhs = con.rhs;
+        double rhs = con.rhsConst;
         for (std::size_t k = 0; k < con.lhs.size(); ++k)
             rhs -= con.lhs.coeffs[k] * sfbv.varShiftVal[con.lhs.varIds[k]];
 
@@ -490,7 +490,7 @@ LPStandardFormBV toStandardFormBV(const Model& model) {
             (con.sense != Sense::Equal) ? nOrig + slackColIdx : sfbv.nCols;
         sfbv.rowSlackCol[i] = static_cast<uint32_t>(slackCol);
 
-        double rhs = con.rhs;
+        double rhs = con.rhsConst;
         for (std::size_t k = 0; k < con.lhs.size(); ++k) {
             uint32_t varId = con.lhs.varIds[k];
             if (varId >= nOrig)

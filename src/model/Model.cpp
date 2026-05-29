@@ -35,21 +35,31 @@ Variable Model::addGhostVar(double fixedVal, VarType type, std::string label) {
     return v;
 }
 
-void Model::addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
-    for (uint32_t id : lhs.varIds)
+ConstraintId Model::addLPConstraint(LPConstraint c) {
+    for (uint32_t id : c.lhs.varIds)
         if (id >= hot.lb.size())
-            throw std::out_of_range("addLPConstraint: variable ID " + std::to_string(id) + " out of range (wrong model?)");
+            throw std::out_of_range("addLPConstraint: variable ID " +
+                                    std::to_string(id) + " out of range (wrong model?)");
+    for (uint32_t id : c.rhs.varIds)
+        if (id >= hot.lb.size())
+            throw std::out_of_range("addLPConstraint: variable ID " +
+                                    std::to_string(id) + " out of range (wrong model?)");
 
-    const auto conIdx = static_cast<uint32_t>(constraints.size());
-    for (uint32_t k = 0; k < static_cast<uint32_t>(lhs.varIds.size()); ++k)
-        cold.varToLP[lhs.varIds[k]].push_back({conIdx, k});
+    const auto conIdx = static_cast<ConstraintId>(constraints_.size());
 
-    constraints.push_back({std::move(lhs), sense, rhs});
+    originals_.push_back(c);
+
+    LPConstraint norm = c.normalize();
+    for (uint32_t k = 0; k < static_cast<uint32_t>(norm.lhs.varIds.size()); ++k)
+        cold.varToLP[norm.lhs.varIds[k]].push_back({conIdx, k});
+
+    constraints_.push_back(std::move(norm));
+    return conIdx;
 }
 
 void Model::setConstraintRHS(uint32_t conIdx, double newRhs) {
-    assert(conIdx < constraints.size() && "setConstraintRHS: index out of range");
-    constraints[conIdx].rhs = newRhs;
+    assert(conIdx < constraints_.size() && "setConstraintRHS: index out of range");
+    constraints_[conIdx].rhsConst = newRhs;
 }
 
 void Model::setVarBounds(Variable var, double newLb, double newUb) {

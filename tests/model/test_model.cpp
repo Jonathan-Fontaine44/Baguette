@@ -63,7 +63,7 @@ TEST_CASE("Model addLPConstraint stores sense and rhs", "[Model]") {
     REQUIRE(m.numConstraints() == 1);
     const auto& c = m.getLPConstraints()[0];
     REQUIRE(c.sense == Sense::LessEq);
-    REQUIRE(c.rhs   == Approx(20.0));
+    REQUIRE(c.rhsConst   == Approx(20.0));
 }
 
 TEST_CASE("Model addLPConstraint stores lhs terms", "[Model]") {

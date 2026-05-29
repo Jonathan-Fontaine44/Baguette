@@ -338,7 +338,7 @@ LPDetailedResult extractDetailedRev(const internal::LUTableau&       tab,
                     deltaHi = std::min(deltaHi, -tab.xB[r] / dr);
             }
 
-            const double modelRHS = constraints[i].rhs;
+            const double modelRHS = constraints[i].rhsConst;
             if (!sf.rowNegated[i])
                 sens.rhsRange[i] = {modelRHS + deltaLo, modelRHS + deltaHi};
             else

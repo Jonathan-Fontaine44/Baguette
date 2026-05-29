@@ -122,13 +122,13 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                     // Slack (LessEq) or surplus (GEQ) for model constraint k = origin.
                     //   LessEq: s_k = rhs_k − Σ a_kl*x_l  →  sign = −1
                     //   GEQ:    s_k = Σ a_kl*x_l − rhs_k  →  sign = +1
-                    const Constraint& con  = constraints[origin];
+                    const LPConstraint& con  = constraints[origin];
                     double            sign = (con.sense == Sense::LessEq) ? -1.0 : +1.0;
                     for (std::size_t t = 0; t < con.lhs.size(); ++t) {
                         cut.expr.addTerm(Variable{con.lhs.varIds[t]},
                                          sign * gmi * con.lhs.coeffs[t]);
                     }
-                    cut.rhs += sign * gmi * con.rhs;
+                    cut.rhs += sign * gmi * con.rhsConst;
                     break;
                 }
 
