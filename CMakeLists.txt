@@ -32,6 +32,7 @@ add_library(Baguette
     src/lp/Presolve.cpp
     src/lp/LPSolver.cpp
     src/milp/BranchAndBound.cpp
+    src/milp/ProofWriter.cpp
     src/milp/Presolve.cpp
     src/milp/cuts/gmi.cpp
     src/milp/cuts/mir.cpp
@@ -81,6 +82,7 @@ add_executable(BaguetteTests
     tests/lp/test_mehrotra_ipm.cpp
     tests/milp/test_bb.cpp
     tests/milp/test_bnc.cpp
+    tests/milp/test_proof.cpp
     tests/milp/test_sec.cpp
     tests/milp/test_stats.cpp
     tests/milp/test_milp_classic.cpp
