@@ -138,7 +138,7 @@ struct SimplexTableau {
     /// @param sf The standard-form LP (needed for the original A and c).
     /// @return true on success; false if the basis is numerically singular.
     ///         On false the tableau is in an undefined state and must not be used.
-    /// @note Complexity: O(m²·n) — delegates to init().
+    /// @note Complexity: O(m²·n) - delegates to init().
     [[nodiscard]] bool reinvert(const LPStandardForm& sf);
 
     // ── Solution extraction ──────────────────────────────────────────────────

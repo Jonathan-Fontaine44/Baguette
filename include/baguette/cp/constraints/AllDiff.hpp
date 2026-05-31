@@ -35,7 +35,7 @@ struct AllDiffConstraint {
 ///      [u, v] (a Hall set), clip all other domains to avoid [u, v].  Also
 ///      detects infeasibility when count > capacity (subsumes range check).
 ///
-/// @note Complexity: O(K² × I) per iteration — fixed-value elimination O(K log K),
+/// @note Complexity: O(K² × I) per iteration - fixed-value elimination O(K log K),
 ///   Hall propagation O(K³) dominant term; I = fixpoint iterations (≤ K).
 PropagationResult propagate(const AllDiffConstraint& con, Model& model);
 

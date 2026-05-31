@@ -107,7 +107,7 @@ TEST_CASE("LP stats: iterationsUsed populated after DualSimplex fallback to prim
 // ── Test 4: MaxIter stops and reports exactly the pivot count ─────────────────
 //
 //   min -x-y  s.t. 2x+y<=4, x+2y<=4, x in [0,3], y in [0,3].
-//   Optimal at (4/3, 4/3) — needs at least 4 pivots from (0,0). With maxIter in
+//   Optimal at (4/3, 4/3) - needs at least 4 pivots from (0,0). With maxIter in
 //   {1,2,3}, the solver stops early and iterationsUsed must equal maxIter exactly.
 
 TEST_CASE("LP stats: iterationsUsed == maxIter when MaxIter returned", "[lp_stats]") {
@@ -134,7 +134,7 @@ TEST_CASE("LP stats: iterationsUsed == maxIter when MaxIter returned", "[lp_stat
     }
 }
 
-// ── Test 5: TimeLimit — iterationsUsed reflects work done before cutoff ────────
+// ── Test 5: TimeLimit - iterationsUsed reflects work done before cutoff ────────
 //
 // TSP10 LP relaxation (99 vars, 91 constraints) solved with a 10 ms budget.
 // The LP relaxation has an integer-optimal vertex, so some methods may solve it

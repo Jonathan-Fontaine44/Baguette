@@ -17,15 +17,15 @@ class Model;
 
 /// Fast-path discriminated union for built-in CP constraint types.
 ///
-/// Dispatch via std::visit — zero virtual calls.
+/// Dispatch via std::visit - zero virtual calls.
 /// To register a new built-in: add its type here and include its header above.
 using BuiltinConstraint = std::variant<AllDiffConstraint, CumulativeConstraint>;
 
 /// Container for all CP constraints attached to a model.
 ///
 /// Two-tier storage:
-///   builtins_: BuiltinConstraint (std::variant) — zero-overhead std::visit dispatch.
-///   customs_:  shared_ptr<const CPConstraint>   — virtual dispatch for user-defined constraints.
+///   builtins_: BuiltinConstraint (std::variant) - zero-overhead std::visit dispatch.
+///   customs_:  shared_ptr<const CPConstraint>   - virtual dispatch for user-defined constraints.
 ///
 /// @note shared_ptr<const> allows Model to remain copyable without clone().
 struct CPConstraints {
@@ -69,7 +69,7 @@ private:
 /// Built-ins dispatch via std::visit, customs via virtual propagate().
 /// Returns CPStatus::Infeasible on the first domain wipe-out (fail-fast).
 /// changedVarIds lists (sorted, deduplicated) every variable whose bounds were
-/// tightened — caller must push into dirtyVars for restoreBounds().
+/// tightened - caller must push into dirtyVars for restoreBounds().
 ///
 /// @note Complexity  O(Σ cost(propagate_i)) summed over all constraints.
 PropagationResult propagateCP(const CPConstraints& cp, Model& model);

@@ -443,7 +443,7 @@ LPDetailedResult solveRevised(const Model&                          model,
         }
     }
 
-    // Standard form — wrap in shared_ptr to support sfCache across B&B nodes.
+    // Standard form - wrap in shared_ptr to support sfCache across B&B nodes.
     auto sfPtr = std::make_shared<LPStandardForm>();
     if (!warmBasis.basicCols.empty() && warmBasis.sfCache) {
         *sfPtr = *warmBasis.sfCache;        // shallow: A shared_ptr copied O(1)
@@ -488,7 +488,7 @@ LPDetailedResult solveRevised(const Model&                          model,
             if (status == LPStatus::Unbounded) det.result.primalValues.clear();
             return det;
         }
-        // Warm basis is dual infeasible — reinitialise tab for cold start below.
+        // Warm basis is dual infeasible - reinitialise tab for cold start below.
         tab = LUTableau{};
         tab.cfg = cfg;
     }

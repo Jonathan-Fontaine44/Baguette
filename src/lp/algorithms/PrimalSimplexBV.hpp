@@ -12,7 +12,7 @@ namespace baguette::internal {
 /// Two-phase primal simplex using the bounded-variable (BV) technique.
 ///
 /// Variable upper bounds are enforced via the complement invariant in the ratio
-/// test — no explicit upper-bound rows are added to the constraint matrix.
+/// test - no explicit upper-bound rows are added to the constraint matrix.
 /// This keeps m = nOrigRows, eliminating the O(n) row inflation of solvePrimal().
 ///
 /// Warm-start is not supported on this path.

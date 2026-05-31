@@ -55,7 +55,7 @@ AugmentedForm buildPhaseOne(const internal::LPStandardForm& sf,
         // so it cannot serve as a natural positive basis column and needs an artificial.
         needsArt[i] = (s == Sense::GreaterEq || s == Sense::Equal || sf.rowNegated[i]);
     }
-    // Upper-bound rows have a natural UpperSlack — no artificial needed.
+    // Upper-bound rows have a natural UpperSlack - no artificial needed.
 
     std::size_t nArt = 0;
     for (bool b : needsArt) if (b) ++nArt;
@@ -189,7 +189,7 @@ void repairRedundantRows(internal::SimplexTableau& tab, std::size_t nOld) {
                 found = true;
             }
         }
-        assert(found && "repairRedundantRows: no free column — basis is over-complete");
+        assert(found && "repairRedundantRows: no free column - basis is over-complete");
     }
 }
 
@@ -393,7 +393,7 @@ LPDetailedResult solvePrimal(const Model&                          model,
         det.result.primalValues.clear();
 
     // Populate fractional rows for GMI cut generation.
-    // Only the first sf.nCols columns are stored — artificials are excluded.
+    // Only the first sf.nCols columns are stored - artificials are excluded.
     if (computeCutData && p2Status == LPStatus::Optimal) {
         const auto& types = model.getCold().types;
         const std::size_t nSF = sf.nCols;

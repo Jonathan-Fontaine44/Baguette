@@ -65,7 +65,7 @@ static Model makeSimpleInfeasibleDual() {
     return m;
 }
 
-/// x + y >= 10, x <= 3, y <= 3  (infeasible — sum at most 6)
+/// x + y >= 10, x <= 3, y <= 3  (infeasible - sum at most 6)
 static Model makeMultiVarInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
@@ -77,7 +77,7 @@ static Model makeMultiVarInfeasible() {
     return m;
 }
 
-/// x + y = 10, x <= 3, y <= 3  (infeasible — sum at most 6, forces primal phase-I)
+/// x + y = 10, x <= 3, y <= 3  (infeasible - sum at most 6, forces primal phase-I)
 static Model makeEqualConstraintInfeasible() {
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
@@ -139,7 +139,7 @@ TEST_CASE("Farkas - primal phase-I infeasible (Equal constraint): property holds
 }
 
 TEST_CASE("Farkas - no ray when status is Optimal") {
-    // x + y >= 4, x <= 5, y <= 5 — feasible
+    // x + y >= 4, x <= 5, y <= 5 - feasible
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");
@@ -163,7 +163,7 @@ TEST_CASE("Farkas - early lb > ub: infeasVarId set, y empty") {
     auto x = root.addVar(0.0, 5.0, "x");
     root.setObjective(1.0 * x, ObjSense::Minimize);
 
-    // Force lb > ub — both solvers detect this before building the tableau
+    // Force lb > ub - both solvers detect this before building the tableau
     Model m = root.withVarBounds(x, 5.0, 3.0); // lb=5 > ub=3
 
     {

@@ -431,11 +431,11 @@ void LUTableau::pivot(std::size_t r, std::size_t j,
     double inv_rho = 1.0 / rho;
     double alpha   = rc[j];  // reduced cost before pivot
 
-    // Save old row r of B⁻¹ — needed for incremental π and rc updates.
+    // Save old row r of B⁻¹ - needed for incremental π and rc updates.
     std::vector<double> y(Binv.begin() + static_cast<std::ptrdiff_t>(r * m),
                            Binv.begin() + static_cast<std::ptrdiff_t>(r * m + m));
 
-    // ── Update B⁻¹ — row-major loops (cache-friendly) ────────────────────────
+    // ── Update B⁻¹ - row-major loops (cache-friendly) ────────────────────────
     // Row r ← old row r / ρ
     for (std::size_t k = 0; k < m; ++k)
         Binv[r * m + k] = y[k] * inv_rho;
@@ -457,7 +457,7 @@ void LUTableau::pivot(std::size_t r, std::size_t j,
 
     basicCols[r] = static_cast<uint32_t>(j);
 
-    // ── Incremental π: π_new[k] = π_old[k] + (α/ρ) × y[k]  — O(m) ──────────
+    // ── Incremental π: π_new[k] = π_old[k] + (α/ρ) × y[k]  - O(m) ──────────
     double ratio = alpha * inv_rho;
     for (std::size_t k = 0; k < m; ++k)
         pi[k] += ratio * y[k];
@@ -479,9 +479,9 @@ void LUTableau::pivot(std::size_t r, std::size_t j,
                 rc[p] += atUB[p] ? coeff * rowA[p] : -coeff * rowA[p];
         }
     }
-    rc[j] = 0.0;  // j is now basic — enforce numerically exact
+    rc[j] = 0.0;  // j is now basic - enforce numerically exact
 
-    // ── Incremental objective: rc[n] = rc[n] − (α/ρ) × xB_old[r]  — O(1) ──
+    // ── Incremental objective: rc[n] = rc[n] − (α/ρ) × xB_old[r]  - O(1) ──
     // In BV mode xB[r] = B⁻¹ b_eff ≠ B⁻¹ b_orig, so using old_xBr is
     // correct for both BV (b_eff) and non-BV (b_eff = b_orig).
     rc[n] -= ratio * old_xBr;

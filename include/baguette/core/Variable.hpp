@@ -6,7 +6,7 @@ namespace baguette {
 
 /// Pure handle identifying a decision variable within a Model.
 ///
-/// A Variable is just a typed integer ID — 4 bytes, trivially copyable,
+/// A Variable is just a typed integer ID - 4 bytes, trivially copyable,
 /// with no pointer or reference to the Model. All variable data (bounds,
 /// type, label) lives in the Model, indexed by `id`.
 ///

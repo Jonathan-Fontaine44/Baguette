@@ -19,7 +19,7 @@ static constexpr double kTol = 1e-9;
 
 // ── Trivial 1: plain integer bound rounding ───────────────────────────────────
 //
-// x ∈ [0.5, 4.7] Integer — no constraints.
+// x ∈ [0.5, 4.7] Integer - no constraints.
 // LP does nothing; initial round snaps lb→1, ub→4.
 
 TEST_CASE("presolveMILP: integer bound rounding", "[presolve][milp]") {
@@ -115,8 +115,8 @@ TEST_CASE("presolveMILP: intFeasTol honoured from BBOptions", "[presolve][milp]"
 
 // ── Non-trivial: 10 integer vars, PR1 + LP cascade ────────────────────────────
 //
-// x[0..4] ∈ [0,10] Integer — individual upper bounds: x[i] <= 3.9
-// x[5..9] ∈ [0,10] Integer — no individual constraints
+// x[0..4] ∈ [0,10] Integer - individual upper bounds: x[i] <= 3.9
+// x[5..9] ∈ [0,10] Integer - no individual constraints
 // Sum: x[0]+x[1]+x[2]+x[3]+x[4] >= 13.5
 // Objective: min sum(x[0..9])
 //
@@ -125,9 +125,9 @@ TEST_CASE("presolveMILP: intFeasTol honoured from BBOptions", "[presolve][milp]"
 //   sum   >= 13.5 →  sum  >= 14  (ceil,  1 constraint)
 //   rhsRounded = 6
 //
-// Outer iteration 1 (LP pass — constraints processed in order):
+// Outer iteration 1 (LP pass - constraints processed in order):
 //   x[i] <= 3:   x[i].ub 10→3 (5 LP tightenings)
-//   sum  >= 14:  excl_max=4×3=12, x[i].lb 0→2 (5 LP tightenings) — in same pass!
+//   sum  >= 14:  excl_max=4×3=12, x[i].lb 0→2 (5 LP tightenings) - in same pass!
 //   LP result: x[i] ∈ [2, 3]   (already integer → 0 roundings)
 //
 // Outer iteration 2: LP finds no change → fixed point.
@@ -198,7 +198,7 @@ TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
 // ── D2: milpPresolveMaxCycles distinct de lpOpts.presolveMaxPasses ────────────
 //
 // a, b ∈ [0, 100] Integer.  Constraints added in this order:
-//   C1: 2b - a <= 1   (added first — processed first in each LP pass)
+//   C1: 2b - a <= 1   (added first - processed first in each LP pass)
 //   C2: 2a    <= 9
 //
 // PR1: both RHS are already integers → rhsRounded = 0.
@@ -207,12 +207,12 @@ TEST_CASE("presolveMILP: 10-var two-round cascade", "[presolve][milp]") {
 //   LP pass:  C1 with a.ub=100 → b.ub ≤ (1+100)/2 = 50.5 (tightened from 100)
 //             C2            → a.ub ≤ 9/2 = 4.5   (tightened from 100)
 //   Round:    a.ub 4.5→4, b.ub 50.5→50   (2 roundings)
-//   Result:   a ∈ [0,4], b ∈ [0,50]      — b NOT fully tightened
+//   Result:   a ∈ [0,4], b ∈ [0,50]      - b NOT fully tightened
 //
 // With maxCycles=2 (two LP+round cycles):
 //   Cycle 2 LP:  C1 with a.ub=4 → b.ub ≤ (1+4)/2 = 2.5 (tightened from 50)
 //   Cycle 2 Round: b.ub 2.5→2   (1 more rounding)
-//   Result:   a ∈ [0,4], b ∈ [0,2]       — fully tightened
+//   Result:   a ∈ [0,4], b ∈ [0,2]       - fully tightened
 //
 // The key: C1 is processed before a.ub is tightened in cycle 1, so it cannot
 // propagate to b.ub yet.  Only after a.ub is rounded (cycle 1) and cycle 2's
@@ -269,7 +269,7 @@ TEST_CASE("presolveMILP: milpPresolveMaxCycles limits outer iterations", "[preso
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// PR1 — Integer RHS rounding
+// PR1 - Integer RHS rounding
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── PR1.1: LessEq with non-integer RHS ───────────────────────────────────────

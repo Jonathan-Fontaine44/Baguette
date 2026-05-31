@@ -13,7 +13,7 @@ namespace baguette::internal {
 /// Internal standard-form LP: minimise c^T x  subject to  A x = b,  x ≥ 0.
 ///
 /// Built by toStandardForm() from a user-facing Model.  Never exposed in a
-/// public header — callers only see LPResult / LPDetailedResult.
+/// public header - callers only see LPResult / LPDetailedResult.
 ///
 /// Each original variable is shifted to a non-negative auxiliary x'_j ≥ 0:
 ///   - lb-shift (lb finite):  x'_j = x_j − lb_j  → x_j = lb_j + x'_j
@@ -93,7 +93,7 @@ struct LPStandardForm {
 /// test (complement invariant), avoiding the O(n) row inflation of LPStandardForm.
 ///
 /// Column layout: [orig (nOrig) | slack/surplus (nSlack) | free-neg (nFree)]
-/// Row layout:    [model constraints (nOrigRows)] — no UB rows.
+/// Row layout:    [model constraints (nOrigRows)] - no UB rows.
 struct LPStandardFormBV {
     std::size_t nRows;     ///< = nOrigRows (no UB rows)
     std::size_t nOrigRows;
@@ -189,7 +189,7 @@ LPStandardForm dualStandardForm(const LPStandardForm& primal);
 ///
 /// Like toStandardForm() but finite upper bounds are stored in LPStandardFormBV::colUB
 /// instead of being appended as explicit rows. The resulting matrix has nRows = nOrigRows
-/// only — no UB row inflation. The BV simplex enforces bounds via its ratio test.
+/// only - no UB row inflation. The BV simplex enforces bounds via its ratio test.
 /// @note Complexity: O(m·n), same as toStandardForm() but without the UB row fill.
 LPStandardFormBV toStandardFormBV(const Model& model);
 

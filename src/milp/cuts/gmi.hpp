@@ -11,7 +11,7 @@ namespace baguette {
 
 /// Generate Gomory Mixed-Integer (GMI) cuts from fractional tableau rows.
 ///
-/// Internal — called by the B&C loop in solveMILP(). Not part of the public API.
+/// Internal - called by the B&C loop in solveMILP(). Not part of the public API.
 /// Users activate GMI via BBOptions::enableCuts.
 ///
 /// @param rows        Fractional rows from LPDetailedResult::fractionalRows.

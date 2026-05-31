@@ -16,7 +16,7 @@ using namespace baguette;
 static AllDiffConstraint makeAllDiff(int K, int nFixed) {
     AllDiffConstraint con;
     con.vars.reserve(K);
-    Model dummy; // only used to allocate var IDs — not part of benchmark loop
+    Model dummy; // only used to allocate var IDs - not part of benchmark loop
     for (int i = 0; i < K; ++i)
         con.vars.push_back(dummy.addVar(0.0, double(K - 1), VarType::Integer));
     return con;
@@ -39,7 +39,7 @@ static void BM_AllDiff_propagate(benchmark::State& state, int K, int nFixed) {
     }
 }
 
-// K=20: 0 fixed (overhead baseline — nothing to eliminate)
+// K=20: 0 fixed (overhead baseline - nothing to eliminate)
 BENCHMARK_CAPTURE(BM_AllDiff_propagate, K20_0fixed,   20,  0);
 // K=20: 10 fixed (half the domain is pinned)
 BENCHMARK_CAPTURE(BM_AllDiff_propagate, K20_10fixed,  20, 10);
@@ -59,7 +59,7 @@ BENCHMARK_CAPTURE(BM_AllDiff_propagate, K100_50fixed, 100, 50);
 // forced to have compulsory regions by narrowing their window.
 // Actually, to get non-trivial propagation, we use:
 //   task i: start ∈ [0, W], duration=dur, consumption=1.
-//   W = D - dur so tasks have zero compulsory region — but together they
+//   W = D - dur so tasks have zero compulsory region - but together they
 //   may overload if a window is too tight, forcing est to advance.
 //
 // Scenario: N tasks, each dur=dur_size, window [0, horizon].
@@ -87,11 +87,11 @@ static void BM_Cumulative_propagate(benchmark::State& state, int N, int dur, int
 
 // N=5, dur=4, horizon=20: small scheduling problem
 BENCHMARK_CAPTURE(BM_Cumulative_propagate, N5_dur4_H20,    5,  4,  20);
-// N=10, dur=4, horizon=30: medium — exercises sliding window max
+// N=10, dur=4, horizon=30: medium - exercises sliding window max
 BENCHMARK_CAPTURE(BM_Cumulative_propagate, N10_dur4_H30,  10,  4,  30);
 // N=10, dur=8, horizon=60: wider windows, longer compulsory regions
 BENCHMARK_CAPTURE(BM_Cumulative_propagate, N10_dur8_H60,  10,  8,  60);
-// N=20, dur=4, horizon=50: larger task set — profiles dominate
+// N=20, dur=4, horizon=50: larger task set - profiles dominate
 BENCHMARK_CAPTURE(BM_Cumulative_propagate, N20_dur4_H50,  20,  4,  50);
-// N=20, dur=8, horizon=100: stress test — D=100, 20 tasks
+// N=20, dur=8, horizon=100: stress test - D=100, 20 tasks
 BENCHMARK_CAPTURE(BM_Cumulative_propagate, N20_dur8_H100, 20,  8, 100);

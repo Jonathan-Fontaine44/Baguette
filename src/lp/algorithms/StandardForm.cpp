@@ -326,7 +326,7 @@ bool toStandardFormBoundsOnly(LPStandardForm& sf, const Model& model) {
 
         const bool needsNeg = (rhs < 0.0);
         if (needsNeg != sf.rowNegated[i])
-            return false; // sign flip would require updating A — fall back
+            return false; // sign flip would require updating A - fall back
         sf.b[i] = needsNeg ? -rhs : rhs;
     }
 
@@ -390,7 +390,7 @@ bool toStandardFormBoundsOnlyBV(LPStandardFormBV& sfbv, const Model& model) {
 
         const bool needsNeg = (rhs < 0.0);
         if (needsNeg != sfbv.rowNegated[i])
-            return false; // sign flip would require updating A — fall back
+            return false; // sign flip would require updating A - fall back
         sfbv.b[i] = needsNeg ? -rhs : rhs;
     }
 

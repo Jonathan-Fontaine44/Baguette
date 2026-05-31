@@ -154,7 +154,7 @@ TEST_CASE("Warm-start: incompatible basis falls back to cold solve", "[warm_star
     Model m = makeFractionalLP();
 
     BasisRecord bad_basis;
-    bad_basis.basicCols = {0, 1, 2}; // 3 entries — wrong for both methods
+    bad_basis.basicCols = {0, 1, 2}; // 3 entries - wrong for both methods
     bad_basis.colKind   = {ColumnKind::Original,
                            ColumnKind::Original,
                            ColumnKind::Original};
@@ -320,7 +320,7 @@ TEST_CASE("Warm-start: usedWarmStart confirms effective warm on branch, false on
     warmOpts.enablePresolve = false;
     auto warm = solveLPDetailed(child_m, warmOpts);
     REQUIRE(warm.result.status == LPStatus::Optimal);
-    REQUIRE(warm.usedWarmStart);                              // warm-start accepted — no fallback
+    REQUIRE(warm.usedWarmStart);                              // warm-start accepted - no fallback
     REQUIRE_THAT(warm.result.objectiveValue, WithinAbs(-2.5, kTol));
 
     LPOptions coldChildOpts; coldChildOpts.method = method; coldChildOpts.enablePresolve = false;

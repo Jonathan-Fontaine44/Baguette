@@ -14,10 +14,10 @@ namespace baguette::internal {
 /// @note Complexity
 ///   All fields are read O(1) per pivot. No dynamic allocation.
 struct SimplexConfig {
-    /// Primal feasibility tolerance — from LPOptions::feasibilityTol.
+    /// Primal feasibility tolerance - from LPOptions::feasibilityTol.
     double feasibilityTol = 1e-9;
 
-    /// Dual optimality tolerance — from LPOptions::optimalityTol.
+    /// Dual optimality tolerance - from LPOptions::optimalityTol.
     double optimalityTol = 1e-9;
 
     /// Minimum absolute pivot magnitude. Internal constant, not user-facing.

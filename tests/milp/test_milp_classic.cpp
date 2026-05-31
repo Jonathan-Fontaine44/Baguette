@@ -39,7 +39,7 @@ static std::vector<MILPTestCase> makeMILPTestSuite() {
         {"knapsack_10_infeasible", MILPStatus::Infeasible, 0.0,
             []() { return baguette_test::makeKnapsack10(5.0, 6.0); }},
 
-        // Job shop 10Ã—2: MILP optimal = 26 (Johnson's rule on the two-machine
+        // Job shop 10Ã-2: MILP optimal = 26 (Johnson's rule on the two-machine
         // flow shop). The big-M LP relaxation gives a very weak bound (5), so
         // B&B may need many nodes; marked large to accept TimeLimit.
         {"jobshop_10x2", MILPStatus::Optimal, 26.0,

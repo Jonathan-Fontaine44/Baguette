@@ -123,7 +123,7 @@ static void runLarge(benchmark::State& state,
     }
 }
 
-// ── Knapsack50 — real B&B (LP relaxation is fractional) ────────────────────
+// ── Knapsack50 - real B&B (LP relaxation is fractional) ────────────────────
 
 BENCHMARK_CAPTURE(runLarge, Knapsack50/DualSimplex,
     LPMethod::DualSimplex,    true, makeKnapsack50);
@@ -136,7 +136,7 @@ BENCHMARK_CAPTURE(runLarge, Knapsack50/RevisedSimplexBV,
 BENCHMARK_CAPTURE(runLarge, Knapsack50/MehrotraIPM,
     LPMethod::MehrotraIPM,    true, makeKnapsack50);
 
-// ── TSP50 — single-node B&B (LP = MILP optimal) ────────────────────────────
+// ── TSP50 - single-node B&B (LP = MILP optimal) ────────────────────────────
 // 2 499 variables, 2 451 constraints. Measures LP solve time at scale.
 
 BENCHMARK_CAPTURE(runLarge, TSP50/DualSimplex,
@@ -150,7 +150,7 @@ BENCHMARK_CAPTURE(runLarge, TSP50/RevisedSimplexBV,
 BENCHMARK_CAPTURE(runLarge, TSP50/MehrotraIPM,
     LPMethod::MehrotraIPM,    true, []() { return makeTSPn(50); });
 
-// ── Cascade50 NoPresolve — huge tree, measures nodes/s under time limit ─────
+// ── Cascade50 NoPresolve - huge tree, measures nodes/s under time limit ─────
 
 BENCHMARK_CAPTURE(runLarge, Cascade50/NoPresolve/DualSimplex,
     LPMethod::DualSimplex,    false, makeCascade50);
@@ -163,7 +163,7 @@ BENCHMARK_CAPTURE(runLarge, Cascade50/NoPresolve/RevisedSimplexBV,
 BENCHMARK_CAPTURE(runLarge, Cascade50/NoPresolve/MehrotraIPM,
     LPMethod::MehrotraIPM,    false, makeCascade50);
 
-// ── Cascade50 MILPPresolve — trivially fast post-presolve ──────────────────
+// ── Cascade50 MILPPresolve - trivially fast post-presolve ──────────────────
 // Presolve reduces [0,10] → [2,3]; pre-LP bound prune eliminates the tree.
 
 BENCHMARK_CAPTURE(runLarge, Cascade50/MILPPresolve/DualSimplex,

@@ -17,7 +17,7 @@ namespace baguette {
 ///                       (status Optimal only).
 ///
 /// Sensitivity analysis (rhsRange, objRange) is left sized for the reduced
-/// model — its semantics are undefined after elimination.
+/// model - its semantics are undefined after elimination.
 void postsolveElim(LPDetailedResult& r, const EliminationRecord& rec);
 
 } // namespace baguette

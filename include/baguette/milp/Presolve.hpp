@@ -26,7 +26,7 @@ void postsolveElim(MILPResult& r, const EliminationRecord& rec);
 ///
 /// | Level | Added technique                                          | Cost      |
 /// |-------|----------------------------------------------------------|-----------|
-/// |   0   | None — skip presolve entirely                            | —         |
+/// |   0   | None - skip presolve entirely                            | -         |
 /// |   1   | LP bound-tightening + integrality rounding + PR1         | O(P·C·N)  |
 /// |   2   | + CP fixpoint propagation at root (before B&B tree)      | O(I·C·K)  |
 /// |   3   | + Weak probing: fix each binary var, propagate, intersect | O(k·L2)  |
@@ -73,24 +73,24 @@ struct MILPPresolveOpts {
 /// CP constraints (propagateCP to fixpoint), then re-runs the LP+round loop if
 /// any bounds changed.  No-op when the model has no CP constraints.
 ///
-/// **Level 3**: Weak probing — for each binary variable x_i (up to
+/// **Level 3**: Weak probing - for each binary variable x_i (up to
 /// @p opts.probingMaxVars): fix x_i = lb, run level-2 presolve on a copy;
 /// fix x_i = ub, run level-2 presolve on another copy; intersect the resulting
 /// bounds (new_lb[j] = max(cur_lb[j], min(lb0[j], lb1[j]))).  If one fixation
 /// is infeasible, x_i is forced to the other value.  If both are infeasible,
 /// the model is infeasible.
 ///
-/// **Level 4**: Root LP solve — solves the LP relaxation of the presolved model
+/// **Level 4**: Root LP solve - solves the LP relaxation of the presolved model
 /// once.  Detects LP infeasibility (which implies MILP infeasibility) before
 /// the B&B tree starts.
 ///
-/// **Level 5**: Implication rows — during the level-3 weak probing, binary-to-
+/// **Level 5**: Implication rows - during the level-3 weak probing, binary-to-
 /// binary implications (x_i = v → x_j = w) are recorded and injected as LP
 /// constraints (e.g. x_i + x_j ≥ 1).  Capped at @p opts.maxImpliedRows.
 /// Rows are added before the level-4 root LP solve, so the LP benefits from
 /// the tighter model.
 ///
-/// **Level 6**: Strong probing — for each binary variable x_i (up to
+/// **Level 6**: Strong probing - for each binary variable x_i (up to
 /// @p opts.probingMaxVars): solve the full LP relaxation with x_i fixed to lb,
 /// then with x_i fixed to ub.  LP infeasibility for one value fixes x_i to the
 /// other.  Detects infeasibilities that constraint propagation (level 3) cannot.

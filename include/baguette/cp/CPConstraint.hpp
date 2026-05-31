@@ -12,7 +12,7 @@ class Model;
 /// Abstract base for user-defined CP constraints (open extension path).
 ///
 /// Built-in constraints (AllDiff, Cumulative) use std::variant for zero-overhead
-/// dispatch.  Subclass CPConstraint for user-defined or exotic constraints —
+/// dispatch.  Subclass CPConstraint for user-defined or exotic constraints -
 /// virtual dispatch occurs once per constraint per B&B node, negligible versus
 /// the O(K²) propagation work inside.
 ///

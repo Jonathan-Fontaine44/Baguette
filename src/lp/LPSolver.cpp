@@ -109,7 +109,7 @@ LPDetailedResult solveLPDetailed(const Model& model, const LPOptions& opts) {
                                          simplexCfg);
         default:
             // A new LPMethod was added to the enum but not handled here.
-            assert(false && "Unhandled LPMethod — add a case for each new enum value");
+            assert(false && "Unhandled LPMethod - add a case for each new enum value");
             return internal::solveDualBV(model, opts.maxIter, opts.timeLimitS,
                                          opts.startTime, opts.warmBasis,
                                          opts.computeCutData, opts.computeSensitivity,

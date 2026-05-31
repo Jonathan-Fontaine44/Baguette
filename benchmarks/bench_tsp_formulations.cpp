@@ -3,26 +3,26 @@
 // Compares six TSP formulations on random Euclidean instances (n = 5, 10, 15):
 //
 //   Directed formulations (MTZ position vars / flow vars / explicit SECs):
-//     MTZ      — Miller-Tucker-Zemlin (weak LP bound, O(n²) size)
-//     LMTZ     — Lifted MTZ / Desrochers-Laporte (tighter LP, same size)
-//     SCF      — Single-Commodity Flow (LP bound = DFJ, O(n²) size)
-//     MCF      — Multi-Commodity Flow (LP bound = DFJ, O(n³) size; n ≤ 10)
-//     DFJ      — Dantzig-Fulkerson-Johnson explicit SEC (LP = DFJ; n ≤ 10)
+//     MTZ      - Miller-Tucker-Zemlin (weak LP bound, O(n²) size)
+//     LMTZ     - Lifted MTZ / Desrochers-Laporte (tighter LP, same size)
+//     SCF      - Single-Commodity Flow (LP bound = DFJ, O(n²) size)
+//     MCF      - Multi-Commodity Flow (LP bound = DFJ, O(n³) size; n ≤ 10)
+//     DFJ      - Dantzig-Fulkerson-Johnson explicit SEC (LP = DFJ; n ≤ 10)
 //
 //   Undirected formulation with dynamic SEC cuts:
-//     SEC      — Degree-2 relaxation + Stoer-Wagner SEC cut generator
+//     SEC      - Degree-2 relaxation + Stoer-Wagner SEC cut generator
 //
 //   Each directed formulation is also run with GMI cuts (+GMI variant).
 //
 // Metrics per run:
-//   rootLP    — LP relaxation at the root (integrality ignored)
-//   optimal   — best integer objective found
-//   gap%      — (optimal − rootLP) / optimal × 100  (root LP gap)
-//   nodes     — B&B nodes explored
-//   solves    — total LP solves across the tree
-//   cuts      — total cuts added (GMI or SEC)
-//   time ms   — B&B wall-clock time (model build and root LP excluded)
-//   status    — Optimal / TimeLimit / ...
+//   rootLP    - LP relaxation at the root (integrality ignored)
+//   optimal   - best integer objective found
+//   gap%      - (optimal − rootLP) / optimal × 100  (root LP gap)
+//   nodes     - B&B nodes explored
+//   solves    - total LP solves across the tree
+//   cuts      - total cuts added (GMI or SEC)
+//   time ms   - B&B wall-clock time (model build and root LP excluded)
+//   status    - Optimal / TimeLimit / ...
 //
 // B&B settings (shared across all formulations for a fair comparison):
 //   LP method      : DualSimplexBV
@@ -280,7 +280,7 @@ static void printRow(const RunResult& r) {
         << std::setw(8)  << std::setprecision(2) << r.rootLP
         << std::setw(10) << std::setprecision(2) << r.optimal;
     if (std::isnan(r.gapPct))
-        std::cout << std::setw(8) << "—";
+        std::cout << std::setw(8) << "-";
     else
         std::cout << std::setw(7) << std::setprecision(1) << r.gapPct << "%";
     std::cout

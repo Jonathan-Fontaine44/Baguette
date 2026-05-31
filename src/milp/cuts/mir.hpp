@@ -23,9 +23,9 @@ namespace baguette {
 ///
 /// @note Variables with negative shifted coefficients are skipped (conservative).
 ///   Standard MIR would complement them via `x'ⱼ = ubⱼ − xⱼ`, but this requires
-///   finite upper bounds and is not implemented — cuts are valid but potentially weaker.
+///   finite upper bounds and is not implemented - cuts are valid but potentially weaker.
 ///
-/// Internal — activated by BBOptions::enableMIR. Not part of the public API.
+/// Internal - activated by BBOptions::enableMIR. Not part of the public API.
 ///
 /// @note Complexity: O(C × K) where C = number of LP constraints and
 ///   K = average number of non-zeros per constraint.
@@ -44,7 +44,7 @@ std::vector<Cut> generateMIRCuts(const LPDetailedResult& lp,
 /// where `b̄ = Σ aⱼ ubⱼ − b`.
 /// Only cuts that are violated by the current LP solution are returned.
 ///
-/// Internal — activated by BBOptions::enableMIR. Not part of the public API.
+/// Internal - activated by BBOptions::enableMIR. Not part of the public API.
 ///
 /// @note Complexity: O(C × K) where C = number of LP constraints and
 ///   K = average number of non-zeros per constraint.

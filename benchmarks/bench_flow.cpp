@@ -24,7 +24,7 @@ static void BM_FlowLP(benchmark::State& state,
     }
 }
 
-// 1 source, 1 puits — 100 nœuds
+// 1 source, 1 puits - 100 nœuds
 BENCHMARK_CAPTURE(BM_FlowLP, Flow1S1T_100/PrimalSimplex,  LPMethod::PrimalSimplex,
     []() { return baguette_test::makeFlowDAG(); });
 BENCHMARK_CAPTURE(BM_FlowLP, Flow1S1T_100/DualSimplex,    LPMethod::DualSimplex,
@@ -32,7 +32,7 @@ BENCHMARK_CAPTURE(BM_FlowLP, Flow1S1T_100/DualSimplex,    LPMethod::DualSimplex,
 BENCHMARK_CAPTURE(BM_FlowLP, Flow1S1T_100/RevisedSimplex, LPMethod::RevisedSimplex,
     []() { return baguette_test::makeFlowDAG(); });
 
-// 2 sources, 2 puits — 100 nœuds
+// 2 sources, 2 puits - 100 nœuds
 BENCHMARK_CAPTURE(BM_FlowLP, Flow2S2T_100/PrimalSimplex,  LPMethod::PrimalSimplex,
     []() { return baguette_test::makeFlowDAG2S2T(); });
 BENCHMARK_CAPTURE(BM_FlowLP, Flow2S2T_100/DualSimplex,    LPMethod::DualSimplex,
@@ -70,13 +70,13 @@ static void BM_FlowMILP(benchmark::State& state,
     }
 }
 
-// 1 source, 1 puits — 30 nœuds
+// 1 source, 1 puits - 30 nœuds
 BENCHMARK_CAPTURE(BM_FlowMILP, Flow1S1T_30/BB/DualSimplex,
     LPMethod::DualSimplex,  false, []() { return baguette_test::makeFlowDAG(30); });
 BENCHMARK_CAPTURE(BM_FlowMILP, Flow1S1T_30/BnC/DualSimplex,
     LPMethod::DualSimplex,  true,  []() { return baguette_test::makeFlowDAG(30); });
 
-// 2 sources, 2 puits — 30 nœuds
+// 2 sources, 2 puits - 30 nœuds
 BENCHMARK_CAPTURE(BM_FlowMILP, Flow2S2T_30/BB/DualSimplex,
     LPMethod::DualSimplex,  false, []() { return baguette_test::makeFlowDAG2S2T(30); });
 BENCHMARK_CAPTURE(BM_FlowMILP, Flow2S2T_30/BnC/DualSimplex,

@@ -93,7 +93,7 @@ TEST_CASE("LP solve - degenerate LP (multiple tie ratios) solves correctly", "[l
     //   s.t.  x + y >= 4       (binding at (4,0) and (0,4))
     //         x     <= 4       (binding at (4, *))
     //             y <= 4       (binding at (*, 4))
-    //         x + y <= 4       (makes (4,0) and (0,4) the only optima — degenerate)
+    //         x + y <= 4       (makes (4,0) and (0,4) the only optima - degenerate)
     //         x, y >= 0
     // Optimal: obj = 4, degenerate (infinitely many solutions on x+y=4).
     Model m;
@@ -400,7 +400,7 @@ TEST_CASE("LP objective constant - does not affect optimal solution", "[lp]") {
 
     REQUIRE(r0.status == LPStatus::Optimal);
     REQUIRE(r1.status == LPStatus::Optimal);
-    // Optimal solution (x=0, y=0, obj=0 / 99) — same variable values.
+    // Optimal solution (x=0, y=0, obj=0 / 99) - same variable values.
     REQUIRE(r0.primalValues.size() == r1.primalValues.size());
     for (std::size_t j = 0; j < r0.primalValues.size(); ++j)
         CHECK_THAT(r1.primalValues[j], WithinAbs(r0.primalValues[j], kTol));

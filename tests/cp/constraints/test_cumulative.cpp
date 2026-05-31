@@ -14,7 +14,7 @@ static constexpr double kTol = 1e-9;
 //
 // Task A: start ∈ [0,0] (fixed), dur=2, cns=1.  Compulsory: [0,2).
 // Task B: start ∈ [2,4], dur=2, cns=1.  No compulsory region (lst=4 ≥ ect=4).
-// Capacity = 1.  Tasks can execute sequentially — no overload, no tightening.
+// Capacity = 1.  Tasks can execute sequentially - no overload, no tightening.
 
 TEST_CASE("Cumulative: feasible sequential tasks, no bound tightening", "[cp][cumulative]") {
     Model m;
@@ -34,8 +34,8 @@ TEST_CASE("Cumulative: feasible sequential tasks, no bound tightening", "[cp][cu
 
 // ── Test 2: compulsory overload → infeasible ──────────────────────────────────
 //
-// Task A: start ∈ [0,1], dur=2, cns=2.  Compulsory: [1,2) — time 1.
-// Task B: start ∈ [0,1], dur=2, cns=2.  Compulsory: [1,2) — time 1.
+// Task A: start ∈ [0,1], dur=2, cns=2.  Compulsory: [1,2) - time 1.
+// Task B: start ∈ [0,1], dur=2, cns=2.  Compulsory: [1,2) - time 1.
 // Capacity = 3.  At time 1: A(2) + B(2) = 4 > 3.
 // Both tasks always cover time 1, so no valid assignment exists.
 

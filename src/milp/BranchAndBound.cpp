@@ -14,6 +14,7 @@
 #include "baguette/milp/Presolve.hpp"
 #include "milp/cuts/gmi.hpp"
 #include "milp/cuts/mir.hpp"
+#include "milp/ProofWriter.hpp"
 #include "baguette/model/ModelEnums.hpp"
 
 namespace baguette {
@@ -58,6 +59,10 @@ struct Node {
     int    parentBranchVar = -1; // -1 = root node (no parent branch)
     bool   branchedUp      = false;
     double parentFrac      = 0.0;
+
+    // Proof IDs - populated only when BBOptions::proofStream is non-null.
+    uint32_t proofId       = 0;
+    uint32_t parentProofId = std::numeric_limits<uint32_t>::max(); // noNode sentinel
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -175,6 +180,11 @@ MILPResult solveMILP(const Model&            modelRef,
                      SolverClock::time_point startTime) {
     Model model = modelRef;
 
+    // ── Proof writer (created before presolve so early infeasibility is captured) ──
+    std::unique_ptr<internal::ProofWriter> pw;
+    if (opts.proofStream)
+        pw = std::make_unique<internal::ProofWriter>(opts.proofStream);
+
     // ── MILP presolve (opt-in, applied once at the root) ──────────────────────
     std::optional<MILPPresolveResult> presolveStat;
     if (opts.presolveLevel > 0) {
@@ -193,6 +203,8 @@ MILPResult solveMILP(const Model&            modelRef,
             MILPResult result;
             result.status       = MILPStatus::Infeasible;
             result.presolveStat = presolveStat;
+            if (pw) pw->writeResult(MILPStatus::Infeasible,
+                                    std::numeric_limits<double>::infinity());
             return result;
         }
     }
@@ -207,6 +219,8 @@ MILPResult solveMILP(const Model&            modelRef,
             MILPResult result;
             result.status       = MILPStatus::Infeasible;
             result.presolveStat = presolveStat;
+            if (pw) pw->writeResult(MILPStatus::Infeasible,
+                                    std::numeric_limits<double>::infinity());
             return result;
         }
         presolveElimCP(cpSaved, elimRec, model);
@@ -236,9 +250,13 @@ MILPResult solveMILP(const Model&            modelRef,
     // ── Pseudo-costs ───────────────────────────────────────────────────────────
     PseudoCosts pc = initPseudoCosts(static_cast<uint32_t>(model.numVars()));
 
+    // ── Proof header (after all presolve - model is now final for the B&B) ─────
+    if (pw) pw->writeHeader(model);
+
     // ── Incumbent tracking ─────────────────────────────────────────────────────
-    double              incumbent    = minimize ? inf : -inf;
+    double              incumbent       = minimize ? inf : -inf;
     std::vector<double> incumbentSol;
+    uint32_t            incumbentNodeId = std::numeric_limits<uint32_t>::max();
 
     uint32_t nodesExplored = 0;
     uint32_t cutsAdded     = 0;
@@ -329,9 +347,13 @@ MILPResult solveMILP(const Model&            modelRef,
     // ── Root node ──────────────────────────────────────────────────────────────
     {
         Node root;
-        root.changesHead = nullptr;
-        root.lpBound     = minimize ? -inf : inf;
-        root.depth       = 0;
+        root.changesHead   = nullptr;
+        root.lpBound       = minimize ? -inf : inf;
+        root.depth         = 0;
+        root.proofId       = pw ? pw->allocId() : 0;
+        root.parentProofId = std::numeric_limits<uint32_t>::max();
+        if (pw) pw->writeNode(root.proofId, internal::ProofWriter::noNode());
+        // No DIFF for the root - no branching decision created it.
         pushNode(std::move(root));
     }
 
@@ -360,6 +382,7 @@ MILPResult solveMILP(const Model&            modelRef,
         // pending node with lpBound == incumbent is pruned without an LP solve.
         if (canPrune(effectiveBound(node.lpBound))) {
             if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+            if (pw) pw->writePruneByBound(node.proofId, incumbent, incumbentNodeId);
             continue;
         }
 
@@ -377,7 +400,7 @@ MILPResult solveMILP(const Model&            modelRef,
                 anyChanged = !pr.changedVarIds.empty() && opts.cpPropagateToFixpoint;
 
                 // Add CP-tightened vars to dirtyVars so restoreBounds() resets them.
-                // isDirty guards against duplicates in O(1) per var — no sort needed.
+                // isDirty guards against duplicates in O(1) per var - no sort needed.
                 for (uint32_t id : pr.changedVarIds)
                     if (!isDirty[id]) { isDirty[id] = true; dirtyVars.push_back(id); }
                 if (pr.status == CPStatus::Infeasible) {
@@ -387,11 +410,12 @@ MILPResult solveMILP(const Model&            modelRef,
             }
             if (cpInfeasible) {
                 if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
-                continue; // node pruned by CP — no LP solve needed
+                if (pw) pw->writeCpInfeasible(node.proofId);
+                continue; // node pruned by CP - no LP solve needed
             }
         }
 
-        // ── Lightweight integer bound rounding O(V_int) — no LP needed ────────
+        // ── Lightweight integer bound rounding O(V_int) - no LP needed ────────
         // After branching (and CP propagation), integer variable bounds may be
         // fractional (e.g., CP tightened x.lb to 2.3 → ceil to 3).  Snap them
         // here to detect cheap infeasibility and tighten the LP relaxation
@@ -446,12 +470,20 @@ MILPResult solveMILP(const Model&            modelRef,
         switch (lp.result.status) {
             case LPStatus::Infeasible:
                 if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                if (pw) { pw->writeLPInfeasible(node.proofId);
+                          pw->writeFarkas(node.proofId, lp.farkas, model); }
                 continue;
             case LPStatus::Unbounded:       unboundedHit = true; goto done;
             case LPStatus::TimeLimit:       timeLimitHit = true; goto done;
-            case LPStatus::NumericalFailure: continue;
-            case LPStatus::MaxIter:         continue;
-            case LPStatus::Optimal:         break;
+            case LPStatus::NumericalFailure:
+                if (pw) pw->writeUnverified(node.proofId, LPStatus::NumericalFailure);
+                continue;
+            case LPStatus::MaxIter:
+                if (pw) pw->writeUnverified(node.proofId, LPStatus::MaxIter);
+                continue;
+            case LPStatus::Optimal:
+                if (pw) pw->writeLPOptimal(node.proofId, lp.result.objectiveValue);
+                break;
         }
 
         // Warm-start fallback: parent provided a basis but dual simplex fell
@@ -473,6 +505,7 @@ MILPResult solveMILP(const Model&            modelRef,
         // ── Prune by bound (pre-cut) ───────────────────────────────────────────
         if (canPrune(effectiveBound(lp.result.objectiveValue))) {
             if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+            if (pw) pw->writePruneByBound(node.proofId, incumbent, incumbentNodeId);
             continue;
         }
 
@@ -495,8 +528,11 @@ MILPResult solveMILP(const Model&            modelRef,
                 perNode, opts.intFeasTol);
 
             if (!cuts.empty()) {
-                for (const Cut& c : cuts)
+                for (const Cut& c : cuts) {
                     model.addLPConstraint(c.expr, c.sense, c.rhs);
+                    if (pw) pw->writeCutAdded(node.proofId, c.expr, c.sense, c.rhs,
+                                              model.getCold());
+                }
                 cutsAdded += static_cast<uint32_t>(cuts.size());
 
                 if (opts.collectStats) {
@@ -516,7 +552,7 @@ MILPResult solveMILP(const Model&            modelRef,
                 // this cut was added) also carry a pre-cut BasisRecord.  When they are
                 // eventually popped, solveDualDetailed() detects the sfCache dimension
                 // mismatch and silently falls back to a cold primal solve as well.
-                // This is correct — their basis is simply stale — but it means that
+                // This is correct - their basis is simply stale - but it means that
                 // cut addition degrades warm-start reuse for all queued siblings.
                 if (opts.collectStats) ++stats_acc.lpSolvesTotal;
                 LPOptions lpOptsCold       = opts.lpOpts;
@@ -529,16 +565,25 @@ MILPResult solveMILP(const Model&            modelRef,
                 switch (lp.result.status) {
                     case LPStatus::Infeasible:
                         if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                        if (pw) { pw->writeLPInfeasible(node.proofId);
+                                  pw->writeFarkas(node.proofId, lp.farkas, model); }
                         continue;
                     case LPStatus::Unbounded:        unboundedHit = true; goto done;
                     case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
-                    case LPStatus::NumericalFailure: continue;
-                    case LPStatus::MaxIter:          continue;
-                    case LPStatus::Optimal:          break;
+                    case LPStatus::NumericalFailure:
+                        if (pw) pw->writeUnverified(node.proofId, LPStatus::NumericalFailure);
+                        continue;
+                    case LPStatus::MaxIter:
+                        if (pw) pw->writeUnverified(node.proofId, LPStatus::MaxIter);
+                        continue;
+                    case LPStatus::Optimal:
+                        if (pw) pw->writeLPOptimal(node.proofId, lp.result.objectiveValue);
+                        break;
                 }
 
                 if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                     if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+                    if (pw) pw->writePruneByBound(node.proofId, incumbent, incumbentNodeId);
                     continue;
                 }
             }
@@ -568,8 +613,11 @@ MILPResult solveMILP(const Model&            modelRef,
                 }
 
                 if (!mirCuts.empty()) {
-                    for (const Cut& c : mirCuts)
+                    for (const Cut& c : mirCuts) {
                         model.addLPConstraint(c.expr, c.sense, c.rhs);
+                        if (pw) pw->writeCutAdded(node.proofId, c.expr, c.sense, c.rhs,
+                                                  model.getCold());
+                    }
                     cutsAdded += static_cast<uint32_t>(mirCuts.size());
 
                     if (opts.collectStats) {
@@ -591,15 +639,24 @@ MILPResult solveMILP(const Model&            modelRef,
                     switch (lp.result.status) {
                         case LPStatus::Infeasible:
                             if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                            if (pw) { pw->writeLPInfeasible(node.proofId);
+                                      pw->writeFarkas(node.proofId, lp.farkas, model); }
                             continue;
                         case LPStatus::Unbounded:        unboundedHit = true; goto done;
                         case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
-                        case LPStatus::NumericalFailure: continue;
-                        case LPStatus::MaxIter:          continue;
-                        case LPStatus::Optimal:          break;
+                        case LPStatus::NumericalFailure:
+                            if (pw) pw->writeUnverified(node.proofId, LPStatus::NumericalFailure);
+                            continue;
+                        case LPStatus::MaxIter:
+                            if (pw) pw->writeUnverified(node.proofId, LPStatus::MaxIter);
+                            continue;
+                        case LPStatus::Optimal:
+                            if (pw) pw->writeLPOptimal(node.proofId, lp.result.objectiveValue);
+                            break;
                     }
                     if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                         if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+                        if (pw) pw->writePruneByBound(node.proofId, incumbent, incumbentNodeId);
                         continue;
                     }
                 }
@@ -626,8 +683,11 @@ MILPResult solveMILP(const Model&            modelRef,
                         userCuts.resize(remaining);
                 }
                 if (!userCuts.empty()) {
-                    for (const Cut& c : userCuts)
+                    for (const Cut& c : userCuts) {
                         model.addLPConstraint(c.expr, c.sense, c.rhs);
+                        if (pw) pw->writeCutAdded(node.proofId, c.expr, c.sense, c.rhs,
+                                                  model.getCold());
+                    }
                     cutsAdded += static_cast<uint32_t>(userCuts.size());
 
                     if (opts.collectStats) {
@@ -649,15 +709,24 @@ MILPResult solveMILP(const Model&            modelRef,
                     switch (lp.result.status) {
                         case LPStatus::Infeasible:
                             if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
+                            if (pw) { pw->writeLPInfeasible(node.proofId);
+                                      pw->writeFarkas(node.proofId, lp.farkas, model); }
                             continue;
                         case LPStatus::Unbounded:        unboundedHit = true; goto done;
                         case LPStatus::TimeLimit:        timeLimitHit = true; goto done;
-                        case LPStatus::NumericalFailure: continue;
-                        case LPStatus::MaxIter:          continue;
-                        case LPStatus::Optimal:          break;
+                        case LPStatus::NumericalFailure:
+                            if (pw) pw->writeUnverified(node.proofId, LPStatus::NumericalFailure);
+                            continue;
+                        case LPStatus::MaxIter:
+                            if (pw) pw->writeUnverified(node.proofId, LPStatus::MaxIter);
+                            continue;
+                        case LPStatus::Optimal:
+                            if (pw) pw->writeLPOptimal(node.proofId, lp.result.objectiveValue);
+                            break;
                     }
                     if (canPrune(effectiveBound(lp.result.objectiveValue))) {
                         if (opts.collectStats) ++stats_acc.nodesPrunedByBound;
+                        if (pw) pw->writePruneByBound(node.proofId, incumbent, incumbentNodeId);
                         continue;
                     }
                 }
@@ -713,13 +782,17 @@ MILPResult solveMILP(const Model&            modelRef,
             double obj    = lp.result.objectiveValue;
             bool   better = minimize ? (obj < incumbent) : (obj > incumbent);
             if (better) {
-                incumbent    = obj;
-                incumbentSol = lp.result.primalValues;
-                // HybridPlunge: first incumbent found — heapify and switch to BestBound.
+                incumbent       = obj;
+                incumbentSol    = lp.result.primalValues;
+                incumbentNodeId = node.proofId;
+                if (pw) pw->writeIncumbent(node.proofId, obj);
+                // HybridPlunge: first incumbent found - heapify and switch to BestBound.
                 if (plunging) {
                     plunging = false;
                     std::make_heap(queue.begin(), queue.end(), cmpNodes);
                 }
+            } else {
+                if (pw) pw->writeLeaf(node.proofId, obj);
             }
             continue;
         }
@@ -744,11 +817,24 @@ MILPResult solveMILP(const Model&            modelRef,
         const double bound  = effectiveBound(lp.result.objectiveValue);
 
         // Left child:  x_j ≤ floor(x_j)  [or domain lower half for CP branch]
-        // Guard: floorX >= curLb ensures the domain [curLb, floorX] is non-empty.
-        if (!canPrune(bound) && floorX >= curLb) {
+        // Right child: x_j ≥ ceil(x_j)   [or domain upper half for CP branch]
+        // Guard: domain non-empty before pushing.
+        const bool   leftOk  = !canPrune(bound) && floorX >= curLb;
+        const bool   rightOk = !canPrune(bound) && ceilX  <= curUb;
+        const uint32_t vid   = static_cast<uint32_t>(branchId);
+
+        // Pre-allocate proof IDs so BRANCH can reference them before children are pushed.
+        const uint32_t leftProofId  = (pw && leftOk)  ? pw->allocId()
+                                                       : internal::ProofWriter::noNode();
+        const uint32_t rightProofId = (pw && rightOk) ? pw->allocId()
+                                                       : internal::ProofWriter::noNode();
+        if (pw) pw->writeBranch(node.proofId, vid, fracXj,
+                                leftProofId, rightProofId, model.getCold());
+
+        if (leftOk) {
             auto chg    = std::make_shared<ChangesNode>();
             chg->parent = node.changesHead;
-            chg->change = {static_cast<uint32_t>(branchId), curLb, floorX};
+            chg->change = {vid, curLb, floorX};
             Node left;
             left.changesHead     = std::move(chg);
             left.lpBound         = bound;
@@ -757,15 +843,19 @@ MILPResult solveMILP(const Model&            modelRef,
             left.parentBranchVar = branchId;
             left.branchedUp      = false;
             left.parentFrac      = fracXj;
+            left.proofId         = leftProofId;
+            left.parentProofId   = node.proofId;
+            if (pw) {
+                pw->writeNode(leftProofId, node.proofId);
+                pw->writeDiff(leftProofId, vid, curLb, floorX, model.getCold());
+            }
             pushNode(std::move(left));
         }
 
-        // Right child: x_j ≥ ceil(x_j)  [or domain upper half for CP branch]
-        // Guard: ceilX <= curUb ensures the domain [ceilX, curUb] is non-empty.
-        if (!canPrune(bound) && ceilX <= curUb) {
+        if (rightOk) {
             auto chg    = std::make_shared<ChangesNode>();
             chg->parent = node.changesHead;
-            chg->change = {static_cast<uint32_t>(branchId), ceilX, curUb};
+            chg->change = {vid, ceilX, curUb};
             Node right;
             right.changesHead     = std::move(chg);
             right.lpBound         = bound;
@@ -774,6 +864,12 @@ MILPResult solveMILP(const Model&            modelRef,
             right.parentBranchVar = branchId;
             right.branchedUp      = true;
             right.parentFrac      = fracXj;
+            right.proofId         = rightProofId;
+            right.parentProofId   = node.proofId;
+            if (pw) {
+                pw->writeNode(rightProofId, node.proofId);
+                pw->writeDiff(rightProofId, vid, ceilX, curUb, model.getCold());
+            }
             pushNode(std::move(right));
         }
     }
@@ -794,6 +890,7 @@ done:
         result.objectiveValue = minimize ? -inf : inf;
         // primalValues is empty → postsolveElim is a no-op, but call for uniformity.
         if (elimApplied) postsolveElim(result, elimRec);
+        if (pw) pw->writeResult(result.status, result.objectiveValue);
         return result;
     }
 
@@ -817,6 +914,7 @@ done:
     }
 
     if (elimApplied) postsolveElim(result, elimRec);
+    if (pw) pw->writeResult(result.status, result.objectiveValue);
     return result;
 }
 

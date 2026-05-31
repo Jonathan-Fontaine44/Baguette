@@ -92,7 +92,7 @@ std::vector<Cut> generateGMICuts(const std::vector<FractionalRow>& rows,
                     gmi = gmiCoeff(aBar, fi, /*isInt=*/false);
                     break;
                 case ColumnKind::FreeNeg:
-                    continue; // skip — weakens the cut conservatively
+                    continue; // skip - weakens the cut conservatively
             }
 
             if (std::abs(gmi) <= intFeasTol) continue;

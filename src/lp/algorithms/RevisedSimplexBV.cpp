@@ -110,7 +110,7 @@ void driveOutArtificialsRevBV(internal::LUTableau&              tab,
         auto trow = tab.tableauRow(i);
         for (std::size_t j = 0; j < nOld; ++j) {
             // Skip AT_UB columns: pivoting on them would un-complement j first,
-            // making xB[i] = colUB[j]*eta[i] ≠ 0 — a non-degenerate pivot that
+            // making xB[i] = colUB[j]*eta[i] ≠ 0 - a non-degenerate pivot that
             // puts j into the basis at its UB, violating the complement invariant.
             if (tab.atUB[j]) continue;
             if (std::abs(trow[j]) > tab.cfg.pivotTol) {
@@ -361,7 +361,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
         }
     }
 
-    // Standard form — shared_ptr so sfbvCache can propagate the A matrix O(1).
+    // Standard form - shared_ptr so sfbvCache can propagate the A matrix O(1).
     const bool hasWarm = !warmBasis.basicCols.empty() && !warmBasis.atUBCache.empty();
     auto sfbvPtr = std::make_shared<LPStandardFormBV>();
     if (hasWarm && warmBasis.sfbvCache) {
@@ -409,7 +409,7 @@ LPDetailedResult solveRevisedBV(const Model&                          model,
                 return det;
             }
         }
-        // Warm basis is dual infeasible or singular — reset for cold start.
+        // Warm basis is dual infeasible or singular - reset for cold start.
         tab = LUTableau{};
         tab.cfg = cfg;
     }

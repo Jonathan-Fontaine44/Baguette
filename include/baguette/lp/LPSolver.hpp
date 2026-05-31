@@ -32,7 +32,7 @@ enum class LPMethod {
                     ///< Detects infeasibility and unboundedness. Typically 15–50 iterations.
                     ///< Warm-start and sensitivity analysis not supported.
     PrimalSimplexBV,///< Two-phase primal simplex with bounded-variable (BV) ratio test.
-                    ///< Variable upper bounds enforced via complement invariant — no
+                    ///< Variable upper bounds enforced via complement invariant - no
                     ///< explicit UB rows added, keeping m = nOrigRows. This eliminates
                     ///< the O(n) row inflation of PrimalSimplex on bounded problems.
                     ///< Warm-start and sensitivity analysis not supported.
@@ -89,7 +89,7 @@ enum class PivotRule {
     Dantzig,
 };
 
-/// Options for LP solves — analogous to BBOptions for MILP.
+/// Options for LP solves - analogous to BBOptions for MILP.
 ///
 /// Default-constructed LPOptions{} produces a cold-start Auto solve with no
 /// iteration or time limit, and no warm basis.
@@ -112,7 +112,7 @@ struct LPOptions {
     BasisRecord warmBasis;
 
     /// If true, populate LPDetailedResult::sensitivity (RHS and objective ranging).
-    /// O(m·n) overhead — avoid in B&B hot loops. Default false.
+    /// O(m·n) overhead - avoid in B&B hot loops. Default false.
     bool computeSensitivity = false;
 
     /// If true, populate LPDetailedResult::fractionalRows for GMI cut generation.

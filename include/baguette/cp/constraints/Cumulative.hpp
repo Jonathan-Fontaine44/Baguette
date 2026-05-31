@@ -24,7 +24,7 @@ struct Task {
 /// BC propagation tightens the earliest start of each task by checking whether
 /// the compulsory resource load from other tasks would cause an overload during
 /// any window in which task i could start.  Compulsory region of task j:
-/// [ub(start_j), lb(start_j) + duration_j) — the interval that task j must
+/// [ub(start_j), lb(start_j) + duration_j) - the interval that task j must
 /// occupy regardless of its chosen start time.
 struct CumulativeConstraint {
     std::vector<Task> tasks;
@@ -37,7 +37,7 @@ struct CumulativeConstraint {
 /// the compulsory resource load from other tasks at some time point in
 /// [t, t + duration_i) would exceed capacity − consumption_i.
 ///
-/// @note Complexity  O(N × D × I) per iteration — compulsory load profile
+/// @note Complexity  O(N × D × I) per iteration - compulsory load profile
 ///   built in O(N + D) via difference array; per-task earliest-start search
 ///   uses a deque-based sliding window max in O(W_i + D) where W_i = lst_i − est_i.
 ///   N = tasks.size(), D = time horizon width, I = fixpoint iterations.

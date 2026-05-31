@@ -5,8 +5,8 @@
 // Supports multiple sources and sinks, each with their own supply/demand.
 //
 // Variables:
-//   x[a] ∈ [0, cap[a]]  — flow on arc a (Continuous)
-//   y[a] ∈ {0,1}        — 1 if arc a is opened (Binary)
+//   x[a] ∈ [0, cap[a]]  - flow on arc a (Continuous)
+//   y[a] ∈ {0,1}        - 1 if arc a is opened (Binary)
 //
 // Constraints:
 //   x[a] ≤ cap[a] · y[a]                     ∀ a   (capacity if open)

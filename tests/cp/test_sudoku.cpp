@@ -51,7 +51,7 @@ static std::vector<SudokuTestCase> makeSudokuSuite() {
         }},
 
         // 9×9 Sudoku (B=3). Same puzzle but with an extra 9 forced at row 8 col 0,
-        // conflicting with the existing clue 9 at row 8 col 8 — row AllDiff violated.
+        // conflicting with the existing clue 9 at row 8 col 8 - row AllDiff violated.
         {"9x9_infeasible", 3, false, {
             {5, 3, 0, 0, 7, 0, 0, 0, 0},
             {6, 0, 0, 1, 9, 5, 0, 0, 0},

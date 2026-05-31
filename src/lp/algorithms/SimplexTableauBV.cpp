@@ -377,7 +377,7 @@ SensitivityResult extractSensitivityBV(const SimplexTableauBV&      tab,
             std::size_t r = 0;
             while (r < m && tab.basicCols[r] != static_cast<uint32_t>(j)) ++r;
             // Changing c'_j by δ shifts rc[k] by -δ * tab[r][k] for all non-basics k.
-            // (Holds for both AT_LB and AT_UB non-basics — see comment in header.)
+            // (Holds for both AT_LB and AT_UB non-basics - see comment in header.)
             for (std::size_t k = 0; k < nEff; ++k) {
                 if (isBasic[k]) continue;
                 const double t   = tab.tab[r * np + k];

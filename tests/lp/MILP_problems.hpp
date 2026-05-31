@@ -24,8 +24,8 @@ struct TspArc { int from, to; double dist; };
 /// Build an n-city TSP model (MTZ formulation) from a sparse distance matrix.
 ///
 /// Variables
-///   x[i][j] ∈ {0,1} (Binary)      — arc i→j  (n*(n-1) arc vars)
-///   u[i]    ∈ [1,n-1] (Integer)   — MTZ position, i = 1..n-1  (n-1 vars)
+///   x[i][j] ∈ {0,1} (Binary)      - arc i→j  (n*(n-1) arc vars)
+///   u[i]    ∈ [1,n-1] (Integer)   - MTZ position, i = 1..n-1  (n-1 vars)
 ///
 /// Constraints
 ///   Degree out = 1 for every city i > 0   (n-1 constraints; city 0 dropped to
@@ -119,8 +119,8 @@ inline baguette::Model makeTSP10() {
 /// Build an n-city TSP model (Single-Commodity Flow formulation).
 ///
 /// Variables
-///   x[i][j] ∈ {0,1} (Binary)       — arc i→j  (n*(n-1) arc vars)
-///   g[i][j] ∈ [0,1]  (Continuous)  — normalised flow g = f/(n-1)  (n*(n-1) vars)
+///   x[i][j] ∈ {0,1} (Binary)       - arc i→j  (n*(n-1) arc vars)
+///   g[i][j] ∈ [0,1]  (Continuous)  - normalised flow g = f/(n-1)  (n*(n-1) vars)
 ///
 /// Constraints
 ///   Degree out = 1 for every city i > 0   (city 0 dropped; implied by in-degree)
@@ -302,7 +302,7 @@ inline baguette::Model makeTSP10Mtz() {
 /// @param n     Number of cities (0..n-1).
 /// @param arcs  Sparse distance entries; self-loops are ignored.
 ///
-/// @note Complexity O(n²) variables and constraints — identical to MTZ.
+/// @note Complexity O(n²) variables and constraints - identical to MTZ.
 inline baguette::Model makeTSPLifted(int n, const std::vector<TspArc>& arcs) {
     using namespace baguette;
 
@@ -368,8 +368,8 @@ inline baguette::Model makeTSP10Lifted() {
 /// commodity k through the tour network to city k.
 ///
 /// Variables
-///   x[i][j]  ∈ {0,1} (Binary)     — arc i→j   (n*(n-1) arc vars)
-///   h[k][i][j] ∈ [0,1] (Continuous) — flow of commodity k on arc i→j
+///   x[i][j]  ∈ {0,1} (Binary)     - arc i→j   (n*(n-1) arc vars)
+///   h[k][i][j] ∈ [0,1] (Continuous) - flow of commodity k on arc i→j
 ///                                      (n*(n-1)*(n-1) flow vars)
 ///
 /// Constraints
@@ -600,9 +600,9 @@ struct JobShopJob { double p0, p1; };
 /// Build a 2-machine flow shop model (M0 → M1 for all jobs).
 ///
 /// Variables:
-///   S[j][m] ∈ [0, M]     — start time of job j on machine m (continuous)
-///   y[j][k][m] ∈ {0,1}   — 1 if job j precedes job k on machine m (binary), j < k
-///   C_max ∈ [0, cmaxUb]  — makespan (continuous)
+///   S[j][m] ∈ [0, M]     - start time of job j on machine m (continuous)
+///   y[j][k][m] ∈ {0,1}   - 1 if job j precedes job k on machine m (binary), j < k
+///   C_max ∈ [0, cmaxUb]  - makespan (continuous)
 ///
 /// Constraints:
 ///   Precedence:  S[j][1] − S[j][0]                       ≥ p[j][0]       ∀ j
@@ -610,7 +610,7 @@ struct JobShopJob { double p0, p1; };
 ///   Disj. (B):   S[j][m] − S[k][m] + M·y[j][k][m]       ≥ p[k][m]       ∀ j<k, m
 ///   Makespan:    C_max   − S[j][1]                        ≥ p[j][1]       ∀ j
 ///
-/// Big-M is computed as Σ(p[j][0] + p[j][1]) — the tightest valid upper bound.
+/// Big-M is computed as Σ(p[j][0] + p[j][1]) - the tightest valid upper bound.
 ///
 /// @note Complexity
 ///   O(n) start-time vars, O(n²) sequencing vars and disjunctive constraints.
@@ -698,8 +698,8 @@ inline baguette::Model makeJobShop10(double cmaxUb = 40.0) {
 /// Build an Uncapacitated Facility Location model.
 ///
 /// Variables:
-///   y[i]    ∈ {0,1} (Binary)   — open facility i             (nFac vars)
-///   x[i][j] ∈ {0,1} (Binary)   — assign client j to i        (nFac × nCli vars)
+///   y[i]    ∈ {0,1} (Binary)   - open facility i             (nFac vars)
+///   x[i][j] ∈ {0,1} (Binary)   - assign client j to i        (nFac × nCli vars)
 ///
 /// Constraints:
 ///   Coverage: Σᵢ x[i][j] = 1            ∀ j ∈ {0,…,nCli-1}  (nCli equalities)
@@ -709,11 +709,11 @@ inline baguette::Model makeJobShop10(double cmaxUb = 40.0) {
 ///
 /// Probing: fixing y[i]=0 forces all nCli linking constraints to set x[i][j]=0,
 /// which in turn tightens the nCli coverage equalities for the remaining facilities.
-/// One probe on y[i] can cascade into O(nCli) binary fixings — unlike TSP where
+/// One probe on y[i] can cascade into O(nCli) binary fixings - unlike TSP where
 /// arc probing never produces LP infeasibility in the MTZ or SCF formulations.
 ///
-/// @param fixedCosts   fixedCosts[i] — cost to open facility i  (size nFac)
-/// @param assignCosts  assignCosts[i][j] — cost to serve client j from i  (nFac × nCli)
+/// @param fixedCosts   fixedCosts[i] - cost to open facility i  (size nFac)
+/// @param assignCosts  assignCosts[i][j] - cost to serve client j from i  (nFac × nCli)
 ///
 /// @note Complexity
 ///   O(nFac × nCli) variables and constraints.
@@ -813,7 +813,7 @@ inline baguette::Model makeFacilityLocation15x30(unsigned seed = 0xCAFEBABEu) {
 /// Each column (subset) covers a list of elements; exactly one selected column
 /// must cover each element.  Elements may appear in several columns (redundancy).
 ///
-/// Variables:  x[i] ∈ {0,1} (Binary) — select column i
+/// Variables:  x[i] ∈ {0,1} (Binary) - select column i
 ///
 /// Constraints:
 ///   Σ_{i : e ∈ subsets[i]} x[i] = 1   ∀ element e   (partitioning equalities)
@@ -867,7 +867,7 @@ inline baguette::Model makeSetPartitioning(
 
 /// Build a random Set Partitioning instance with guaranteed feasibility.
 ///
-/// The first `nElem` subsets are unit singletons {e} — they always form a valid
+/// The first `nElem` subsets are unit singletons {e} - they always form a valid
 /// partition and provide an IP upper bound.  The remaining `nSubsets − nElem`
 /// subsets are compound columns of size 2..maxSubsetSize, generated via partial
 /// Fisher-Yates on the element list.  Costs are integers in [1, 10] from a
@@ -929,12 +929,12 @@ inline baguette::Model makeSetPartitioningLarge(unsigned seed = 0xDEADC0DEu) {
 /// n = 3g vertices: group A={0..g-1}, B={g..2g-1}, C={2g..3g-1}.  k = 3 colours.
 ///
 /// Edges:
-///   Backbone: g triangles (i, g+i, 2g+i) — one vertex per group per triangle.
+///   Backbone: g triangles (i, g+i, 2g+i) - one vertex per group per triangle.
 ///   Random:   inter-group, inter-backbone edges at ≈33% density (LCG seed).
 ///
 /// Variables:
-///   x[v][c] ∈ {0,1} Binary   — vertex v uses colour c   (n*k vars)
-///   col[v]  ∈ [0,2] Integer  — colour index of v         (n vars)
+///   x[v][c] ∈ {0,1} Binary   - vertex v uses colour c   (n*k vars)
+///   col[v]  ∈ [0,2] Integer  - colour index of v         (n vars)
 ///   Symmetry-breaking: col[0]=0, col[g]=1, col[2g]=2 (via addVar bounds).
 ///
 /// LP constraints:
@@ -1064,19 +1064,19 @@ inline std::vector<LPTestCase> makeRelaxedMILPTestSuite() {
     using namespace baguette;
 
     return {
-        // ── TSP 10 cities — MTZ formulation ─────────────────────────────────
+        // ── TSP 10 cities - MTZ formulation ─────────────────────────────────
         // See makeTSP10() for the full formulation description.
         // LP optimal = 10 (cyclic tour 0→1→…→9→0, all unit-cost adjacent arcs).
         {"tsp_10_mtz", LPStatus::Optimal, 10.0,
             []() { return baguette_test::makeTSP10(); }},
 
-        // ── TSP 10 cities — Single-Commodity Flow formulation ────────────────
+        // ── TSP 10 cities - Single-Commodity Flow formulation ────────────────
         // Same instance, stronger LP relaxation (SCF bound = DFJ bound ≥ MTZ bound).
         // LP optimal = 10 (cyclic tour is an integer extreme point for both).
         {"tsp_10_scf", LPStatus::Optimal, 10.0,
             []() { return baguette_test::makeTSP10Flow(); }},
 
-        // ── TSP 10 cities — MTZ + AllDiff CP ────────────────────────────────
+        // ── TSP 10 cities - MTZ + AllDiff CP ────────────────────────────────
         // Same MTZ LP relaxation (CP constraints not linearised) + AllDiff on
         // position variables u[1..9].  LP optimal = 10.
         {"tsp_10_mtz_alldiff", LPStatus::Optimal, 10.0,

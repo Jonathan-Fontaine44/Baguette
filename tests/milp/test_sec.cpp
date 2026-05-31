@@ -18,7 +18,7 @@ static constexpr double kTol = 1e-6;
 // LP relaxation (degree constraints only, no SEC) is integral:
 //   x01=x02=x12=x34=x35=x45=1, all cross-edges=0  â†’  cost 0.
 // This violates SEC for S={0,1,2}: x01+x02+x12=3 > |S|-1=2.
-// Optimal Hamiltonian tour cost: 2 cross-edges Ã— 100 = 200.
+// Optimal Hamiltonian tour cost: 2 cross-edges Ã- 100 = 200.
 
 static void buildTSP6(Model& m, std::vector<std::vector<Variable>>& xv) {
     const int n = 6;

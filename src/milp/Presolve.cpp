@@ -107,7 +107,7 @@ MILPPresolveResult presolveMILPInPlace(
     // Initial integer rounding before LP propagation.
     if (!roundIntBounds()) { res.infeasible = true; return res; }
 
-    // PR1 — round RHS of all-integer constraints once before the outer loop.
+    // PR1 - round RHS of all-integer constraints once before the outer loop.
     // @note Complexity O(C × N) over all constraints.
     {
         const auto& cons = model.getLPConstraints();

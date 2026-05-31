@@ -15,7 +15,7 @@ namespace baguette {
 
 /// User-facing API for building an optimization model.
 ///
-/// The modeling layer is called once before the solve — it may use
+/// The modeling layer is called once before the solve - it may use
 /// convenient data structures without impacting solver performance.
 /// Internal hot/cold separation ensures the solver's memory layout
 /// remains cache-friendly regardless of how the model was built.
@@ -49,7 +49,7 @@ public:
     /// @throws std::out_of_range if any variable in @p c does not belong to this Model.
     ConstraintId addLPConstraint(LPConstraint c);
 
-    /// Convenience overload — equivalent to addLPConstraint(lhs sense rhsConst).
+    /// Convenience overload - equivalent to addLPConstraint(lhs sense rhsConst).
     /// @throws std::out_of_range if any variable in @p lhs does not belong to this Model.
     ConstraintId addLPConstraint(LinearExpr lhs, Sense sense, double rhs) {
         return addLPConstraint(LPConstraint{std::move(lhs), sense, {}, rhs});
@@ -67,9 +67,9 @@ public:
     /// Update the right-hand side of a constraint in place.
     ///
     /// Used by MILP presolve to tighten constraint RHS values when all
-    /// variables are integral (PR1 — integer RHS rounding).
+    /// variables are integral (PR1 - integer RHS rounding).
     /// @note No validation of @p conIdx is performed (intentional: same
-    ///       philosophy as setVarBounds — fast path, caller is responsible).
+    ///       philosophy as setVarBounds - fast path, caller is responsible).
     void setConstraintRHS(uint32_t conIdx, double newRhs);
 
     /// Update the bounds of @p var in place.
@@ -144,7 +144,7 @@ public:
     /// @return All constraints in normalized form (rhs always empty, lhs.constant == 0).
     ///
     /// This is the solver-facing view: every element satisfies isNormalized().
-    /// Do **not** use this for user-level debugging — the original two-sided form
+    /// Do **not** use this for user-level debugging - the original two-sided form
     /// may have been simplified.  Use getLPConstraint(id) for the original.
     const std::vector<LPConstraint>& getLPConstraints() const { return constraints_; }
 
@@ -175,8 +175,8 @@ private:
     ModelHot      hot;
     ModelCold     cold;
     CPConstraints cpConstraints;
-    std::vector<LPConstraint> constraints_; ///< Normalized forms — solver view.
-    std::vector<LPConstraint> originals_;   ///< Original forms — user debug view.
+    std::vector<LPConstraint> constraints_; ///< Normalized forms - solver view.
+    std::vector<LPConstraint> originals_;   ///< Original forms - user debug view.
     ObjSense objSense      = ObjSense::Minimize;
     double   objConstant   = 0.0;
     uint32_t ghostVarCount = 0;

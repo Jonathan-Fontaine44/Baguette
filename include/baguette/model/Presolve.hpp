@@ -54,11 +54,11 @@ struct EliminationRecord {
     /// Ghost (CP-only) variables occupy indices [lpVarCount, total).
     uint32_t lpVarCount = 0;
 
-    /// varMap[orig_id] = reduced_id (LP var or ghost — never UINT32_MAX).
+    /// varMap[orig_id] = reduced_id (LP var or ghost - never UINT32_MAX).
     std::vector<uint32_t> varMap;
     /// reducedToOrig[reduced_LP_id] = orig_id  (LP vars only, size == lpVarCount).
     std::vector<uint32_t> reducedToOrig;
-    /// Fixed variables: {orig_id, fixed_value} — kept for diagnostics / postsolve.
+    /// Fixed variables: {orig_id, fixed_value} - kept for diagnostics / postsolve.
     std::vector<std::pair<uint32_t, double>> fixedVars;
 
     /// conMap[orig_idx] = reduced_idx, or UINT32_MAX if the row was eliminated.
@@ -80,7 +80,7 @@ struct EliminationRecord {
 
 /// Build a reduced model by eliminating fixed variables and redundant rows.
 ///
-/// LP constraints only — call presolveElimCP() afterwards to transfer CP
+/// LP constraints only - call presolveElimCP() afterwards to transfer CP
 /// constraints with remapped variable IDs.
 ///
 /// @note Complexity  O(V + C × N)

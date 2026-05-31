@@ -49,7 +49,7 @@ LinearExpr operator/(Variable var, double coeff) {
 }
 
 LinearExpr& LinearExpr::operator+=(const LinearExpr& rhs) {
-    // Linear merge of two sorted lists — O(n+m)
+    // Linear merge of two sorted lists - O(n+m)
     LinearExpr result;
     result.constant = constant + rhs.constant;
     result.varIds.reserve(varIds.size() + rhs.varIds.size());

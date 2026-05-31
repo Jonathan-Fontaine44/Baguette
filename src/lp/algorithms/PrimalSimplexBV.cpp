@@ -286,7 +286,7 @@ LPDetailedResult extractBV(const internal::SimplexTableauBV&  tab,
         det.dualValues[i] = sign * tab.rc[slackCol];
     }
 
-    // Reduced costs — un-complement for AT_UB non-basics
+    // Reduced costs - un-complement for AT_UB non-basics
     det.reducedCosts.resize(nOrig);
     for (std::size_t j = 0; j < nOrig; ++j) {
         double rcj = tab.atUB[j] ? -tab.rc[j] : tab.rc[j];

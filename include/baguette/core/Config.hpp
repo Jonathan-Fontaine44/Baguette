@@ -18,7 +18,7 @@ inline double cancellation_tol = 1e-9;
 /// @param tol New threshold value (must be ≥ 0).
 inline void set_cancellation_tol(double tol) { cancellation_tol = tol; }
 
-// ── LP solver — global defaults ──────────────────────────────────────────────
+// ── LP solver - global defaults ──────────────────────────────────────────────
 
 /// Primal feasibility tolerance.
 /// Used by Domain::isFixed() and bound-tightening presolve.

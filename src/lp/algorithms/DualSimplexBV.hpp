@@ -11,7 +11,7 @@ namespace baguette::internal {
 
 /// Run the BV dual simplex (cold or warm start, primal fallback to PrimalSimplexBV).
 ///
-/// Uses LPStandardFormBV (no UB rows — m = nOrigRows) with the complement
+/// Uses LPStandardFormBV (no UB rows - m = nOrigRows) with the complement
 /// invariant. Cold-start basis: natural slack/surplus columns; dual feasibility
 /// requires all objective coefficients ≥ 0 after shifting (falls back otherwise).
 ///

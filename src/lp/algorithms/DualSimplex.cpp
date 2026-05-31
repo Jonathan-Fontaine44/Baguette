@@ -116,7 +116,7 @@ FarkasRay extractFarkasDualRow(const internal::SimplexTableau& tab,
 
     for (std::size_t i = 0; i < sf.nOrigRows; ++i) {
         uint32_t slackCol = sf.rowSlackCol[i];
-        if (slackCol >= sf.nCols) continue; // Equal row — no slack, leave 0
+        if (slackCol >= sf.nCols) continue; // Equal row - no slack, leave 0
 
         double entry = tab.tab[leavingRow * w + slackCol];
         ray.y[i] = (constraints[i].sense == Sense::LessEq) ? entry : -entry;

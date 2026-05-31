@@ -221,7 +221,7 @@ struct LPDetailedResult {
     /// Raw fractional integer rows from the optimal tableau.
     /// Populated only when computeCutData == true in solveDualDetailed().
     /// Empty when status != Optimal or no basic integer variable is fractional.
-    /// Consumed by CuttingPlanes::generateGMICuts() — do not interpret directly.
+    /// Consumed by CuttingPlanes::generateGMICuts() - do not interpret directly.
     std::vector<FractionalRow> fractionalRows;
 
     /// True when the caller supplied a non-empty warmBasis and solveDualDetailed()

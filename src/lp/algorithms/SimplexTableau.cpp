@@ -90,7 +90,7 @@ bool SimplexTableau::reinvert(const LPStandardForm& sf) {
     // into basicCols via the by-value parameter, reusing the same allocation.
     //
     // After reinversion with sfOrig (nCols == nOld), the tableau shrinks to
-    // nOld columns and artificial columns are gone — clear the tracking list.
+    // nOld columns and artificial columns are gone - clear the tracking list.
     artColsForDual.clear();
     return init(sf, std::move(basicCols));
 }

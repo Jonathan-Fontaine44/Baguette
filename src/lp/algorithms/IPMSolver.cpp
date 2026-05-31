@@ -249,7 +249,7 @@ LPDetailedResult solveShortStepIPM(
     std::vector<double> x, y, s;
     initStartingPoint(A, m, n, b, c, x, y, s);
 
-    // Fixed short step: α = 1/(1 + √n) — guarantees O(√n log(1/ε)) convergence.
+    // Fixed short step: α = 1/(1 + √n) - guarantees O(√n log(1/ε)) convergence.
     const double alpha_short = 1.0 / (1.0 + std::sqrt(static_cast<double>(n)));
 
     constexpr double kTol = 1e-8;

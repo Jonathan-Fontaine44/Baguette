@@ -10,7 +10,7 @@
 
 namespace baguette {
 
-/// Hot data — accessed at every simplex iteration.
+/// Hot data - accessed at every simplex iteration.
 /// Stored as Structure of Arrays (SoA) for SIMD-friendly access patterns.
 /// The simplex reads lb/ub/obj densely; label and type are never needed there.
 struct ModelHot {
@@ -25,7 +25,7 @@ struct VarLPEntry {
     uint32_t termIdx; ///< Position within LPConstraint::lhs.varIds/coeffs.
 };
 
-/// Cold data — accessed only during model construction and output.
+/// Cold data - accessed only during model construction and output.
 struct ModelCold {
     std::vector<std::string> labels; ///< Variable names, indexed by VarID.
     std::vector<VarType>     types;  ///< Variable types, indexed by VarID.
@@ -53,7 +53,7 @@ using ConstraintId = uint32_t;
 ///   Preserves the form the user built for debugging and inspection.
 ///
 /// - **Normalized** (solver-ready): returned by Model::getLPConstraints().
-///   `rhs` is always empty — all variable terms are on `lhs`.
+///   `rhs` is always empty - all variable terms are on `lhs`.
 ///   Use `isNormalized()` to distinguish the two forms.
 ///
 /// The full constraint semantics: `lhs  sense  (rhs + rhsConst)`.
@@ -84,7 +84,7 @@ struct LPConstraint {
 };
 
 // ── Constraint-building operators ─────────────────────────────────────────────
-// Return LPConstraint by value.  Cold-loop construction — no hot-path penalty.
+// Return LPConstraint by value.  Cold-loop construction - no hot-path penalty.
 // operator== intentionally returns LPConstraint, not bool: models are built, not compared.
 
 /// Build `lhs <= rhs`.

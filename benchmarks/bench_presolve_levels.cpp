@@ -2,12 +2,12 @@
 //
 // Calibration benchmark for BBOptions::presolveLevel (0-6).
 //
-// Part A — Knapsack-10 / Knapsack-20
-//   1. Cost      — presolveMILPInPlace only (no B&B), knapsack-10.
-//   2. Root LP   — presolveMILPInPlace then one LP solve, knapsack-10.
-//   3. Solve     — full solveMILP, knapsack-20.
+// Part A - Knapsack-10 / Knapsack-20
+//   1. Cost      - presolveMILPInPlace only (no B&B), knapsack-10.
+//   2. Root LP   - presolveMILPInPlace then one LP solve, knapsack-10.
+//   3. Solve     - full solveMILP, knapsack-20.
 //
-// Part B — Hard asymmetric TSP-10 (MTZ formulation)
+// Part B - Hard asymmetric TSP-10 (MTZ formulation)
 //   The cyclic TSP-10 has LP=IP at the root (no branching needed) and is
 //   not useful for calibration.  This part uses a pseudo-random asymmetric
 //   instance where the MTZ LP relaxation is fractional.
@@ -15,23 +15,23 @@
 //   TSP is the ideal stress-test for probing: fixing arc x[i→j]=1 propagates
 //   through the two degree-equality constraints to force all 2(n-2) other
 //   arcs incident on i or j to 0 via LP bound-tightening.  One probe can
-//   cascade into O(n) additional binary fixings — far more than a knapsack.
+//   cascade into O(n) additional binary fixings - far more than a knapsack.
 //
-//   4. TSP Cost  — presolveMILPInPlace only, hard TSP-10 MTZ.
-//   5. TSP Root  — presolveMILPInPlace then root LP, hard TSP-10 MTZ.
-//   6. TSP Solve — full solveMILP, hard TSP-10 MTZ.
+//   4. TSP Cost  - presolveMILPInPlace only, hard TSP-10 MTZ.
+//   5. TSP Root  - presolveMILPInPlace then root LP, hard TSP-10 MTZ.
+//   6. TSP Solve - full solveMILP, hard TSP-10 MTZ.
 //
-// Part C — Hard asymmetric TSP-10 (SCF formulation)
+// Part C - Hard asymmetric TSP-10 (SCF formulation)
 //   Same instance as Part B but with the Single Commodity Flow formulation,
 //   whose LP relaxation equals the DFJ bound (strictly tighter than MTZ).
 //   The tighter LP allows strong probing (L6) to detect subtour infeasibility
-//   and fix arc variables — unlike MTZ where probed_fixed stays 0.
+//   and fix arc variables - unlike MTZ where probed_fixed stays 0.
 //
-//   7. SCF Cost  — presolveMILPInPlace only, hard TSP-10 SCF.
-//   8. SCF Root  — presolveMILPInPlace then root LP, hard TSP-10 SCF.
-//   9. SCF Solve — full solveMILP, hard TSP-10 SCF.
+//   7. SCF Cost  - presolveMILPInPlace only, hard TSP-10 SCF.
+//   8. SCF Root  - presolveMILPInPlace then root LP, hard TSP-10 SCF.
+//   9. SCF Solve - full solveMILP, hard TSP-10 SCF.
 //
-// Part D — Uncapacitated Facility Location 5×10
+// Part D - Uncapacitated Facility Location 5×10
 //   5 facilities (fixed cost 20 each), 10 clients, LCG assignment costs [1,10].
 //   55 binary variables (5 y[i] + 50 x[i][j]), 60 LP constraints.
 //   LP optimal = 67, IP optimal = 69.
@@ -41,40 +41,40 @@
 //   Unlike TSP (probed_fixed=0), FL has enough constraint coupling that strong
 //   probing (L6) is expected to fix some facility variables.
 //
-//   10. FL Cost  — presolveMILPInPlace only, facility location 5×10.
-//   11. FL Root  — presolveMILPInPlace then root LP, facility location 5×10.
-//   12. FL Solve — full solveMILP, facility location 5×10.
+//   10. FL Cost  - presolveMILPInPlace only, facility location 5×10.
+//   11. FL Root  - presolveMILPInPlace then root LP, facility location 5×10.
+//   12. FL Solve - full solveMILP, facility location 5×10.
 //
-// Part E — Uncapacitated Facility Location 15×30
+// Part E - Uncapacitated Facility Location 15×30
 //   15 facilities (fixed cost 20 each), 30 clients, LCG assignment costs [1,10].
 //   465 binary variables (15 y[i] + 450 x[i][j]), 480 LP constraints.
-//   3× larger than Part D — more B&B nodes expected, probed_fixed may emerge.
+//   3× larger than Part D - more B&B nodes expected, probed_fixed may emerge.
 //
-//   13. FL2 Cost  — presolveMILPInPlace only, facility location 15×30.
-//   14. FL2 Root  — presolveMILPInPlace then root LP, facility location 15×30.
-//   15. FL2 Solve — full solveMILP, facility location 15×30.
+//   13. FL2 Cost  - presolveMILPInPlace only, facility location 15×30.
+//   14. FL2 Root  - presolveMILPInPlace then root LP, facility location 15×30.
+//   15. FL2 Solve - full solveMILP, facility location 15×30.
 //
-// Part F — Set Partitioning small (10 elements, 30 columns)
+// Part F - Set Partitioning small (10 elements, 30 columns)
 //   10 singletons + 20 compound columns (size 2-4), seed 0xC0FFEE42.
 //   30 binary variables, 10 equality coverage constraints.
 //   LP optimal = 16, IP optimal = 19 (gap = 18.75%).
 //   L5 raises root LP from 16 to 19 (= IP optimal) → first LP bound improvement.
 //
-//   16. SP Cost  — presolveMILPInPlace only, SP small.
-//   17. SP Root  — presolveMILPInPlace then root LP, SP small.
-//   18. SP Solve — full solveMILP, SP small.
+//   16. SP Cost  - presolveMILPInPlace only, SP small.
+//   17. SP Root  - presolveMILPInPlace then root LP, SP small.
+//   18. SP Solve - full solveMILP, SP small.
 //
-// Part G — Set Partitioning large (30 elements, 90 columns)
+// Part G - Set Partitioning large (30 elements, 90 columns)
 //   30 singletons + 60 compound columns (size 2-5), seed 0xDEADC0DE.
 //   90 binary variables, 30 equality coverage constraints.
 //   LP optimal = 81, IP optimal = 82 (gap = 1.2%).
 //   L1 fixes 3 columns (first fixed>0 across all families).
 //
-//   19. SP2 Cost  — presolveMILPInPlace only, SP large.
-//   20. SP2 Root  — presolveMILPInPlace then root LP, SP large.
-//   21. SP2 Solve — full solveMILP, SP large.
+//   19. SP2 Cost  - presolveMILPInPlace only, SP large.
+//   20. SP2 Root  - presolveMILPInPlace then root LP, SP large.
+//   21. SP2 Solve - full solveMILP, SP large.
 //
-// Part H — Hard asymmetric TSP-10 (MTZ + AllDiff CP formulation)
+// Part H - Hard asymmetric TSP-10 (MTZ + AllDiff CP formulation)
 //   Same instance as Parts B and C (seed 0xC0FFEE42), with AllDiff posted on
 //   the 9 position variables u[1..9].  LP optimal = 19.15 (unchanged; CP
 //   constraints are not linearised).  IP optimal = 20.
@@ -84,11 +84,11 @@
 //   can tighten position domains and propagate to arc fixings, unlike the pure
 //   LP bound-tightening of L1.
 //
-//   22. MTZAD Cost  — presolveMILPInPlace only, hard TSP-10 MTZAD.
-//   23. MTZAD Root  — presolveMILPInPlace then root LP, hard TSP-10 MTZAD.
-//   24. MTZAD Solve — full solveMILP, hard TSP-10 MTZAD.
+//   22. MTZAD Cost  - presolveMILPInPlace only, hard TSP-10 MTZAD.
+//   23. MTZAD Root  - presolveMILPInPlace then root LP, hard TSP-10 MTZAD.
+//   24. MTZAD Solve - full solveMILP, hard TSP-10 MTZAD.
 //
-// Part I — Graph Colouring small (9 vertices, 3 colours)
+// Part I - Graph Colouring small (9 vertices, 3 colours)
 //   3-partite graph, 3 backbone triangles (i, g+i, 2g+i), random inter-backbone
 //   edges at ~33% density (seed 0xC0FFEE42).  36 binary x[v][c] + 9 integer col[v]
 //   = 45 vars.  Symmetry-breaking: col[0]=0, col[3]=1, col[6]=2 (via bounds).
@@ -98,17 +98,17 @@
 //   col domains via the channeling constraints + edge conflicts propagating from the
 //   3 fixed landmarks, AllDiff on the remaining triangles can further narrow colours.
 //
-//   25. GC Cost  — presolveMILPInPlace only, graph colouring small.
-//   26. GC Root  — presolveMILPInPlace then root LP, graph colouring small.
-//   27. GC Solve — full solveMILP, graph colouring small.
+//   25. GC Cost  - presolveMILPInPlace only, graph colouring small.
+//   26. GC Root  - presolveMILPInPlace then root LP, graph colouring small.
+//   27. GC Solve - full solveMILP, graph colouring small.
 //
-// Part J — Graph Colouring large (18 vertices, 3 colours)
+// Part J - Graph Colouring large (18 vertices, 3 colours)
 //   Same construction, n=18, seed 0xDEADC0DE.  54 binary + 18 integer = 72 vars.
 //   IP optimal = 18.
 //
-//   28. GC2 Cost  — presolveMILPInPlace only, graph colouring large.
-//   29. GC2 Root  — presolveMILPInPlace then root LP, graph colouring large.
-//   30. GC2 Solve — full solveMILP, graph colouring large.
+//   28. GC2 Cost  - presolveMILPInPlace only, graph colouring large.
+//   29. GC2 Root  - presolveMILPInPlace then root LP, graph colouring large.
+//   30. GC2 Solve - full solveMILP, graph colouring large.
 //
 // Run with (Release build recommended):
 //   BaguetteBench --benchmark_filter=BM_Presolve|BM_TSP|BM_SCF|BM_FL|BM_SP|BM_MTZAD|BM_GC
@@ -190,7 +190,7 @@ BENCHMARK(BM_PresolveLevelCost)
 // After presolveMILPInPlace, solve the LP relaxation of the presolved model
 // (no branching). Reports the root LP objective value.
 // A tighter root LP (closer to the IP optimum 106) means better pruning and
-// fewer nodes in B&B — even before branching begins.
+// fewer nodes in B&B - even before branching begins.
 //
 // knapsack-10 IP optimum = 106; LP relaxation ≈ 107.5 (item 8 fractional).
 // Higher presolve levels that fix variables may close this gap.
@@ -231,7 +231,7 @@ BENCHMARK(BM_PresolveAndRootLP)
 
 // ── Section 3: Full MILP solve (levels 0-6) ───────────────────────────────────
 //
-// Model : knapsack-20 (20 binary items, harder — requires a real B&B tree).
+// Model : knapsack-20 (20 binary items, harder - requires a real B&B tree).
 // Each level is run end-to-end with solveMILP.
 // Counters show how many nodes and LP solves each level requires, quantifying
 // the B&B gain purchased by the presolve investment in sections 1-2.
@@ -424,7 +424,7 @@ BENCHMARK(BM_TSP_PresolveLevelSolve)
 // Consequently:
 //   Weak probing  (L3): propagation still limited (no LP per fix), but SCF
 //     degree constraints propagate the same cascade as MTZ.
-//   Strong probing (L6): one LP per fix — LP infeasibility detection should
+//   Strong probing (L6): one LP per fix - LP infeasibility detection should
 //     produce probed_fixed > 0, unlike MTZ.  The higher LP quality makes each
 //     probe more informative.
 //
@@ -691,7 +691,7 @@ BENCHMARK(BM_FL_PresolveLevelSolve)
 // Scaling hypothesis: with 15 facilities and 30 clients, the coverage
 // constraints are tighter per facility (2 clients/facility at optimum vs
 // ~6 clients/facility for 5×10).  Probing y[i]=0 eliminates 30 x[i][j],
-// forcing other facilities to absorb those clients — more likely to trigger
+// forcing other facilities to absorb those clients - more likely to trigger
 // LP infeasibility or bound propagation than in 5×10.
 //
 // Also tests whether L6 strong probing cost scales quadratically with nFac×nCli
@@ -789,7 +789,7 @@ BENCHMARK(BM_FL2_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
 
-// ── Part F: Set Partitioning — small (10 elements, 30 columns) ───────────────
+// ── Part F: Set Partitioning - small (10 elements, 30 columns) ───────────────
 //
 // 10 elements, 30 columns (10 singletons + 20 compound of size 2-4).
 // LP optimal = 16, IP optimal = 19 (gap = 18.75%).
@@ -797,7 +797,7 @@ BENCHMARK(BM_FL2_PresolveLevelSolve)
 // Structure: equality coverage constraints (Σ x[i] = 1 per element).
 // Probing hypothesis: fixing x[i]=0 removes coverage from its elements;
 // any element left with a single remaining column forces that column to 1,
-// which in turn removes it from other elements — cascade chain.
+// which in turn removes it from other elements - cascade chain.
 
 // ── Section 16: Presolve-only cost, SP small (levels 0-6) ────────────────────
 
@@ -891,7 +891,7 @@ BENCHMARK(BM_SP_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
 
-// ── Part G: Set Partitioning — large (30 elements, 90 columns) ───────────────
+// ── Part G: Set Partitioning - large (30 elements, 90 columns) ───────────────
 //
 // 30 elements, 90 columns (30 singletons + 60 compound of size 2-5).
 // LP optimal = 81, IP optimal = 82 (gap = 1.2%).
@@ -1095,7 +1095,7 @@ BENCHMARK(BM_MTZAD_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
 
-// ── Part I: Graph Colouring — small (9 vertices, 3 colours) ──────────────────
+// ── Part I: Graph Colouring - small (9 vertices, 3 colours) ──────────────────
 //
 // 9 vertices split into 3 groups of 3.  3 backbone triangles + random
 // inter-backbone edges (~33% density, seed 0xC0FFEE42).  45 variables
@@ -1200,7 +1200,7 @@ BENCHMARK(BM_GC_PresolveLevelSolve)
     ->DenseRange(0, 6)
     ->Unit(benchmark::kMillisecond);
 
-// ── Part J: Graph Colouring — large (18 vertices, 3 colours) ─────────────────
+// ── Part J: Graph Colouring - large (18 vertices, 3 colours) ─────────────────
 //
 // Same construction as Part I, n=18, seed 0xDEADC0DE.
 // 72 variables (54 binary + 18 integer), 6 AllDiff constraints.

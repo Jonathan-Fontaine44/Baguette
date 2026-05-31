@@ -63,7 +63,7 @@ LPStatus runDualSimplexBV(internal::SimplexTableauBV&              tab,
 // ── Cold-start dual basis ─────────────────────────────────────────────────────
 
 // Slack/surplus basis (LessEq/GreaterEq only). Equal constraints have no natural
-// basic variable — returns empty to signal fallback to primal.
+// basic variable - returns empty to signal fallback to primal.
 std::vector<uint32_t> buildDualBasisBV(const internal::LPStandardFormBV& sfbv,
                                         const Model&                       model) {
     const auto& constraints = model.getLPConstraints();
@@ -90,7 +90,7 @@ FarkasRay extractFarkasDualBV(const internal::SimplexTableauBV& tab,
 
     for (std::size_t i = 0; i < sfbv.nOrigRows; ++i) {
         const uint32_t slackCol = sfbv.rowSlackCol[i];
-        if (slackCol >= sfbv.nCols) continue; // Equal row — no slack
+        if (slackCol >= sfbv.nCols) continue; // Equal row - no slack
         const double entry = tab.tab[leavingRow * w + slackCol];
         ray.y[i] = (constraints[i].sense == Sense::LessEq) ? entry : -entry;
     }
@@ -299,7 +299,7 @@ LPDetailedResult solveDualBV(const Model&                          model,
     if (status != LPStatus::Optimal) {
         det.result.primalValues.clear();
         // Farkas certificate only for Type-L blocking (below LB); Type-U is rare
-        // (warm-start only) and has a more complex certificate — omitted for now.
+        // (warm-start only) and has a more complex certificate - omitted for now.
         if (status == LPStatus::Infeasible &&
             blockingRow < tab.m && !blockingExitsToUB)
             det.farkas = extractFarkasDualBV(tab, sfbv, model, blockingRow);

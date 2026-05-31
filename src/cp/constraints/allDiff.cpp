@@ -62,7 +62,7 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
     for (const Variable vj : vars) {
         const int64_t lj = iLb(hot.lb[vj.id]);
         const int64_t uj = iUb(hot.ub[vj.id]);
-        if (lj == uj) continue; // fixed — no adjustment needed (conflicts caught above)
+        if (lj == uj) continue; // fixed - no adjustment needed (conflicts caught above)
 
         const int64_t newLj = nextNotFixed(fixed, lj);
         const int64_t newUj = prevNotFixed(fixed, uj);
@@ -84,7 +84,7 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
 // For each interval [u, v] formed by pairs of variable bounds:
 //   count := |{xi : lb_i >= u AND ub_i <= v}|
 //   if count > v-u+1: infeasible (Hall's theorem violated)
-//   if count == v-u+1: Hall interval — clip other domains at u-1 or v+1
+//   if count == v-u+1: Hall interval - clip other domains at u-1 or v+1
 //
 // Also subsumes the global range feasibility check (u=min_lb, v=max_ub).
 StepResult hallPropagation(const std::vector<Variable>& vars,

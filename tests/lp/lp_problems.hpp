@@ -1,5 +1,5 @@
 #pragma once
-// Shared LP problem definitions — used by test_lp_methods.cpp and per-method
+// Shared LP problem definitions - used by test_lp_methods.cpp and per-method
 // test files (test_lp.cpp, test_dual_simplex.cpp, test_revised_simplex.cpp).
 
 #include <functional>

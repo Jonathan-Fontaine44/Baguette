@@ -558,8 +558,8 @@ TEST_CASE("postsolveElim: sensitivity remapped to original model size", "[presol
     Variable x = m.addVar(5.0, 5.0, "x");
     Variable y = m.addVar(0.0, 5.0, "y");
     Variable z = m.addVar(0.0, 5.0, "z");
-    m.addLPConstraint(1.0*y + 1.0*z, Sense::LessEq, 8.0); // con 0 — survit
-    m.addLPConstraint(1.0*x,         Sense::LessEq, 6.0); // con 1 — éliminée
+    m.addLPConstraint(1.0*y + 1.0*z, Sense::LessEq, 8.0); // con 0 - survit
+    m.addLPConstraint(1.0*x,         Sense::LessEq, 6.0); // con 1 - éliminée
     m.setObjective(1.0*y + 1.0*z, ObjSense::Minimize);
 
     LPOptions opts;
@@ -599,7 +599,7 @@ TEST_CASE("presolveTBInPlace: ghost vars excluded from fixedVars count", "[preso
     PresolveResult pr = presolveTBInPlace(reduced);
     REQUIRE_FALSE(pr.infeasible);
 
-    // z ∈ [0,9] après tightening — pas fixé.
+    // z ∈ [0,9] après tightening - pas fixé.
     // ghost x ∈ [3,3] doit être ignoré.
     REQUIRE(pr.fixedVars == 0);
 }

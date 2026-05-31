@@ -16,7 +16,7 @@ namespace baguette::internal {
 /// LUTable stores only B⁻¹ (m×m) and computes entering columns on demand.
 ///
 /// Memory: O(m²) working space for B⁻¹ (vs O(m·n) for SimplexTableau).
-/// Per-pivot: O(m²) to update B⁻¹ + O(m·n) full repricing — same asymptotic
+/// Per-pivot: O(m²) to update B⁻¹ + O(m·n) full repricing - same asymptotic
 /// as SimplexTableau but smaller working set when m ≪ n.
 /// Periodic reinversion uses LU factorisation with partial pivoting.
 struct LUTableau {

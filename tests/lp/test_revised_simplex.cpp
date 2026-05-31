@@ -144,7 +144,7 @@ TEST_CASE("RevisedSimplex: LP infeasible by lb>ub", "[revised]") {
 }
 
 TEST_CASE("RevisedSimplex: Farkas certificate populated for infeasible LP", "[revised]") {
-    // x+y >= 10, x<=3, y<=3 — infeasible (sum at most 6)
+    // x+y >= 10, x<=3, y<=3 - infeasible (sum at most 6)
     Model m;
     auto x = m.addVar(0.0, kInf, "x");
     auto y = m.addVar(0.0, kInf, "y");

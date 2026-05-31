@@ -184,7 +184,7 @@ TEST_CASE("SF constraint - GreaterEq: surplus has -1", "[standard_form]") {
 }
 
 TEST_CASE("SF constraint - Equal: no slack column entry", "[standard_form]") {
-    // x + y = 5 — Equal rows have no slack column (Option A).
+    // x + y = 5 - Equal rows have no slack column (Option A).
     // nCols == nOrig == 2; column index 2 is out of bounds.
     Model m;
     auto x = m.addVar(0.0, kInf);

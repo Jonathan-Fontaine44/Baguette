@@ -16,7 +16,7 @@ namespace baguette {
 /// Variable selection strategy used when branching on a fractional variable.
 enum class BranchStrategy {
     /// Branch on the first fractional integer variable (by Variable::id).
-    /// Cheapest selection — O(n) scan, stops at first fractional.
+    /// Cheapest selection - O(n) scan, stops at first fractional.
     FirstFractional,
 
     /// Branch on the most fractional integer variable (fractional part closest to 0.5).
@@ -57,12 +57,12 @@ enum class NodeSelection {
 ///
 /// @note The model passed to the callback reflects current node bounds
 ///   (set via restoreBounds before the LP solve) but not necessarily the
-///   root bounds — variable lb/ub have been tightened by branching.
+///   root bounds - variable lb/ub have been tightened by branching.
 /// @note Cuts are added to the global model copy shared across all nodes.
 ///   They are globally valid (must hold for every feasible integer point)
 ///   and remain in the model for all subsequent nodes.
 /// @note The callback is not called when the LP is Infeasible, Unbounded,
-///   or has hit a limit — only on Optimal results.
+///   or has hit a limit - only on Optimal results.
 using CutGenerator =
     std::function<std::vector<Cut>(const LPDetailedResult&, const Model&)>;
 
@@ -106,7 +106,7 @@ struct BBOptions {
 
     /// Relative MIP gap tolerance. The effective gap used for pruning is
     ///   gap = max(mipGapAbs, mipGapRel × |incumbent|)
-    /// Default 0.0 — exact solver: only mipGapAbs applies. Set to e.g. 1e-4
+    /// Default 0.0 - exact solver: only mipGapAbs applies. Set to e.g. 1e-4
     /// (0.01 %) for large-objective problems where a small absolute error is
     /// acceptable. Only applied when a finite incumbent exists.
     double mipGapRel = 0.0;
@@ -185,7 +185,7 @@ struct BBOptions {
     LPOptions lpOpts;
 
     /// If true, populate MILPResult::stats with granular diagnostics.
-    /// When false (default), no counters are maintained — zero overhead on
+    /// When false (default), no counters are maintained - zero overhead on
     /// production runs.  Enable for cut-effectiveness and warm-start diagnosis.
     bool collectStats = false;
 
@@ -195,7 +195,7 @@ struct BBOptions {
     ///
     /// | Level | Technique                                                    |
     /// |-------|--------------------------------------------------------------|
-    /// |   0   | None — skip presolve entirely                                |
+    /// |   0   | None - skip presolve entirely                                |
     /// |   1   | LP bound-tightening + integrality rounding + PR1 (default)  |
     /// |   2   | + CP fixpoint propagation at root before the B&B tree        |
     /// |   3   | + Weak probing (binary fix + propagation + bounds intersect)  |
@@ -241,6 +241,30 @@ struct BBOptions {
     /// and K = constraint size. The loop terminates in at most O(V) iterations
     /// (each iteration must fix at least one variable bound to continue).
     bool cpPropagateToFixpoint = true;
+
+    /// If non-null, a machine-verifiable B&B proof is written to this stream in
+    /// the Baguette log-proof format (v0.7.0 intermediate - will be transcribed
+    /// to veriPB format in v0.7.1).
+    ///
+    /// For each node the proof records: parent ID, the single bound-change that
+    /// created the node (DIFF), LP bound, and the pruning reason - either an
+    /// explicit Farkas certificate (infeasible nodes), a bound-dominance reason
+    /// (PRUNE_BOUND), a CP-infeasibility flag (CP_INFEASIBLE), or an integer-
+    /// feasible certificate (INCUMBENT / LEAF). Cuts added globally are emitted
+    /// as CUT events. Nodes whose LP solver returned MaxIter or NumericalFailure
+    /// are logged as UNVERIFIED, making incomplete proofs diagnosable.
+    ///
+    /// @par Performance
+    ///   Output is buffered (64 KB) and flushed automatically. Proof generation
+    ///   adds one mutex acquire and one string append per node event - negligible
+    ///   compared to LP solve time on any non-trivial instance.
+    ///
+    /// @par Thread safety
+    ///   Node IDs are allocated via a lock-free atomic counter; buffer writes
+    ///   are serialised by a mutex - correct for future multi-threaded B&B.
+    ///
+    /// Default nullptr - proof generation disabled.
+    std::ostream* proofStream = nullptr;
 };
 
 /// Shared clock type (same as LPSolver).
@@ -277,13 +301,13 @@ using SolverClock = std::chrono::steady_clock;
 ///   stale BasisRecords; solveDualDetailed() detects the sfCache dimension
 ///   mismatch and falls back to a cold primal solve for those nodes too.
 ///   This is correct but means that cut generation sacrifices warm-start reuse
-///   for all queued siblings — a known trade-off of the global-cut strategy.
+///   for all queued siblings - a known trade-off of the global-cut strategy.
 ///
 /// @note CP integration: if the model has CP constraints (added via
 ///   Model::addCPConstraint()), propagateCP() is called after restoreBounds()
 ///   and before the first LP solve at each node.  Bounds tightened by CP
 ///   propagation are tracked in dirtyVars and reset automatically by the next
-///   restoreBounds() call — no extra bookkeeping required.  If CP reports
+///   restoreBounds() call - no extra bookkeeping required.  If CP reports
 ///   Infeasible the node is pruned without an LP solve.
 MILPResult solveMILP(const Model&            model,
                      const BBOptions&        opts      = {},

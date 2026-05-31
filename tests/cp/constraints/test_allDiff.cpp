@@ -43,7 +43,7 @@ TEST_CASE("AllDiff propagate: no duplicate ids in changedVarIds", "[cp][alldiff]
 
 // ── Test 1: single variable ───────────────────────────────────────────────────
 //
-// AllDiff on one variable is trivially satisfied — no propagation.
+// AllDiff on one variable is trivially satisfied - no propagation.
 
 TEST_CASE("AllDiff: trivially satisfied with one variable", "[cp][alldiff]") {
     Model m;
