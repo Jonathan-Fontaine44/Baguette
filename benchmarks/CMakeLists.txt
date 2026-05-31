@@ -18,6 +18,7 @@ add_executable(BaguetteBench
     bench_presolve.cpp
     bench_presolve_levels.cpp
     bench_cp.cpp
+    bench_proof.cpp
 )
 
 target_link_libraries(BaguetteBench PRIVATE

@@ -3,9 +3,16 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <type_traits>
+
+#include "baguette/core/Version.hpp"
 
 #include "baguette/core/Sense.hpp"
+#include "baguette/cp/CPConstraints.hpp"
+#include "baguette/cp/constraints/AllDiff.hpp"
+#include "baguette/cp/constraints/Cumulative.hpp"
 #include "baguette/model/ModelData.hpp"
+#include "baguette/model/ModelEnums.hpp"
 
 namespace baguette::internal {
 
@@ -99,10 +106,104 @@ void ProofWriter::flush() {
 // ── Public write methods ───────────────────────────────────────────────────────
 
 void ProofWriter::writeHeader(const Model& model) {
+    const auto& hot    = model.getHot();
+    const auto& cold   = model.getCold();
+    const auto& cons   = model.getLPConstraints();
+    const auto& cp     = model.getCPConstraints();
+    const std::size_t  nVars = model.numVars();
+
     std::string s;
-    s += "BB-PROOF 0.7.0\n";
-    s += "VARS " + std::to_string(model.numVars())        + "\n";
-    s += "CONS " + std::to_string(model.numConstraints()) + "\n";
+
+    const std::size_t nGhost = model.numTotalVars() - nVars;
+
+    // ── Preamble ──────────────────────────────────────────────────────────────
+    s += "BB-PROOF " BAGUETTE_VERSION "\n";
+    s += "VARS "  + std::to_string(nVars)       + "\n";
+    s += "CONS "  + std::to_string(cons.size()) + "\n";
+    if (nGhost > 0)
+        s += "GHOST " + std::to_string(nGhost) + "\n";
+
+    // ── Objective ─────────────────────────────────────────────────────────────
+    s += "OBJ ";
+    s += (model.getObjSense() == ObjSense::Minimize) ? "Minimize" : "Maximize";
+    s += " ";
+    bool firstTerm = true;
+    for (std::size_t i = 0; i < nVars; ++i) {
+        double c = hot.obj[i];
+        if (c == 0.0) continue;
+        if (firstTerm) {
+            if (c < 0.0) { s += "-"; c = -c; }
+        } else {
+            s += (c > 0.0) ? " + " : " - ";
+            if (c < 0.0) c = -c;
+        }
+        if (c != 1.0) s += fmtDouble(c) + "*";
+        s += fmtVar(static_cast<uint32_t>(i), cold);
+        firstTerm = false;
+    }
+    if (firstTerm) s += "0";
+    const double objK = model.getObjConstant();
+    if (objK != 0.0)
+        s += (objK > 0.0 ? " + " : " - ") + fmtDouble(std::abs(objK)) + " (const)";
+    s += "\n";
+
+    // ── Variable declarations ─────────────────────────────────────────────────
+    for (std::size_t i = 0; i < nVars; ++i) {
+        s += "VAR " + std::to_string(i) + " ";
+        s += fmtVar(static_cast<uint32_t>(i), cold) + " ";
+        switch (cold.types[i]) {
+            case VarType::Continuous: s += "Continuous"; break;
+            case VarType::Integer:    s += "Integer";    break;
+            case VarType::Binary:     s += "Binary";     break;
+        }
+        s += " [" + fmtDouble(hot.lb[i]) + ", " + fmtDouble(hot.ub[i]) + "]\n";
+    }
+
+    // ── Ghost variable declarations (CP-only, fixed by elimination presolve) ───
+    for (std::size_t i = nVars; i < model.numTotalVars(); ++i) {
+        s += "GHOST " + std::to_string(i) + " ";
+        s += fmtVar(static_cast<uint32_t>(i), cold) + " ";
+        switch (cold.types[i]) {
+            case VarType::Continuous: s += "Continuous"; break;
+            case VarType::Integer:    s += "Integer";    break;
+            case VarType::Binary:     s += "Binary";     break;
+        }
+        s += " [" + fmtDouble(hot.lb[i]) + ", " + fmtDouble(hot.ub[i]) + "]\n";
+    }
+
+    // ── LP constraint declarations ────────────────────────────────────────────
+    for (std::size_t i = 0; i < cons.size(); ++i)
+        s += "CON " + std::to_string(i) + " (" + fmtConstraint(cons[i], cold) + ")\n";
+
+    // ── CP constraint declarations ────────────────────────────────────────────
+    uint32_t cpIdx = 0;
+    for (const auto& con : cp.builtins()) {
+        std::visit([&](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, AllDiffConstraint>) {
+                s += "CP_ALLDIFF " + std::to_string(cpIdx) + " [";
+                for (std::size_t i = 0; i < c.vars.size(); ++i) {
+                    if (i > 0) s += ", ";
+                    s += fmtVar(c.vars[i].id, cold);
+                }
+                s += "]\n";
+            } else if constexpr (std::is_same_v<T, CumulativeConstraint>) {
+                s += "CP_CUMULATIVE " + std::to_string(cpIdx)
+                   + " cap=" + std::to_string(c.capacity) + " [";
+                for (std::size_t i = 0; i < c.tasks.size(); ++i) {
+                    if (i > 0) s += ", ";
+                    s += fmtVar(c.tasks[i].varStart.id, cold)
+                       + ":dur="  + std::to_string(c.tasks[i].duration)
+                       + ":cons=" + std::to_string(c.tasks[i].consumption);
+                }
+                s += "]\n";
+            }
+        }, con);
+        ++cpIdx;
+    }
+    for (std::size_t i = 0; i < cp.customs().size(); ++i)
+        s += "CP_CUSTOM " + std::to_string(cpIdx + i) + "\n";
+
     std::lock_guard lock(mu_);
     appendLocked(s);
 }
@@ -190,11 +291,65 @@ void ProofWriter::writeLeaf(uint32_t id, double obj) {
     appendLocked(s);
 }
 
+void ProofWriter::writeSolution(uint32_t id,
+                                 const std::vector<double>& sol,
+                                 const ModelCold&           cold) {
+    std::string s = "SOL " + std::to_string(id) + " [";
+    for (std::size_t i = 0; i < sol.size(); ++i) {
+        if (i > 0) s += ", ";
+        s += fmtVar(static_cast<uint32_t>(i), cold);
+        s += "=";
+        s += fmtDouble(sol[i]);
+    }
+    s += "]\n";
+    std::lock_guard lock(mu_);
+    appendLocked(s);
+}
+
 void ProofWriter::writePruneByBound(uint32_t id, double incVal, uint32_t incNodeId) {
     std::string s = "PRUNE_BOUND " + std::to_string(id)
                   + " incumbent=" + fmtDouble(incVal) + " by=";
     s += (incNodeId == kNoNode) ? "?" : std::to_string(incNodeId);
     s += "\n";
+    std::lock_guard lock(mu_);
+    appendLocked(s);
+}
+
+// Build a "TAG id [v=[lb, ub], ...]" line — shared by writeCpTighten and writeIntRound.
+std::string ProofWriter::fmtTightenLine(std::string_view tag,
+                                         uint32_t id,
+                                         const std::vector<uint32_t>& varIds,
+                                         const ModelHot&  hot,
+                                         const ModelCold& cold) {
+    std::string s = std::string(tag) + " " + std::to_string(id) + " [";
+    for (std::size_t i = 0; i < varIds.size(); ++i) {
+        if (i > 0) s += ", ";
+        const uint32_t v = varIds[i];
+        s += fmtVar(v, cold);
+        s += "=[";
+        s += fmtDouble(hot.lb[v]);
+        s += ", ";
+        s += fmtDouble(hot.ub[v]);
+        s += "]";
+    }
+    s += "]\n";
+    return s;
+}
+
+void ProofWriter::writeCpTighten(uint32_t id,
+                                  const std::vector<uint32_t>& varIds,
+                                  const ModelHot&  hot,
+                                  const ModelCold& cold) {
+    std::string s = fmtTightenLine("CP_TIGHTEN", id, varIds, hot, cold);
+    std::lock_guard lock(mu_);
+    appendLocked(s);
+}
+
+void ProofWriter::writeIntRound(uint32_t id,
+                                 const std::vector<uint32_t>& varIds,
+                                 const ModelHot&  hot,
+                                 const ModelCold& cold) {
+    std::string s = fmtTightenLine("INT_ROUND", id, varIds, hot, cold);
     std::lock_guard lock(mu_);
     appendLocked(s);
 }

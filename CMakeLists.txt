@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 project(Baguette VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
+
+# Generate Version.hpp from Version.hpp.in, substituting @PROJECT_VERSION@.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/baguette/core/Version.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/baguette/core/Version.hpp
+)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -45,6 +51,7 @@ add_library(Baguette
 target_include_directories(Baguette
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src

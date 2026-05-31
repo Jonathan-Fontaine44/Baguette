@@ -405,6 +405,9 @@ MILPResult solveMILP(const Model&            modelRef,
                 // isDirty guards against duplicates in O(1) per var - no sort needed.
                 for (uint32_t id : pr.changedVarIds)
                     if (!isDirty[id]) { isDirty[id] = true; dirtyVars.push_back(id); }
+                if (pw && !pr.changedVarIds.empty() && pr.status != CPStatus::Infeasible)
+                    pw->writeCpTighten(node.proofId, pr.changedVarIds,
+                                       model.getHot(), model.getCold());
                 if (pr.status == CPStatus::Infeasible) {
                     cpInfeasible = true;
                     cpWitness    = std::move(pr.witness);
@@ -441,6 +444,13 @@ MILPResult solveMILP(const Model&            modelRef,
             if (intInfeasible) {
                 if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
                 continue;
+            }
+            if (pw && dirtyVars.size() > oldSize) {
+                std::vector<uint32_t> rounded(dirtyVars.begin()
+                                              + static_cast<std::ptrdiff_t>(oldSize),
+                                              dirtyVars.end());
+                pw->writeIntRound(node.proofId, rounded,
+                                  model.getHot(), model.getCold());
             }
             if (dirtyVars.size() > oldSize) {
                 // intIds is sorted → the new suffix is already sorted; merge.
@@ -788,14 +798,22 @@ MILPResult solveMILP(const Model&            modelRef,
                 incumbent       = obj;
                 incumbentSol    = lp.result.primalValues;
                 incumbentNodeId = node.proofId;
-                if (pw) pw->writeIncumbent(node.proofId, obj);
+                if (pw) {
+                    pw->writeIncumbent(node.proofId, obj);
+                    pw->writeSolution(node.proofId,
+                                      lp.result.primalValues, model.getCold());
+                }
                 // HybridPlunge: first incumbent found - heapify and switch to BestBound.
                 if (plunging) {
                     plunging = false;
                     std::make_heap(queue.begin(), queue.end(), cmpNodes);
                 }
             } else {
-                if (pw) pw->writeLeaf(node.proofId, obj);
+                if (pw) {
+                    pw->writeLeaf(node.proofId, obj);
+                    pw->writeSolution(node.proofId,
+                                      lp.result.primalValues, model.getCold());
+                }
             }
             continue;
         }

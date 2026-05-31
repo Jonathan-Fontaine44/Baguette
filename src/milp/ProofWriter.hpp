@@ -7,6 +7,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "baguette/cp/CPTypes.hpp"
 #include "baguette/lp/LPResult.hpp"
@@ -65,6 +66,9 @@ class ProofWriter {
     static std::string fmtSense(Sense s);
     static std::string fmtExpr(const LinearExpr& expr, const ModelCold& cold);
     static std::string fmtConstraint(const LPConstraint& c, const ModelCold& cold);
+    static std::string fmtTightenLine(std::string_view tag, uint32_t id,
+                                       const std::vector<uint32_t>& varIds,
+                                       const ModelHot& hot, const ModelCold& cold);
 
 public:
     explicit ProofWriter(std::ostream* os) : os_(os) {}
@@ -104,14 +108,39 @@ public:
                      uint32_t leftId, uint32_t rightId, const ModelCold& cold);
 
     /// This node established a new (strictly better) incumbent.
+    /// Always followed by writeSolution().
     void writeIncumbent(uint32_t id, double obj);
 
     /// Integer-feasible leaf that does not improve the current incumbent.
+    /// Always followed by writeSolution().
     void writeLeaf(uint32_t id, double obj);
+
+    /// Write the primal solution at an integer-feasible node (INCUMBENT or LEAF).
+    /// @p sol contains the LP variable values (size == Model::numVars(), indexed
+    ///   by Variable::id). The verifier can re-check all LP and CP constraints
+    ///   using these values together with the ghost variable bounds in the header.
+    void writeSolution(uint32_t id,
+                       const std::vector<double>& sol,
+                       const ModelCold&           cold);
 
     /// Node pruned because its LP bound cannot improve the incumbent.
     /// @p incNodeId is the proof ID of the node that established @p incVal.
     void writePruneByBound(uint32_t id, double incVal, uint32_t incNodeId);
+
+    /// One CP propagation pass tightened at least one domain.
+    /// @p varIds  variables whose bounds changed (from PropagationResult::changedVarIds).
+    /// @p hot     model hot data read immediately after the propagation call.
+    void writeCpTighten(uint32_t id,
+                        const std::vector<uint32_t>& varIds,
+                        const ModelHot&  hot,
+                        const ModelCold& cold);
+
+    /// The integer-bound rounding step (ceil lb / floor ub on Integer/Binary vars)
+    /// changed at least one domain.  Logged before the LP solve, after CP propagation.
+    void writeIntRound(uint32_t id,
+                       const std::vector<uint32_t>& varIds,
+                       const ModelHot&  hot,
+                       const ModelCold& cold);
 
     /// Node pruned by CP propagation (no LP solve was performed).
     /// @p witness describes the failing constraint and the variables with their domains.
