@@ -199,8 +199,27 @@ void ProofWriter::writePruneByBound(uint32_t id, double incVal, uint32_t incNode
     appendLocked(s);
 }
 
-void ProofWriter::writeCpInfeasible(uint32_t id) {
-    std::string s = "CP_INFEASIBLE " + std::to_string(id) + "\n";
+void ProofWriter::writeCpInfeasible(uint32_t id,
+                                     const std::optional<CPFailureWitness>& witness,
+                                     const ModelCold& cold) {
+    std::string s = "CP_INFEASIBLE " + std::to_string(id);
+    if (!witness) {
+        s += "\n";
+    } else {
+        s += " ";
+        s += witness->constraintDesc;
+        s += " [";
+        for (std::size_t i = 0; i < witness->varIds.size(); ++i) {
+            if (i > 0) s += ", ";
+            s += fmtVar(witness->varIds[i], cold);
+            s += "=[";
+            s += fmtDouble(witness->varLb[i]);
+            s += ", ";
+            s += fmtDouble(witness->varUb[i]);
+            s += "]";
+        }
+        s += "]\n";
+    }
     std::lock_guard lock(mu_);
     appendLocked(s);
 }

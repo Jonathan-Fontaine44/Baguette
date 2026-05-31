@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "baguette/cp/CPTypes.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/milp/MILPResult.hpp"
 #include "baguette/model/Model.hpp"
@@ -113,7 +114,10 @@ public:
     void writePruneByBound(uint32_t id, double incVal, uint32_t incNodeId);
 
     /// Node pruned by CP propagation (no LP solve was performed).
-    void writeCpInfeasible(uint32_t id);
+    /// @p witness describes the failing constraint and the variables with their domains.
+    void writeCpInfeasible(uint32_t id,
+                            const std::optional<CPFailureWitness>& witness,
+                            const ModelCold& cold);
 
     /// Node result is unverifiable - LP returned MaxIter or NumericalFailure.
     void writeUnverified(uint32_t id, LPStatus status);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <string>
 
 #include "baguette/cp/CPConstraint.hpp"
 #include "baguette/model/Model.hpp"
@@ -11,27 +12,43 @@ namespace baguette {
 PropagationResult propagateCP(const CPConstraints& cp, Model& model) {
     PropagationResult result;
 
-    for (const BuiltinConstraint& con : cp.builtins()) {
+    const auto& builtins = cp.builtins();
+    for (std::size_t i = 0; i < builtins.size(); ++i) {
         PropagationResult r = std::visit(
-            [&](const auto& c) { return propagate(c, model); }, con);
+            [&](const auto& c) { return propagate(c, model); }, builtins[i]);
 
         result.changedVarIds.insert(result.changedVarIds.end(),
                                     r.changedVarIds.begin(), r.changedVarIds.end());
 
         if (r.status == CPStatus::Infeasible) {
-            result.status = CPStatus::Infeasible;
+            result.status  = CPStatus::Infeasible;
+            result.witness = std::move(r.witness);
+            if (result.witness)
+                result.witness->constraintIdx = static_cast<uint32_t>(i);
             return result;
         }
     }
 
-    for (const std::shared_ptr<const CPConstraint>& con : cp.customs()) {
-        PropagationResult r = con->propagate(model);
+    const auto& customs = cp.customs();
+    for (std::size_t i = 0; i < customs.size(); ++i) {
+        PropagationResult r = customs[i]->propagate(model);
 
         result.changedVarIds.insert(result.changedVarIds.end(),
                                     r.changedVarIds.begin(), r.changedVarIds.end());
 
         if (r.status == CPStatus::Infeasible) {
             result.status = CPStatus::Infeasible;
+            if (r.witness) {
+                result.witness = std::move(r.witness);
+                result.witness->constraintIdx = static_cast<uint32_t>(i);
+            } else {
+                // Custom constraint did not populate a witness; emit a minimal one.
+                result.witness = CPFailureWitness{
+                    "Custom(idx=" + std::to_string(i) + ")",
+                    static_cast<uint32_t>(i),
+                    std::move(r.changedVarIds), {}, {},
+                };
+            }
             return result;
         }
     }

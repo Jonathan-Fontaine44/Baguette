@@ -1,11 +1,11 @@
-# Doxyfile - Baguette documentation configuration
+﻿# Doxyfile - Baguette documentation configuration
 
 #---------------------------------------------------------------------------
 # Project
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "Baguette"
 PROJECT_BRIEF          = "Research MILP + CP hybrid solver (C++20)"
-PROJECT_NUMBER         = 0.6.4
+PROJECT_NUMBER         = 0.7.0
 OUTPUT_DIRECTORY       = docs
 
 #---------------------------------------------------------------------------

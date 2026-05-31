@@ -9,6 +9,7 @@
 
 #include "baguette/core/Sense.hpp"
 #include "baguette/cp/CPConstraints.hpp"
+#include "baguette/cp/CPTypes.hpp"
 #include "baguette/lp/LPResult.hpp"
 #include "baguette/lp/LPSolver.hpp"
 #include "baguette/milp/Presolve.hpp"
@@ -394,7 +395,8 @@ MILPResult solveMILP(const Model&            modelRef,
         // ── CP propagation (before LP: tighten bounds, prune without LP solve) ──
         if (!cp.empty()) {
             bool cpInfeasible = false;
-            bool anyChanged   = true;
+            std::optional<CPFailureWitness> cpWitness;
+            bool anyChanged = true;
             while (anyChanged) {
                 PropagationResult pr = propagateCP(cp, model);
                 anyChanged = !pr.changedVarIds.empty() && opts.cpPropagateToFixpoint;
@@ -405,12 +407,13 @@ MILPResult solveMILP(const Model&            modelRef,
                     if (!isDirty[id]) { isDirty[id] = true; dirtyVars.push_back(id); }
                 if (pr.status == CPStatus::Infeasible) {
                     cpInfeasible = true;
+                    cpWitness    = std::move(pr.witness);
                     break;
                 }
             }
             if (cpInfeasible) {
                 if (opts.collectStats) ++stats_acc.nodesPrunedByInfeasibility;
-                if (pw) pw->writeCpInfeasible(node.proofId);
+                if (pw) pw->writeCpInfeasible(node.proofId, cpWitness, model.getCold());
                 continue; // node pruned by CP - no LP solve needed
             }
         }

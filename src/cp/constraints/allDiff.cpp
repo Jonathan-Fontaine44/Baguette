@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 
+#include "baguette/cp/CPTypes.hpp"
 #include "baguette/model/Model.hpp"
 
 namespace baguette {
@@ -41,7 +42,8 @@ int64_t prevNotFixed(const std::vector<int64_t>& fixed, int64_t x) {
 // advances lb and retreats ub past every fixed value in one shot.
 StepResult fixedValueElimination(const std::vector<Variable>& vars,
                                   Model&                       model,
-                                  std::vector<uint32_t>&       changedOut) {
+                                  std::vector<uint32_t>&       changedOut,
+                                  CPFailureWitness&            witness) {
     const auto& hot    = model.getHot();
     const std::size_t prevSize = changedOut.size();
 
@@ -55,8 +57,19 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
     if (fixed.empty()) return StepResult::NoChange;
     std::sort(fixed.begin(), fixed.end());
     // Two variables fixed to the same value → immediate infeasibility.
-    for (std::size_t i = 1; i < fixed.size(); ++i)
-        if (fixed[i] == fixed[i - 1]) return StepResult::Infeasible;
+    for (std::size_t i = 1; i < fixed.size(); ++i) {
+        if (fixed[i] == fixed[i - 1]) {
+            const int64_t dup = fixed[i];
+            for (const Variable v : vars) {
+                if (iLb(hot.lb[v.id]) == dup && iUb(hot.ub[v.id]) == dup) {
+                    witness.varIds.push_back(v.id);
+                    witness.varLb.push_back(hot.lb[v.id]);
+                    witness.varUb.push_back(hot.ub[v.id]);
+                }
+            }
+            return StepResult::Infeasible;
+        }
+    }
 
     StepResult result = StepResult::NoChange;
     for (const Variable vj : vars) {
@@ -66,7 +79,13 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
 
         const int64_t newLj = nextNotFixed(fixed, lj);
         const int64_t newUj = prevNotFixed(fixed, uj);
-        if (newLj > newUj) return StepResult::Infeasible;
+        if (newLj > newUj) {
+            // Would-be domain is empty after excluding fixed values.
+            witness.varIds.push_back(vj.id);
+            witness.varLb.push_back(static_cast<double>(newLj));
+            witness.varUb.push_back(static_cast<double>(newUj));
+            return StepResult::Infeasible;
+        }
         if (newLj != lj || newUj != uj) {
             model.setVarBounds(vj, static_cast<double>(newLj), static_cast<double>(newUj));
             changedOut.push_back(vj.id);
@@ -89,7 +108,8 @@ StepResult fixedValueElimination(const std::vector<Variable>& vars,
 // Also subsumes the global range feasibility check (u=min_lb, v=max_ub).
 StepResult hallPropagation(const std::vector<Variable>& vars,
                             Model&                       model,
-                            std::vector<uint32_t>&       changedOut) {
+                            std::vector<uint32_t>&       changedOut,
+                            CPFailureWitness&            witness) {
     const auto&       hot = model.getHot();
     const std::size_t K   = vars.size();
 
@@ -118,7 +138,17 @@ StepResult hallPropagation(const std::vector<Variable>& vars,
             for (const Variable vi : vars)
                 if (iLb(hot.lb[vi.id]) >= u && iUb(hot.ub[vi.id]) <= v) ++count;
 
-            if (count > capacity) return StepResult::Infeasible;
+            if (count > capacity) {
+                // Hall violation: more variables than the interval can hold.
+                for (const Variable vi : vars) {
+                    if (iLb(hot.lb[vi.id]) >= u && iUb(hot.ub[vi.id]) <= v) {
+                        witness.varIds.push_back(vi.id);
+                        witness.varLb.push_back(hot.lb[vi.id]);
+                        witness.varUb.push_back(hot.ub[vi.id]);
+                    }
+                }
+                return StepResult::Infeasible;
+            }
             if (count < capacity) continue;
 
             // Hall interval: prune variables whose domain overlaps but extends outside [u, v]
@@ -132,7 +162,13 @@ StepResult hallPropagation(const std::vector<Variable>& vars,
                 if (lj < u && uj >= u && uj <= v) newUj = u - 1; // overlaps from below
                 if (lj >= u && lj <= v && uj > v) newLj = v + 1; // overlaps from above
 
-                if (newLj > newUj) return StepResult::Infeasible;
+                if (newLj > newUj) {
+                    // Domain wipeout caused by Hall pruning.
+                    witness.varIds.push_back(vj.id);
+                    witness.varLb.push_back(static_cast<double>(newLj));
+                    witness.varUb.push_back(static_cast<double>(newUj));
+                    return StepResult::Infeasible;
+                }
                 if (newLj != lj || newUj != uj) {
                     model.setVarBounds(vj, static_cast<double>(newLj), static_cast<double>(newUj));
                     changedOut.push_back(vj.id);
@@ -161,12 +197,26 @@ PropagationResult propagate(const AllDiffConstraint& con, Model& model) {
     while (anyChange) {
         anyChange = false;
 
-        StepResult fve = fixedValueElimination(con.vars, model, result.changedVarIds);
-        if (fve == StepResult::Infeasible) { result.status = CPStatus::Infeasible; return result; }
+        CPFailureWitness w;
+        w.constraintDesc = "AllDiff";
+
+        StepResult fve = fixedValueElimination(con.vars, model, result.changedVarIds, w);
+        if (fve == StepResult::Infeasible) {
+            result.status  = CPStatus::Infeasible;
+            result.witness = std::move(w);
+            return result;
+        }
         if (fve == StepResult::Changed) anyChange = true;
 
-        StepResult hall = hallPropagation(con.vars, model, result.changedVarIds);
-        if (hall == StepResult::Infeasible) { result.status = CPStatus::Infeasible; return result; }
+        w = {};
+        w.constraintDesc = "AllDiff";
+
+        StepResult hall = hallPropagation(con.vars, model, result.changedVarIds, w);
+        if (hall == StepResult::Infeasible) {
+            result.status  = CPStatus::Infeasible;
+            result.witness = std::move(w);
+            return result;
+        }
         if (hall == StepResult::Changed) anyChange = true;
     }
 

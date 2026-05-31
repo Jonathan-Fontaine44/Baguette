@@ -3,7 +3,9 @@
 #include <cmath>
 #include <deque>
 #include <limits>
+#include <string>
 
+#include "baguette/cp/CPTypes.hpp"
 #include "baguette/model/Model.hpp"
 
 namespace baguette {
@@ -106,6 +108,13 @@ PropagationResult propagate(const CumulativeConstraint& con, Model& model) {
 
             if (newEst > lst_i) {
                 result.status = CPStatus::Infeasible;
+                result.witness = CPFailureWitness{
+                    "Cumulative(cap=" + std::to_string(con.capacity) + ")",
+                    0,                    // constraintIdx — filled by propagateCP()
+                    {static_cast<uint32_t>(tb[i].var.id)},
+                    {static_cast<double>(tb[i].est)},
+                    {static_cast<double>(tb[i].lst)},
+                };
                 return result;
             }
             if (newEst > tb[i].est) {
