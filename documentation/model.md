@@ -77,6 +77,136 @@ Two presolve stages operate on a copy of the model (the original is never mutate
 
 **Elimination (`presolveElim`)**: removes fixed variables (`lb == ub`) and always-satisfied constraints, reducing problem size before the LP solve. `postsolveElim()` reconstructs the full dual/primal solution afterwards.
 
+## Example: TSP n=5 with MTZ + AllDiff
+
+A Travelling Salesman Problem on 5 cities illustrates how LP constraints (flow + MTZ subtour elimination) and a CP constraint (AllDiff on position variables) coexist in the same model.
+
+### Problem
+
+Minimize the total travel cost of a tour visiting all 5 cities exactly once.
+
+Distance matrix (asymmetric):
+
+```
+     0   1   2   3   4
+0  [ -   3   6  10   7 ]
+1  [ 3   -   2   8   4 ]
+2  [ 6   2   -   5   9 ]
+3  [ 10  8   5   -   1 ]
+4  [ 7   4   9   1   - ]
+```
+
+Optimal tour: 0 -> 1 -> 2 -> 3 -> 4 -> 0, cost = 18.
+
+### Decision variables
+
+- `x[i][j]` in {0,1}: 1 if the tour goes directly from city i to city j (20 binary variables).
+- `u[i]` in {0..4} integer: position of city i in the tour, for MTZ subtour elimination.
+  - `u[0]` is fixed to 0 (root city, no subtour can loop back without passing through 0).
+  - `u[1..4]` range over {1..4} and must all be distinct.
+
+### Code
+
+```cpp
+#include "baguette/model/Model.hpp"
+#include "baguette/milp/BranchAndBound.hpp"
+#include "baguette/cp/constraints/AllDiff.hpp"
+
+using namespace baguette;
+
+const int n = 5;
+const double dist[n][n] = {
+    { 0,  3,  6, 10,  7},
+    { 3,  0,  2,  8,  4},
+    { 6,  2,  0,  5,  9},
+    {10,  8,  5,  0,  1},
+    { 7,  4,  9,  1,  0},
+};
+
+Model model;
+
+// Binary routing variables x[i][j] (i != j)
+Variable x[n][n];
+for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
+        if (i != j)
+            x[i][j] = model.addVar(0, 1, VarType::Binary,
+                                   "x" + std::to_string(i) + std::to_string(j));
+
+// Integer position variables for MTZ: u[0] fixed, u[1..4] in [1, n-1]
+Variable u[n];
+u[0] = model.addVar(0, 0, VarType::Integer, "u0");
+for (int i = 1; i < n; i++)
+    u[i] = model.addVar(1, n - 1, VarType::Integer, "u" + std::to_string(i));
+
+// Objective: minimize total tour distance
+LinearExpr obj;
+for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
+        if (i != j)
+            obj += dist[i][j] * x[i][j];
+model.setObjective(obj, ObjSense::Minimize);
+
+// Each city is left exactly once: sum_j x[i][j] = 1
+for (int i = 0; i < n; i++) {
+    LinearExpr row;
+    for (int j = 0; j < n; j++)
+        if (i != j) row += x[i][j];
+    model.addLPConstraint(row, Sense::Equal, 1.0);
+}
+
+// Each city is entered exactly once: sum_i x[i][j] = 1
+for (int j = 0; j < n; j++) {
+    LinearExpr col;
+    for (int i = 0; i < n; i++)
+        if (i != j) col += x[i][j];
+    model.addLPConstraint(col, Sense::Equal, 1.0);
+}
+
+// MTZ subtour elimination: u[i] - u[j] + n*x[i][j] <= n-1  (i,j in 1..4, i != j)
+// If x[i][j]=1 (tour goes i->j), forces u[j] >= u[i]+1, so positions are strictly ordered.
+for (int i = 1; i < n; i++)
+    for (int j = 1; j < n; j++)
+        if (i != j)
+            model.addLPConstraint(u[i] - u[j] + (double)n * x[i][j],
+                                  Sense::LessEq, (double)(n - 1));
+
+// AllDiff on u[1..4]: positions must be distinct integers in [1,4]
+// Redundant with MTZ here but enables CP propagation to fix positions early
+// and prune subtree branches before any LP solve.
+std::vector<Variable> uVars(u + 1, u + n);
+model.addCPConstraint(AllDiffConstraint(uVars));
+
+// Solve
+BBOptions opts;
+opts.presolveLevel = 2;  // includes CP fixpoint propagation at root
+MILPResult result = solveMILP(model, opts);
+// result.objectiveValue == 18.0, result.status == MILPStatus::Optimal
+```
+
+### What happens at each B&B node
+
+1. **CP propagation** runs AllDiff on `u[1..4]`. Once a position variable is fixed by branching, its value is eliminated from the domains of all other position variables. This can close multiple siblings without any LP solve.
+2. **LP relaxation** is solved. The MTZ constraints ensure that fractional `u` values cannot form subtours in the relaxation.
+3. **Branching** targets the fractional `x[i][j]` or `u[i]` with the highest priority (MostFractional by default).
+
+### Variable count summary
+
+| Variable group | Count  | Type             |
+| -------------- | ------ | ---------------- |
+| `x[i][j]`      | 20     | Binary           |
+| `u[0]`         | 1      | Integer (fixed)  |
+| `u[1..4]`      | 4      | Integer [1, 4]   |
+| **Total**      | **25** |                  |
+
+| Constraint group | Count  |
+| ---------------- | ------ |
+| Degree out       | 5      |
+| Degree in        | 5      |
+| MTZ              | 12     |
+| AllDiff (CP)     | 1      |
+| **Total**        | **23** |
+
 ## Design assumptions
 
 - The model is built sequentially; no thread safety on construction.
